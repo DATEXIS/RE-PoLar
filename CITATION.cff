@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use this code or data, please cite the paper below."
+title: "Re-PoLar: code and data for \"Programs-of-Layers in LLMs through the Lens of Cortical Areas\""
+type: software
+authors:
+  - family-names: Olbrich
+    given-names: Stephan
+    email: stephan.olbrich@bht-berlin.de
+    affiliation: "Berliner Hochschule für Technik (BHT), Berlin, Germany"
+  - family-names: Westerhoff
+    given-names: Justus
+    affiliation: "Berliner Hochschule für Technik (BHT), Berlin, Germany"
+license: MIT
+preferred-citation:
+  type: unpublished
+  title: "Programs-of-Layers in LLMs through the Lens of Cortical Areas"
+  authors:
+    - family-names: Olbrich
+      given-names: Stephan
+      affiliation: "Berliner Hochschule für Technik (BHT), Berlin, Germany"
+    - family-names: Westerhoff
+      given-names: Justus
+      affiliation: "Berliner Hochschule für Technik (BHT), Berlin, Germany"
+    - family-names: Oraby
+      given-names: Hatem
+      affiliation: "Humboldt-Universität zu Berlin, Berlin, Germany"
+    - family-names: Larkum
+      given-names: Matthew E.
+      affiliation: "Humboldt-Universität zu Berlin, Berlin, Germany"
+    - family-names: Gers
+      given-names: Felix
+      affiliation: "Berliner Hochschule für Technik (BHT), Berlin, Germany"
+  year: 2026
+  notes: "Under review at TMLR (Transactions on Machine Learning Research)."

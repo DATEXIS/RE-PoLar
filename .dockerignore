@@ -1,0 +1,17 @@
+.git/
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.env
+.python-version
+.DS_Store
+
+# local outputs from running the pipeline -- never bake these into the image
+results/
+checkpoints/
+*.ckpt
+*.pt
+
+.pytest_cache/
+.ipynb_checkpoints/

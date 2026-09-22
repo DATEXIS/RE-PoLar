@@ -1,0 +1,17 @@
+torch>=2.0.0
+transformers>=4.45.0
+accelerate>=0.27.0
+numpy>=1.24.0
+tqdm>=4.66.0
+datasets>=2.0.0
+huggingface-hub>=0.21.0
+httpx>=0.27.0  # analysis/error_analysis/llm/client.py -- the error-analysis LLM-judge client
+mathruler  # analysis/error_analysis/prompt_variant_pilot.py -- grades the drllm-protocol
+           # rows of the echo-sweep table exactly as their own source protocol would
+
+# runtime deps of the vendored dart-math answer checker (re_polar/vendor/dart_math)
+sympy>=1.12
+antlr4-python3-runtime==4.11.0  # sympy.parsing.latex's grammar version, must match
+Pebble>=5.0
+
+pytest>=7.0  # tests/

@@ -1,0 +1,4 @@
+data/mcts_results/** filter=lfs diff=lfs merge=lfs -text
+data/menu_crossexec/** filter=lfs diff=lfs merge=lfs -text
+data/router_checkpoints/**/*.pt filter=lfs diff=lfs merge=lfs -text
+data/generated_answers/** filter=lfs diff=lfs merge=lfs -text

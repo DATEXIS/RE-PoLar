@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.env
+.python-version
+.DS_Store
+
+# local run outputs
+/results/
+/checkpoints/
+*.ckpt
+/*.pt
+
+# reconstructed locally, see data/DATA.md
+/data/dart_math/
+/data/mcts_results_full/
+
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Local progress/prompt logs, never committed (see CLAUDE.md).
+docs/
