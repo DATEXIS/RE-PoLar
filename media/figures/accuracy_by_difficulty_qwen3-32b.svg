@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 794.8 615.124" width="2.7818in" height="2.15293in" font-family="-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,system-ui,Roboto,sans-serif">
+  <g transform="translate(-69.32,-41.8)">
+    <svg x="0" y="10" width="900" height="946.54" viewBox="0 0 900 946.54">
+      <line x1="170.20000000000002" x2="833.4" y1="574.431" y2="574.431" stroke="#dce1e9" stroke-width="1.92">
+      </line>
+      <text x="162.20000000000002" y="583.305" fill="#6c7883" font-size="32.68" text-anchor="end">0%</text>
+      <line x1="170.20000000000002" x2="833.4" y1="469.129" y2="469.129" stroke="#dce1e9" stroke-width="1.92">
+      </line>
+      <text x="162.20000000000002" y="478.003" fill="#6c7883" font-size="32.68" text-anchor="end">25%</text>
+      <line x1="170.20000000000002" x2="833.4" y1="363.826" y2="363.826" stroke="#dce1e9" stroke-width="1.92">
+      </line>
+      <text x="162.20000000000002" y="372.7" fill="#6c7883" font-size="32.68" text-anchor="end">50%</text>
+      <line x1="170.20000000000002" x2="833.4" y1="258.524" y2="258.524" stroke="#dce1e9" stroke-width="1.92">
+      </line>
+      <text x="162.20000000000002" y="267.398" fill="#6c7883" font-size="32.68" text-anchor="end">75%</text>
+      <line x1="170.20000000000002" x2="833.4" y1="153.221" y2="153.221" stroke="#dce1e9" stroke-width="1.92">
+      </line>
+      <text x="162.20000000000002" y="162.095" fill="#6c7883" font-size="32.68" text-anchor="end">100%</text>
+      <line x1="170.20000000000002" x2="833.4" y1="574.431" y2="574.431" stroke="#c7cfda" stroke-width="1.92">
+      </line>
+      <text x="170.20000000000002" y="627.674" fill="#6c7883" font-size="32.68" text-anchor="middle">1</text>
+      <text x="336" y="627.674" fill="#6c7883" font-size="32.68" text-anchor="middle">2</text>
+      <text x="667.6" y="627.674" fill="#6c7883" font-size="32.68" text-anchor="middle">4</text>
+      <text x="501.79999999999995" y="627.674" fill="#6c7883" font-size="32.68" text-anchor="middle">3</text>
+      <text x="833.4" y="627.674" fill="#6c7883" font-size="32.68" text-anchor="middle">5</text>
+      <path d="M170.20000000000002,311.386L336,350.348L501.79999999999995,419.847L667.6,501.773L833.4,553.582L833.4,339.186L667.6,219.772L501.79999999999995,196.606L336,173.86L170.20000000000002,167.753Z" fill="#2f7fc4" fill-opacity="0.16" stroke="none">
+      </path>
+      <path d="M170.20000000000002,408.475 L336,419.637 L501.79999999999995,436.696 L667.6,470.393 L833.4,530.204 " fill="none" stroke="#dbe9f6" stroke-width="5.00" stroke-dasharray="null" stroke-linejoin="round" stroke-linecap="round">
+      </path>
+      <circle cx="170.20000000000002" cy="408.475" r="10.58" fill="#dbe9f6">
+      </circle>
+      <circle cx="336" cy="419.637" r="10.58" fill="#dbe9f6">
+      </circle>
+      <circle cx="501.79999999999995" cy="436.696" r="10.58" fill="#dbe9f6">
+      </circle>
+      <circle cx="667.6" cy="470.393" r="10.58" fill="#dbe9f6">
+      </circle>
+      <circle cx="833.4" cy="530.204" r="10.58" fill="#dbe9f6">
+      </circle>
+      <rect x="170.20000000000002" y="51.800000000000004" width="663.1999999999999" height="142.39999999999998" fill="transparent">
+      </rect>
+      <path d="M170.20000000000002,262.946 L336,266.106 L501.79999999999995,310.333 L667.6,360.667 L833.4,463.232 " fill="none" stroke="#b6d3ee" stroke-width="5.00" stroke-dasharray="null" stroke-linejoin="round" stroke-linecap="round">
+      </path>
+      <circle cx="170.20000000000002" cy="262.946" r="10.58" fill="#b6d3ee">
+      </circle>
+      <circle cx="336" cy="266.106" r="10.58" fill="#b6d3ee">
+      </circle>
+      <circle cx="501.79999999999995" cy="310.333" r="10.58" fill="#b6d3ee">
+      </circle>
+      <circle cx="667.6" cy="360.667" r="10.58" fill="#b6d3ee">
+      </circle>
+      <circle cx="833.4" cy="463.232" r="10.58" fill="#b6d3ee">
+      </circle>
+      <rect x="170.20000000000002" y="51.800000000000004" width="663.1999999999999" height="142.39999999999998" fill="transparent">
+      </rect>
+      <path d="M170.20000000000002,192.394 L336,203.135 L501.79999999999995,233.672 L667.6,275.162 L833.4,397.944 " fill="none" stroke="#8ebde6" stroke-width="5.00" stroke-dasharray="null" stroke-linejoin="round" stroke-linecap="round">
+      </path>
+      <circle cx="170.20000000000002" cy="192.394" r="10.58" fill="#8ebde6">
+      </circle>
+      <circle cx="336" cy="203.135" r="10.58" fill="#8ebde6">
+      </circle>
+      <circle cx="501.79999999999995" cy="233.672" r="10.58" fill="#8ebde6">
+      </circle>
+      <circle cx="667.6" cy="275.162" r="10.58" fill="#8ebde6">
+      </circle>
+      <circle cx="833.4" cy="397.944" r="10.58" fill="#8ebde6">
+      </circle>
+      <rect x="170.20000000000002" y="51.800000000000004" width="663.1999999999999" height="142.39999999999998" fill="transparent">
+      </rect>
+      <path d="M170.20000000000002,177.23 L336,188.392 L501.79999999999995,211.138 L667.6,247.151 L833.4,368.249 " fill="none" stroke="#5fa2db" stroke-width="5.00" stroke-dasharray="null" stroke-linejoin="round" stroke-linecap="round">
+      </path>
+      <circle cx="170.20000000000002" cy="177.23" r="10.58" fill="#5fa2db">
+      </circle>
+      <circle cx="336" cy="188.392" r="10.58" fill="#5fa2db">
+      </circle>
+      <circle cx="501.79999999999995" cy="211.138" r="10.58" fill="#5fa2db">
+      </circle>
+      <circle cx="667.6" cy="247.151" r="10.58" fill="#5fa2db">
+      </circle>
+      <circle cx="833.4" cy="368.249" r="10.58" fill="#5fa2db">
+      </circle>
+      <rect x="170.20000000000002" y="51.800000000000004" width="663.1999999999999" height="142.39999999999998" fill="transparent">
+      </rect>
+      <path d="M170.20000000000002,170.701 L336,180.179 L501.79999999999995,201.239 L667.6,229.46 L833.4,349.295 " fill="none" stroke="#2f7fc4" stroke-width="5.00" stroke-dasharray="null" stroke-linejoin="round" stroke-linecap="round">
+      </path>
+      <circle cx="170.20000000000002" cy="170.701" r="10.58" fill="#2f7fc4">
+      </circle>
+      <circle cx="336" cy="180.179" r="10.58" fill="#2f7fc4">
+      </circle>
+      <circle cx="501.79999999999995" cy="201.239" r="10.58" fill="#2f7fc4">
+      </circle>
+      <circle cx="667.6" cy="229.46" r="10.58" fill="#2f7fc4">
+      </circle>
+      <circle cx="833.4" cy="349.295" r="10.58" fill="#2f7fc4">
+      </circle>
+      <rect x="170.20000000000002" y="51.800000000000004" width="663.1999999999999" height="142.39999999999998" fill="transparent">
+      </rect>
+      <path d="M170.20000000000002,167.753 L336,173.86 L501.79999999999995,196.606 L667.6,219.772 L833.4,339.186 " fill="none" stroke="#1c5490" stroke-width="5.00" stroke-dasharray="null" stroke-linejoin="round" stroke-linecap="round">
+      </path>
+      <circle cx="170.20000000000002" cy="167.753" r="10.58" fill="#1c5490">
+      </circle>
+      <circle cx="336" cy="173.86" r="10.58" fill="#1c5490">
+      </circle>
+      <circle cx="501.79999999999995" cy="196.606" r="10.58" fill="#1c5490">
+      </circle>
+      <circle cx="667.6" cy="219.772" r="10.58" fill="#1c5490">
+      </circle>
+      <circle cx="833.4" cy="339.186" r="10.58" fill="#1c5490">
+      </circle>
+      <rect x="170.20000000000002" y="51.800000000000004" width="663.1999999999999" height="142.39999999999998" fill="transparent">
+      </rect>
+    </svg>
+    <path d="M170.20000000000002,311.386 L336,350.348 L501.79999999999995,419.847 L667.6,501.773 L833.4,553.582 " fill="none" stroke="#ff7f0e" stroke-width="5.00" stroke-dasharray="null" stroke-linejoin="round" stroke-linecap="round">
+    </path>
+    <circle cx="170.20000000000002" cy="311.386" r="10.58" fill="#ff7f0e">
+    </circle>
+    <circle cx="336" cy="350.348" r="10.58" fill="#ff7f0e">
+    </circle>
+    <circle cx="501.79999999999995" cy="419.847" r="10.58" fill="#ff7f0e">
+    </circle>
+    <circle cx="667.6" cy="501.773" r="10.58" fill="#ff7f0e">
+    </circle>
+    <circle cx="833.4" cy="553.582" r="10.58" fill="#ff7f0e">
+    </circle>
+    <rect x="170.20000000000002" y="51.800000000000004" width="663.1999999999999" height="142.39999999999998" fill="transparent">
+    </rect>
+  </g>
+</svg>

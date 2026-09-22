@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 419.185 294.142" width="2.53929in" height="1.78182in" font-family="-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,system-ui,Roboto,sans-serif">
+  <g transform="translate(-0,-0)">
+    <g transform="translate(34,0)">
+      <g transform="translate(-137.983,-0)">
+        <svg x="0" y="0" width="520" height="357.542" viewBox="0 0 520 357.542">
+          <line x1="173.118" x2="173.118" y1="24.8522" y2="234.802" stroke="#dce1e9" stroke-width="1.92">
+          </line>
+          <line x1="276.841" x2="276.841" y1="24.8522" y2="234.802" stroke="#dce1e9" stroke-width="1.92">
+          </line>
+          <line x1="380.564" x2="380.564" y1="24.8522" y2="234.802" stroke="#dce1e9" stroke-width="1.92">
+          </line>
+          <line x1="484.288" x2="484.288" y1="24.8522" y2="234.802" stroke="#dce1e9" stroke-width="1.92">
+          </line>
+          <text x="165.11845655504212" y="50.6922" fill="#46535f" font-size="15.83" text-anchor="end">1</text>
+          <rect x="173.118" y="33.2502" width="182.628" height="25.194" rx="3" fill="#0e8f86">
+          </rect>
+          <circle cx="339.062" cy="45.8472" r="6.73" fill="#15202b">
+          </circle>
+          <rect x="173.11845655504212" y="24.8522" width="316.1049289462837" height="41.99" fill="transparent">
+          </rect>
+          <text x="165.11845655504212" y="92.6822" fill="#46535f" font-size="15.83" text-anchor="end">2</text>
+          <rect x="173.118" y="75.2402" width="186.989" height="25.194" rx="3" fill="#0e8f86">
+          </rect>
+          <circle cx="339.062" cy="87.8372" r="6.73" fill="#15202b">
+          </circle>
+          <rect x="173.11845655504212" y="66.8422" width="316.1049289462837" height="41.99" fill="transparent">
+          </rect>
+          <text x="165.11845655504212" y="134.672" fill="#46535f" font-size="15.83" text-anchor="end">3</text>
+          <rect x="173.118" y="117.23" width="200.482" height="25.194" rx="3" fill="#0e8f86">
+          </rect>
+          <circle cx="359.807" cy="129.827" r="6.73" fill="#15202b">
+          </circle>
+          <rect x="173.11845655504212" y="108.832" width="316.1049289462837" height="41.99" fill="transparent">
+          </rect>
+          <text x="165.11845655504212" y="176.662" fill="#46535f" font-size="15.83" text-anchor="end">4</text>
+          <rect x="173.118" y="159.22" width="218.793" height="25.194" rx="3" fill="#0e8f86">
+          </rect>
+          <circle cx="380.551" cy="171.817" r="6.73" fill="#15202b">
+          </circle>
+          <rect x="173.11845655504212" y="150.822" width="316.1049289462837" height="41.99" fill="transparent">
+          </rect>
+          <text x="165.11845655504212" y="218.652" fill="#46535f" font-size="15.83" text-anchor="end">5</text>
+          <rect x="173.118" y="201.21" width="256.734" height="25.194" rx="3" fill="#0e8f86">
+          </rect>
+          <circle cx="401.295" cy="213.807" r="6.73" fill="#15202b">
+          </circle>
+          <rect x="173.11845655504212" y="192.812" width="316.1049289462837" height="41.99" fill="transparent">
+          </rect>
+          <text x="173.118" y="260.642" fill="#6c7883" font-size="13.57" text-anchor="middle">50</text>
+          <text x="276.841" y="260.642" fill="#6c7883" font-size="13.57" text-anchor="middle">55</text>
+          <text x="380.564" y="260.642" fill="#6c7883" font-size="13.57" text-anchor="middle">60</text>
+          <text x="484.288" y="260.642" fill="#6c7883" font-size="13.57" text-anchor="middle">65</text>
+          <line x1="463.529" x2="463.529" y1="24.8522" y2="234.802" stroke="#cc5169" stroke-width="3.08" stroke-dasharray="5,4">
+          </line>
+          <text x="463.529" y="21.6222" fill="#cc5169" font-size="13.57" text-anchor="middle">identity</text>
+        </svg>
+        <text x="328.703" y="280.642" fill="#46535f" font-size="14" text-anchor="middle">Layer</text>
+      </g>
+    </g>
+    <text x="17" y="129.827" fill="#46535f" font-size="14" text-anchor="middle" transform="rotate(-90 17 129.827)">DM</text>
+  </g>
+</svg>

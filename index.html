@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RE-PoLar: Programs-of-Layers in LLMs through the Lens of Cortical Areas</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <header class="header">
+        <div class="container">
+            <p class="wip-banner">🚧 Work in progress &mdash; paper under review, links below are placeholders</p>
+
+            <h1>Programs-of-Layers in LLMs through the Lens of Cortical Areas</h1>
+
+            <div class="authors">
+                <p class="header-label">Authors</p>
+                <p>
+                    <a href="https://www.linkedin.com/in/justus-westerhoff/">Justus Westerhoff</a><sup>*,1</sup>,
+                    <a href="https://www.linkedin.com/in/stephan-olbrich/">Stephan Olbrich</a><sup>*,1</sup>,
+                    <a href="https://www.projekte.hu-berlin.de/de/larkum-de/people/about-us-1">Hatem
+                        Oraby</a><sup>2</sup>,
+                    <a href="https://www.projekte.hu-berlin.de/en/larkum/people/matthew-larkum-en">Matthew Evan
+                        Larkum</a><sup>2</sup>,
+                    <a href="https://prof.bht-berlin.de/gers">Felix Gers</a><sup>1</sup>
+                </p>
+                <p class="affiliations contact">
+                    <a href="mailto:justus.westerhoff@bht-berlin.de">justus.westerhoff@bht-berlin.de</a>,
+                    <a href="mailto:stephan.olbrich@bht-berlin.de">stephan.olbrich@bht-berlin.de</a>
+                </p>
+                <p class="header-label">Affiliations</p>
+                <p class="affiliations">
+                    <sup>1</sup>Berliner Hochschule f&uuml;r Technik (BHT), <sup>2</sup>Humboldt-Universit&auml;t zu
+                    Berlin<br>
+                    Berlin, Germany
+                </p>
+                <p class="affiliations shared-authorship">*shared first authorship, random order</p>
+            </div>
+
+            <div class="links">
+                <a href="https://arxiv.org" class="button" target="_blank" rel="noopener noreferrer">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        style="vertical-align: text-bottom; margin-right: 5px;">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    Paper (arXiv soon)
+                </a>
+                <a href="https://github.com/DATEXIS/RE-PoLar" class="button" target="_blank" rel="noopener noreferrer">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        style="vertical-align: text-bottom; margin-right: 5px;">
+                        <path
+                            d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22">
+                        </path>
+                    </svg>
+                    Code
+                </a>
+                <a href="media/RE-PoLar-poster.pdf" class="button" target="_blank" rel="noopener noreferrer">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        style="vertical-align: text-bottom; margin-right: 5px;">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="9" y1="13" x2="15" y2="13"></line>
+                        <line x1="9" y1="17" x2="15" y2="17"></line>
+                    </svg>
+                    Poster
+                </a>
+            </div>
+
+            <p class="tldr-box"><strong>TL;DR:</strong> We reproduce and extend
+                <a href="https://arxiv.org/abs/2606.06574" target="_blank" rel="noopener noreferrer">PoLar</a>
+                [ICML 2026 Oral], which lets LLMs dynamically skip or repeat transformer layers per input instead
+                of running their fixed forward pass. We confirm its core findings across 5 models, but find its
+                learned single-shot router
+                always collapses back to the standard pass, and use a deeper analysis of the resulting layer
+                &ldquo;programs&rdquo; to connect this routing to thalamo-cortical coordination in the brain.
+            </p>
+        </div>
+    </header>
+
+    <section class="figure">
+        <div class="container">
+            <video class="figure-media" src="media/fig1.mp4" autoplay loop muted playsinline></video>
+            <p class="figure-caption"><strong>Figure 1.</strong> A program-of-layers (PoLar), predicted by a lightweight
+                router,
+                executes a schedule of <em class="kw-skip">skip</em>, <em class="kw-keep">keep</em>, and
+                <em class="kw-repeat">repeat</em> operations over frozen,
+                pretrained transformer layers (left). We read this coordinating role as functionally analogous to
+                the thalamus routing computation across cortical areas (right). A transformer&rsquo;s layer order is
+                fixed only by training, not by necessity: a model trained to run its layers in order can nonetheless
+                be usefully executed out of that order at inference time, a flexibility the brain already has by
+                default.</p>
+        </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <section class="abstract">
+        <div class="container">
+            <h2 class="section-heading">Abstract</h2>
+            <details class="abstract-details">
+                <summary>
+                    <span class="abstract-preview">Inference in LLMs is conventionally a fixed-depth, fixed-order
+                        forward pass through every layer, regardless of how difficult the input is. The human brain
+                        does not work this way: using the thalamus as a central hub, it routes information flexibly
+                        to all regions of the cortex according to demand.<span class="toggle-arrow"></span></span>
+                </summary>
+                <div class="abstract-rest">
+                    <p>
+                        <a href="https://openreview.net/forum?id=pl10b6EQAN" target="_blank"
+                            rel="noopener noreferrer">Li et al. (2026)</a> recently showed, with a system they call
+                        PoLar, that transformers can be given an analogous flexibility if their layers are treated
+                        as a library of functions rather than a fixed sequence. Performance improves over the
+                        standard forward pass when each input is dynamically routed through an adaptive sequence of
+                        skipped or repeated contiguous layer blocks.
+                    </p>
+                    <p>We reconstructed PoLar&rsquo;s diagnostic MCTS in more detail than the original paper and
+                        applied it across 5 models. We reproduced several of PoLar&rsquo;s findings: skipping
+                        outperformed the standard pass, repeating outperformed skipping, and combining both
+                        outperformed either alone. Shorter programs sufficed for easier questions, while harder
+                        questions required more layer repeats. However, we failed to replicate the main claim
+                        regarding their learned router for single-shot inference: its top-ranked prediction
+                        consistently collapsed back to the standard pass, even though its top-<em>k</em> predicted
+                        programs, taken together, did show a real accuracy gain.</p>
+                    <p>Beyond reproduction, we find that a small number of generic programs are enough to solve most
+                        of the questions. We also provide a much deeper analysis of these programs&rsquo; structure
+                        and robustness: for example, we found that programs that correct errors are highly brittle
+                        &mdash; undoing even a single edit inside a program typically breaks the correction.
+                        Connecting this to the brain&rsquo;s routing mechanisms, PoLar mirrors principles of
+                        thalamo-cortical coordination between cortical-area-like transformer layers. We publicly
+                        release the dataset and code (links above).</p>
+                </div>
+            </details>
+        </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <section class="citation">
+        <div class="container">
+            <h2 class="section-heading">Citation</h2>
+            <div class="citation-box">
+                <pre id="citation-text">@article{westerhoff2026repolar,
+      title={Programs-of-Layers in LLMs through the Lens of Cortical Areas},
+      author={Westerhoff, Justus and Olbrich, Stephan and Oraby, Hatem and Larkum, Matthew Evan and Gers, Felix},
+      journal={arXiv preprint arXiv:TODO},
+      year={2026},
+      note={Preprint / under review -- citation details not yet final}
+}</pre>
+                <button id="copy-citation" class="button">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        style="vertical-align: text-bottom; margin-right: 5px;">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Copy
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <section class="acknowledgement">
+        <div class="container">
+            <p class="ack-funding">Our work is funded by the Federal Ministry of Research, Technology and Space
+                under grant number 01GQ2505A and by the Deutsche Forschungsgemeinschaft (DFG, German Research
+                Foundation) &ndash; FIP-12 &ndash; Project-ID 528483508. Responsibility for the content of this
+                publication lies with the author.</p>
+            <div class="funding-logo-row">
+                <img class="logo-img" src="media/logos/logo_bmftr.png"
+                    alt="Federal Ministry of Research, Technology and Space (BMFTR)">
+                <img class="logo-img" src="media/logos/logo_dfg.png" alt="Deutsche Forschungsgemeinschaft (DFG)">
+            </div>
+            <p>This page&rsquo;s template is inspired by the
+                <a href="https://bliss-e-v.github.io/SCAM-project-page/" target="_blank"
+                    rel="noopener noreferrer">SCAM</a>,
+                <a href="https://datexis.github.io/SynthMT-project-page/" target="_blank"
+                    rel="noopener noreferrer">SynthMT</a>, and
+                <a href="https://hufe.info/dyslexify/" target="_blank" rel="noopener noreferrer">Dyslexify</a>
+                project pages.</p>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="logo-row">
+                <img class="logo-img" src="media/logos/logo_applfm.svg"
+                    alt="Initiative for Applied Foundation Model Research">
+                <img class="logo-img" src="media/logos/logo_niki.png" alt="NI:KI Initiative">
+                <img class="logo-img" src="media/logos/logo_swambit.svg" alt="SWAMBIT">
+                <img class="logo-img" src="media/logos/logo_bht.svg" alt="Berliner Hochschule f&uuml;r Technik">
+                <img class="logo-img" src="media/logos/logo_hu.svg" alt="Humboldt-Universit&auml;t zu Berlin">
+            </div>
+            <p>&copy; 2026 Justus Westerhoff, Stephan Olbrich, Berliner Hochschule f&uuml;r Technik (BHT)</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

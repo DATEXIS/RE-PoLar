@@ -1,0 +1,12 @@
+# Python virtualenv, never committed.
+.venv/
+
+# Manim's render cache and partial movie files.
+sim/media/
+__pycache__/
+
+.DS_Store
+
+# Read-only third-party reference material, never committed (see CLAUDE.md).
+external_resources/
+docs/

@@ -1,0 +1,453 @@
+/* Base Styles */
+:root {
+    /* Primary colors (red) */
+    --primary: #c62828;
+    --primary-light: #e57373;
+    --primary-dark: #8e0000;
+    --secondary: #ff6d00;
+
+    /* Text colors */
+    --text-dark: #333;
+    --text-light: #666;
+
+    /* Background colors */
+    --background: #fff;
+    --background-alt: #f7f5f5;
+    --border: #ddd;
+
+    /* Semantic colors */
+    --warning: #ff9800;
+    --warning-dark: #e65100;
+
+    /* Common properties */
+    --box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: var(--text-dark);
+    background-color: var(--background);
+}
+
+.container {
+    width: 90%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Typography */
+h1,
+h2 {
+    margin-bottom: 1rem;
+    line-height: 1.3;
+    text-align: center;
+}
+
+p {
+    margin-bottom: 1rem;
+}
+
+a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Buttons */
+.button {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: var(--primary);
+    color: white;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background-color 0.3s ease;
+}
+
+.button:hover {
+    background-color: var(--primary-dark);
+    text-decoration: none;
+}
+
+/* Header */
+.header {
+    background-color: var(--background-alt);
+    padding: 50px 0;
+    text-align: center;
+}
+
+.wip-banner {
+    display: inline-block;
+    margin: 0 auto 1.5rem;
+    padding: 8px 20px;
+    background-color: var(--warning);
+    color: #402400;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.header h1 {
+    font-size: 2.4rem;
+    max-width: 900px;
+    margin: 0 auto 1.5rem;
+    color: var(--primary-dark);
+}
+
+.header sup {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    margin-left: 0.2rem;
+}
+
+.header-label {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    margin-bottom: 0.5rem;
+}
+
+.authors {
+    margin-bottom: 1.5rem;
+    font-size: 1.1rem;
+}
+
+.affiliations {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    margin-top: 0.5rem;
+    line-height: 1.4;
+}
+
+.shared-authorship {
+    font-size: 0.75rem;
+}
+
+.links {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+/* TL;DR box -- same translucent-card treatment as hufe.info/dyslexify's
+   TL;DR (rgba(255,255,255,0.4) over its purple hero, subtle tinted border),
+   just swapped to this page's red accent. */
+.tldr-box {
+    max-width: 560px;
+    margin: 24px auto 0;
+    padding: 14px 20px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(198, 40, 40, 0.35);
+    border-radius: 6px;
+    font-size: 0.93rem;
+    line-height: 1.5;
+    text-align: left;
+}
+
+.tldr-box strong {
+    color: var(--primary-dark);
+}
+
+/* Figure Section */
+.figure {
+    padding: 0 0 10px;
+    background-color: var(--background);
+}
+
+.figure .container {
+    padding-top: 0;
+}
+
+.figure-media {
+    display: block;
+    max-width: 700px;
+    width: 100%;
+    margin: 0 auto;
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+}
+
+.figure-caption {
+    max-width: 800px;
+    margin: 1rem auto 0;
+    font-size: 0.85rem;
+    color: var(--text-light);
+    text-align: left;
+}
+
+/* Matches the legend swatches in fig1: keep = magenta bar, repeat = green bar,
+   skip = dashed/hollow outline. */
+.figure-caption .kw-skip {
+    color: var(--text-dark);
+    border-bottom: 1px dashed var(--text-dark);
+}
+
+.figure-caption .kw-keep {
+    color: #c026d3;
+    font-weight: 600;
+}
+
+.figure-caption .kw-repeat {
+    color: #16a34a;
+    font-weight: 600;
+}
+
+/* Section titles -- adapted from hufe.info/dyslexify's h2.section-heading /
+   hr.section-divider pattern (left-aligned, underlined heading + a thin
+   divider between sections), swapped to this page's red accent. */
+hr.section-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.section-heading {
+    display: inline-block;
+    text-align: left;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--primary-dark);
+    margin: 0 0 1rem;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--primary-light);
+}
+
+/* Narrow these sections' containers to match the 800px-wide text columns
+   inside them, so the left-aligned section heading lines up with the text. */
+.abstract .container,
+.citation .container,
+.acknowledgement .container,
+footer .container {
+    max-width: 840px;
+}
+
+/* Abstract Section */
+.abstract {
+    padding: 40px 0 50px;
+    background-color: var(--background-alt);
+}
+
+.abstract-details summary {
+    cursor: pointer;
+    list-style: none;
+}
+
+.abstract-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.abstract-preview {
+    display: block;
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: justify;
+}
+
+.toggle-arrow {
+    display: inline-block;
+    margin-left: 0.3rem;
+    color: var(--primary);
+    font-size: 0.75em;
+}
+
+.toggle-arrow::before {
+    content: "\25B8 show more";
+}
+
+.abstract-details[open] .toggle-arrow::before {
+    content: "\25BE show less";
+}
+
+.abstract-rest p {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 1rem;
+    text-align: justify;
+}
+
+.abstract-rest p:first-of-type {
+    margin-top: 1.5rem;
+}
+
+/* Citation Section */
+.citation {
+    padding: 50px 0;
+    background-color: var(--background);
+}
+
+.citation-box {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: var(--background-alt);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: var(--box-shadow);
+    position: relative;
+}
+
+.citation-box pre {
+    background-color: #f0f0f0;
+    padding: 20px;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    margin-bottom: 0;
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+
+.citation-box button {
+    position: absolute;
+    top: 25px;
+    right: 25px;
+    background-color: #808080;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.citation-box button:hover {
+    background-color: #666666;
+}
+
+/* Logos -- adapted from SynthMT's .logos/.logo-row pattern; lives in the
+   footer now, above the copyright line.
+   Grid instead of flex: a fixed column count guarantees exactly one row on
+   desktop no matter how wide any individual logo's native aspect ratio is
+   (columns shrink to fit), and the mobile breakpoint below switches to
+   fewer, larger columns instead of cramming/wrapping oddly. */
+.logo-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    align-items: center;
+    gap: 16px;
+}
+
+.logo-img {
+    width: 100%;
+    height: auto;
+    max-height: 90px;
+    object-fit: contain;
+    justify-self: center;
+}
+
+/* Acknowledgement & Funding -- adapted from SynthMT's .acknowledgement /
+   .ack-funding pattern. */
+.acknowledgement {
+    padding: 30px 0 20px;
+    background-color: var(--background);
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+
+.acknowledgement p:last-child {
+    margin-bottom: 0;
+}
+
+.ack-funding {
+    max-width: 800px;
+    margin: 0 auto 0.5rem;
+    font-weight: 500;
+}
+
+.funding-logo-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 220px));
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    margin: 0 auto 1rem;
+}
+
+.funding-logo-row .logo-img {
+    max-height: 100px;
+}
+
+/* Footer */
+footer {
+    padding: 30px 0;
+    text-align: center;
+    background-color: var(--background-alt);
+    color: var(--text-light);
+}
+
+footer .logo-row {
+    margin-bottom: 24px;
+}
+
+footer p {
+    margin-bottom: 0;
+    font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .header h1 {
+        font-size: 1.8rem;
+    }
+
+    .citation-box {
+        word-break: break-all;
+    }
+
+    .citation-box button {
+        position: static;
+        display: block;
+        margin: 15px auto 0;
+    }
+
+    .logo-row {
+        grid-template-columns: repeat(2, 1fr);
+        row-gap: 24px;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 16px;
+    }
+
+    .header {
+        padding: 36px 0;
+    }
+
+    .header h1 {
+        font-size: 1.5rem;
+    }
+
+    .authors {
+        font-size: 1rem;
+    }
+
+    .tldr-box {
+        font-size: 0.88rem;
+        padding: 12px 16px;
+    }
+
+    .links {
+        gap: 12px;
+    }
+
+    .button {
+        padding: 9px 14px;
+        font-size: 0.9rem;
+    }
+}
