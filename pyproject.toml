@@ -6,3 +6,12 @@ extend-exclude = '''
   | ^/re_polar/vendor/dart_math/
 )
 '''
+# extend-exclude only applies when black walks a directory (e.g. `black .`);
+# the PostToolUse hook invokes black on an explicit file path, which bypasses
+# extend-exclude entirely, so force-exclude is needed to cover that case too.
+force-exclude = '''
+(
+    ^/\.claude/worktrees/
+  | ^/re_polar/vendor/dart_math/
+)
+'''

@@ -14,6 +14,12 @@ or `prestudy.`) from the repository root, there is no package install
 step, so always use `-m`, never `python path/to/file.py` directly (the
 latter doesn't put the repo root on `sys.path`).
 
+## Formatting
+
+Code is formatted with `black` (line-length=100, config in `pyproject.toml`).
+`re_polar/vendor/dart_math/` is excluded (third-party, kept diffable
+against upstream).
+
 ## Layout
 
 Everything lives under the single `re_polar/` package.
