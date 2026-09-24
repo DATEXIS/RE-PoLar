@@ -32,6 +32,7 @@ confirm/refute check per this repo's own Findings F1-F4 (which mirror
 PoLar's own diagnostic Findings 1-4), computed from the same underlying
 data as the functions above.
 """
+
 from collections import Counter, defaultdict
 from typing import Dict, List, Optional, Tuple
 
@@ -70,14 +71,19 @@ def compute_skip_loop_accuracy(groups: Dict[str, List[dict]], num_layers: int) -
         base_pct = base_n / n * 100 if n else 0.0
         skiploop_pct = full_n / n * 100 if n else 0.0
         out[g] = {
-            "n": n, "base": base_pct, "skip": skip_n / n * 100 if n else 0.0,
-            "loop": loop_n / n * 100 if n else 0.0, "skiploop": skiploop_pct,
+            "n": n,
+            "base": base_pct,
+            "skip": skip_n / n * 100 if n else 0.0,
+            "loop": loop_n / n * 100 if n else 0.0,
+            "skiploop": skiploop_pct,
             "gain": skiploop_pct - base_pct,
         }
     return out
 
 
-def compute_accuracy_by_depth_budget(groups: Dict[str, List[dict]], num_layers: int) -> Dict[str, dict]:
+def compute_accuracy_by_depth_budget(
+    groups: Dict[str, List[dict]], num_layers: int
+) -> Dict[str, dict]:
     """Accuracy vs. depth budget (fraction of questions solvable by SOME
     candidate -- identity or a found program -- with length <= budget% * D).
     Budget is a MAXIMUM (an inequality)."""
@@ -95,7 +101,9 @@ def compute_accuracy_by_depth_budget(groups: Dict[str, List[dict]], num_layers: 
             limit = b / 100 * num_layers
             cnt = sum(1 for L in best_lens if L is not None and L <= limit)
             curve.append(cnt / n if n else 0.0)
-        base_acc = sum(1 for s in samples if s.get("initial_transition_metric") == 1.0) / n if n else 0.0
+        base_acc = (
+            sum(1 for s in samples if s.get("initial_transition_metric") == 1.0) / n if n else 0.0
+        )
         out[g] = {"budgets": DEPTH_BUDGETS_PCT, "accuracy": curve, "base_accuracy": base_acc}
     return out
 
@@ -115,21 +123,30 @@ def compute_mean_executed_depth(groups: Dict[str, List[dict]], num_layers: int) 
             if base_ok:
                 cands = [id_path] + valid
                 rep = shortest_valid(cands, num_layers)
-                cc_len.append(len(rep)); cc_uniq.append(len(set(rep)))
+                cc_len.append(len(rep))
+                cc_uniq.append(len(set(rep)))
             elif valid:
                 rep = shortest_valid(valid, num_layers)
-                wc_len.append(len(rep)); wc_uniq.append(len(set(rep)))
+                wc_len.append(len(rep))
+                wc_uniq.append(len(set(rep)))
+
         def _mean_pct(xs):
             return (sum(xs) / len(xs) / num_layers * 100) if xs else None
+
         out[g] = {
-            "cc_depth_pct": _mean_pct(cc_len), "cc_unique_pct": _mean_pct(cc_uniq), "n_cc": len(cc_len),
-            "wc_depth_pct": _mean_pct(wc_len), "wc_unique_pct": _mean_pct(wc_uniq), "n_wc": len(wc_len),
+            "cc_depth_pct": _mean_pct(cc_len),
+            "cc_unique_pct": _mean_pct(cc_uniq),
+            "n_cc": len(cc_len),
+            "wc_depth_pct": _mean_pct(wc_len),
+            "wc_unique_pct": _mean_pct(wc_uniq),
+            "n_wc": len(wc_len),
         }
     return out
 
 
-def compute_valid_coverage_by_recurrence_budget(groups: Dict[str, List[dict]], num_layers: int,
-                                                 max_r: int = 8) -> dict:
+def compute_valid_coverage_by_recurrence_budget(
+    groups: Dict[str, List[dict]], num_layers: int, max_r: int = 8
+) -> dict:
     """P(a valid program exists) vs. max additional latent execution steps
     via recurrence: budget r = NET extra executed layers relative to the
     model depth D, i.e. max(0, len(path) - D) -- NOT len(path)-len(set(path))
@@ -158,7 +175,9 @@ def compute_valid_coverage_by_recurrence_budget(groups: Dict[str, List[dict]], n
     return {"budgets": list(range(0, max_r + 1)), "p_valid": curve, "n": n}
 
 
-def compute_recurrence_and_skip_requirement(groups: Dict[str, List[dict]], num_layers: int) -> Dict[str, dict]:
+def compute_recurrence_and_skip_requirement(
+    groups: Dict[str, List[dict]], num_layers: int
+) -> Dict[str, dict]:
     """P(require recurrence) / P(require skip), per difficulty. Settled
     definition: of every question SOLVABLE at all (base_ok OR >=1 valid
     program -- matches PoLar's own y-axis label "P(require | solvable)"),
@@ -190,8 +209,13 @@ def compute_recurrence_and_skip_requirement(groups: Dict[str, List[dict]], num_l
     return out
 
 
-def compute_accuracy_by_executed_depth(groups: Dict[str, List[dict]], num_layers: int, n_buckets: int = 16,
-                                        lo_pct: float = 50.0, hi_pct: float = 140.0) -> Dict[str, list]:
+def compute_accuracy_by_executed_depth(
+    groups: Dict[str, List[dict]],
+    num_layers: int,
+    n_buckets: int = 16,
+    lo_pct: float = 50.0,
+    hi_pct: float = 140.0,
+) -> Dict[str, list]:
     """Accuracy vs. total executed depth (% of D), bucketed. "Average
     accuracy" = pooled over ALL attempted programs (valid AND invalid, not
     just valid ones -- a single valid program's own "accuracy" is trivially
@@ -214,12 +238,16 @@ def compute_accuracy_by_executed_depth(groups: Dict[str, List[dict]], num_layers
             tot = v + iv
             if tot == 0 or b < 0 or b >= n_buckets:
                 continue
-            points.append({"depth_pct": lo_pct + (b + 0.5) * bucket_w, "accuracy": v / tot, "n": tot})
+            points.append(
+                {"depth_pct": lo_pct + (b + 0.5) * bucket_w, "accuracy": v / tot, "n": tot}
+            )
         out[g] = points
     return out
 
 
-def compute_segment_length_distribution(groups: Dict[str, List[dict]], num_layers: int, max_span: int = 4) -> dict:
+def compute_segment_length_distribution(
+    groups: Dict[str, List[dict]], num_layers: int, max_span: int = 4
+) -> dict:
     """Segment-length histogram, over the shortest-valid representative
     program per solved question, pooled across all difficulties --
     DIAGONAL-ONLY (row==col). Off-diagonal (row < col, "gappy"/fragmented)
@@ -253,14 +281,16 @@ def compute_segment_length_distribution(groups: Dict[str, List[dict]], num_layer
                 counts[length] += 1
                 total += 1
     lengths = list(range(1, max_span + 1))
-    matrix = [[(counts.get(row, 0) / total if total else 0.0) if col == row else None for col in lengths]
-              for row in lengths]
-    return {
-        str(k): (counts.get(k, 0) / total if total else 0.0) for k in lengths
-    } | {
+    matrix = [
+        [(counts.get(row, 0) / total if total else 0.0) if col == row else None for col in lengths]
+        for row in lengths
+    ]
+    return {str(k): (counts.get(k, 0) / total if total else 0.0) for k in lengths} | {
         "n": total,
         "le2_pct": ((counts.get(1, 0) + counts.get(2, 0)) / total * 100) if total else 0.0,
-        "matrix": matrix, "row_labels": [str(v) for v in lengths], "col_labels": [str(v) for v in lengths],
+        "matrix": matrix,
+        "row_labels": [str(v) for v in lengths],
+        "col_labels": [str(v) for v in lengths],
     }
 
 
@@ -278,15 +308,22 @@ def compute_segment_recurrence_distribution(groups: Dict[str, List[dict]], num_l
                 continue
             rep = shortest_valid(valid, num_layers)
             prog = decode(rep, num_layers)
-            max_times = max([seg.times - 1 for seg in prog.segments if seg.op.value == "repeat"], default=0)
+            max_times = max(
+                [seg.times - 1 for seg in prog.segments if seg.op.value == "repeat"], default=0
+            )
             counts[min(max_times, 2)] += 1
             total += 1
-    return {"0": counts.get(0, 0) / total if total else 0.0,
-            "1": counts.get(1, 0) / total if total else 0.0,
-            "2": counts.get(2, 0) / total if total else 0.0, "n": total}
+    return {
+        "0": counts.get(0, 0) / total if total else 0.0,
+        "1": counts.get(1, 0) / total if total else 0.0,
+        "2": counts.get(2, 0) / total if total else 0.0,
+        "n": total,
+    }
 
 
-def _shorter_fraction(groups: Dict[str, List[dict]], num_layers: int, want_cc: bool) -> Optional[float]:
+def _shorter_fraction(
+    groups: Dict[str, List[dict]], num_layers: int, want_cc: bool
+) -> Optional[float]:
     """Fraction of C→C (want_cc=True) or W→C (want_cc=False) samples whose
     shortest-valid representative program executes STRICTLY FEWER than D
     layers -- the exact per-question metric PoLar's own Finding 2 text
@@ -334,41 +371,61 @@ def compute_findings(groups: Dict[str, List[dict]], num_layers: int) -> dict:
     # F1: loop > skip, skiploop >= both, per difficulty.
     diffs = sorted(skip_loop, key=_diff_sort_key)
     loop_beats_skip = sum(1 for g in diffs if skip_loop[g]["loop"] > skip_loop[g]["skip"])
-    combined_best = sum(1 for g in diffs
-                         if skip_loop[g]["skiploop"] >= max(skip_loop[g]["skip"], skip_loop[g]["loop"]))
-    f1_note = (f"loop>skip in {loop_beats_skip}/{len(diffs)} difficulties, "
-               f"Skip&Loop best-or-tied in {combined_best}/{len(diffs)}")
+    combined_best = sum(
+        1
+        for g in diffs
+        if skip_loop[g]["skiploop"] >= max(skip_loop[g]["skip"], skip_loop[g]["loop"])
+    )
+    f1_note = (
+        f"loop>skip in {loop_beats_skip}/{len(diffs)} difficulties, "
+        f"Skip&Loop best-or-tied in {combined_best}/{len(diffs)}"
+    )
 
     # F2 ("Occam's razor"): fraction of C->C / W->C admitting a strictly shorter program.
     cc_frac = _shorter_fraction(groups, num_layers, want_cc=True)
     wc_frac = _shorter_fraction(groups, num_layers, want_cc=False)
-    f2_note = (f"C->C: {cc_frac * 100:.1f}% admit a shorter program (PoLar: 75.5%)"
-               if cc_frac is not None else "C->C: no data") + " / " + (
-        f"W->C: {wc_frac * 100:.1f}% admit a shorter program (PoLar: 36.2%)"
-        if wc_frac is not None else "W->C: no data")
+    f2_note = (
+        (
+            f"C->C: {cc_frac * 100:.1f}% admit a shorter program (PoLar: 75.5%)"
+            if cc_frac is not None
+            else "C->C: no data"
+        )
+        + " / "
+        + (
+            f"W->C: {wc_frac * 100:.1f}% admit a shorter program (PoLar: 36.2%)"
+            if wc_frac is not None
+            else "W->C: no data"
+        )
+    )
 
     # F3: p_valid monotonic non-decreasing in recurrence budget; require-recurrence/skip
     # trending up from the easiest to the hardest difficulty.
     p_valid = recurrence_coverage["p_valid"]
     monotonic = all(p_valid[i] <= p_valid[i + 1] + 1e-9 for i in range(len(p_valid) - 1))
     easiest, hardest = diffs[0], diffs[-1]
-    rec_up = ((recurrence_req.get(hardest, {}).get("p_require_recurrence") or 0)
-              >= (recurrence_req.get(easiest, {}).get("p_require_recurrence") or 0))
-    skip_up = ((recurrence_req.get(hardest, {}).get("p_require_skip") or 0)
-               >= (recurrence_req.get(easiest, {}).get("p_require_skip") or 0))
-    f3_note = (f"P(valid) monotonic in recurrence budget: {monotonic}; "
-               f"require-recurrence DM-{easiest}->DM-{hardest}: "
-               f"{(recurrence_req.get(easiest, {}).get('p_require_recurrence') or 0) * 100:.1f}%->"
-               f"{(recurrence_req.get(hardest, {}).get('p_require_recurrence') or 0) * 100:.1f}% "
-               f"({'up' if rec_up else 'down'}); require-skip "
-               f"{(recurrence_req.get(easiest, {}).get('p_require_skip') or 0) * 100:.1f}%->"
-               f"{(recurrence_req.get(hardest, {}).get('p_require_skip') or 0) * 100:.1f}% "
-               f"({'up' if skip_up else 'down'})")
+    rec_up = (recurrence_req.get(hardest, {}).get("p_require_recurrence") or 0) >= (
+        recurrence_req.get(easiest, {}).get("p_require_recurrence") or 0
+    )
+    skip_up = (recurrence_req.get(hardest, {}).get("p_require_skip") or 0) >= (
+        recurrence_req.get(easiest, {}).get("p_require_skip") or 0
+    )
+    f3_note = (
+        f"P(valid) monotonic in recurrence budget: {monotonic}; "
+        f"require-recurrence DM-{easiest}->DM-{hardest}: "
+        f"{(recurrence_req.get(easiest, {}).get('p_require_recurrence') or 0) * 100:.1f}%->"
+        f"{(recurrence_req.get(hardest, {}).get('p_require_recurrence') or 0) * 100:.1f}% "
+        f"({'up' if rec_up else 'down'}); require-skip "
+        f"{(recurrence_req.get(easiest, {}).get('p_require_skip') or 0) * 100:.1f}%->"
+        f"{(recurrence_req.get(hardest, {}).get('p_require_skip') or 0) * 100:.1f}% "
+        f"({'up' if skip_up else 'down'})"
+    )
 
     # F4: len-1 dominant, len<=2 majority, at most-one-recurrence dominant.
     at_most_one_rep = seg_rec["0"] + seg_rec["1"]
-    f4_note = (f"len-1: {seg_len['1'] * 100:.1f}% (PoLar: 54.5%); len<=2: {seg_len['le2_pct']:.1f}% "
-               f"(PoLar: >66.7%); at-most-one-recurrence: {at_most_one_rep * 100:.1f}%")
+    f4_note = (
+        f"len-1: {seg_len['1'] * 100:.1f}% (PoLar: 54.5%); len<=2: {seg_len['le2_pct']:.1f}% "
+        f"(PoLar: >66.7%); at-most-one-recurrence: {at_most_one_rep * 100:.1f}%"
+    )
 
     # Verdicts -- confirmed / partial / not_confirmed, one per finding.
     ratio1 = loop_beats_skip / len(diffs) if diffs else 0
@@ -406,10 +463,26 @@ def compute_findings(groups: Dict[str, List[dict]], num_layers: int) -> dict:
         v4 = "not_confirmed"
 
     return {
-        "1": {"loop_beats_skip": loop_beats_skip, "n": len(diffs), "combined_best": combined_best,
-              "note": f1_note, "verdict": v1},
+        "1": {
+            "loop_beats_skip": loop_beats_skip,
+            "n": len(diffs),
+            "combined_best": combined_best,
+            "note": f1_note,
+            "verdict": v1,
+        },
         "2": {"cc_frac": cc_frac, "wc_frac": wc_frac, "note": f2_note, "verdict": v2},
-        "3": {"monotonic": monotonic, "rec_up": rec_up, "skip_up": skip_up, "note": f3_note, "verdict": v3},
-        "4": {"len1_pct": seg_len["1"] * 100, "le2_pct": seg_len["le2_pct"],
-              "at_most_one_rep": at_most_one_rep * 100, "note": f4_note, "verdict": v4},
+        "3": {
+            "monotonic": monotonic,
+            "rec_up": rec_up,
+            "skip_up": skip_up,
+            "note": f3_note,
+            "verdict": v3,
+        },
+        "4": {
+            "len1_pct": seg_len["1"] * 100,
+            "le2_pct": seg_len["le2_pct"],
+            "at_most_one_rep": at_most_one_rep * 100,
+            "note": f4_note,
+            "verdict": v4,
+        },
     }

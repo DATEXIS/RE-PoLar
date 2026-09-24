@@ -176,8 +176,8 @@ def program_from_layer_path(
 
     count = Counter(path)  # count[l] == op multiplicity of layer l
     segments: List[Segment] = []
-    pos = 0          # index into path (entries consumed so far)
-    layer = 0        # next layer index needing a segment
+    pos = 0  # index into path (entries consumed so far)
+    layer = 0  # next layer index needing a segment
     while layer < num_layers:
         mult = count.get(layer, 0)
         if mult == 0:
@@ -198,8 +198,10 @@ def program_from_layer_path(
             ):
                 k += 1
             expected = list(range(layer, layer + k))
-            if path[pos:pos + k] != expected:
-                raise ValueError(f"cannot parse KEEP at layer {layer}: {path[pos:pos + k]} != {expected}")
+            if path[pos : pos + k] != expected:
+                raise ValueError(
+                    f"cannot parse KEEP at layer {layer}: {path[pos:pos + k]} != {expected}"
+                )
             segments.append(Segment(layer, layer + k, Op.KEEP))
             pos += k
             layer += k
@@ -208,15 +210,11 @@ def program_from_layer_path(
             # repeated `mult` times. Ordering distinguishes block boundaries.
             # Always capped -- cap_keep only relaxes KEEP, never REPEAT.
             k = 1
-            while (
-                pos + k < len(path)
-                and path[pos + k] == layer + k
-                and k < MAX_SEGMENT_LEN
-            ):
+            while pos + k < len(path) and path[pos + k] == layer + k and k < MAX_SEGMENT_LEN:
                 k += 1
             block = list(range(layer, layer + k))
             expected = block * mult
-            if path[pos:pos + k * mult] != expected:
+            if path[pos : pos + k * mult] != expected:
                 raise ValueError(
                     f"cannot parse REPEAT at layer {layer} (times={mult}): "
                     f"{path[pos:pos + k * mult]} != {expected}"
@@ -273,18 +271,28 @@ def program_to_targets(
 
 
 def targets_from_path(
-    path: Sequence[int], num_layers: int, ops: Sequence[Op] = DEFAULT_OPS, *,
-    cap_keep: bool = True, strict_repeat_2x: bool = True,
+    path: Sequence[int],
+    num_layers: int,
+    ops: Sequence[Op] = DEFAULT_OPS,
+    *,
+    cap_keep: bool = True,
+    strict_repeat_2x: bool = True,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Program]:
     """Convenience: layer-path -> (seg_target, op_target, op_mask, program)."""
-    program = program_from_layer_path(path, num_layers, cap_keep=cap_keep, strict_repeat_2x=strict_repeat_2x)
+    program = program_from_layer_path(
+        path, num_layers, cap_keep=cap_keep, strict_repeat_2x=strict_repeat_2x
+    )
     seg_target, op_target, op_mask = program_to_targets(program, ops)
     return seg_target, op_target, op_mask, program
 
 
 def path_to_polar_targets(
-    path: Sequence[int], num_layers: int, ops: Sequence[Op] = DEFAULT_OPS, *,
-    cap_keep: bool = True, strict_repeat_2x: bool = True,
+    path: Sequence[int],
+    num_layers: int,
+    ops: Sequence[Op] = DEFAULT_OPS,
+    *,
+    cap_keep: bool = True,
+    strict_repeat_2x: bool = True,
 ) -> Tuple[torch.Tensor, torch.Tensor, Program]:
     """layer-path -> (seg_flip (D,) float, op_labels (D,) long, program).
 
@@ -356,7 +364,7 @@ def split_samples_train_val(
     n_val = max(0, min(n_val, n))
     if n_val == 0:
         return samples, []
-    return samples[: n - n_val], samples[n - n_val:]
+    return samples[: n - n_val], samples[n - n_val :]
 
 
 # --------------------------------------------------------------------------- #
@@ -379,13 +387,13 @@ class Example:
     """
 
     question: str
-    seg_flip: torch.Tensor              # (D,) float, seg_flip[0] == 0 always
-    op_labels: torch.Tensor             # (D,) long, op index at seg starts else -100
+    seg_flip: torch.Tensor  # (D,) float, seg_flip[0] == 0 always
+    op_labels: torch.Tensor  # (D,) long, op index at seg starts else -100
     path_len: int
     weight: float = 1.0
     anti_original_active: bool = False
-    token_hidden: Optional[torch.Tensor] = None        # (T, embed_dim)
-    key_padding_mask: Optional[torch.Tensor] = None     # (T,) bool, True = pad
+    token_hidden: Optional[torch.Tensor] = None  # (T, embed_dim)
+    key_padding_mask: Optional[torch.Tensor] = None  # (T,) bool, True = pad
 
 
 def build_examples(
@@ -468,7 +476,9 @@ def build_examples(
         trigger = (identity in valid) and any(len(p) < num_layers for p in valid)
         # Hard/soft DROP of the identity path (mutually exclusive with reweight, per
         # PoLar data.py). Only when a strictly-shorter valid path exists (== trigger).
-        drop_enabled = (drop_original_path or keep_original_prob > 0.0) and not reweight_original_path
+        drop_enabled = (
+            drop_original_path or keep_original_prob > 0.0
+        ) and not reweight_original_path
         if drop_enabled and trigger:
             kp = min(1.0, max(0.0, keep_original_prob))
             keep_it = (rng.random() < kp) if 0.0 < kp < 1.0 else (kp >= 1.0)
@@ -498,8 +508,11 @@ def build_examples(
         norm = 1.0 / len(parsed) if per_sample_weight_normalize else 1.0
         question = sample["question"]
         for path_len, is_original, seg_flip, op_labels in parsed:
-            base = (original_path_weight
-                    if (reweight_original_path and trigger and is_original) else 1.0)
+            base = (
+                original_path_weight
+                if (reweight_original_path and trigger and is_original)
+                else 1.0
+            )
             examples.append(
                 Example(
                     question=question,
@@ -513,7 +526,9 @@ def build_examples(
     return examples
 
 
-def collate(examples: Sequence[Example], device: Optional[torch.device] = None) -> Dict[str, torch.Tensor]:
+def collate(
+    examples: Sequence[Example], device: Optional[torch.device] = None
+) -> Dict[str, torch.Tensor]:
     """Pad + stack a list of encoded examples into a forward-ready batch.
 
     Token sequences are right-padded to the batch max; ``key_padding_mask`` is
@@ -530,7 +545,9 @@ def collate(examples: Sequence[Example], device: Optional[torch.device] = None) 
     # copy of token_hidden; on CPU tensors (tests) it is unchanged.
     src_device = examples[0].token_hidden.device
     token_hidden = torch.zeros(B, Tmax, embed_dim, device=src_device)
-    key_padding_mask = torch.ones(B, Tmax, dtype=torch.bool, device=src_device)  # all-pad, unmask real
+    key_padding_mask = torch.ones(
+        B, Tmax, dtype=torch.bool, device=src_device
+    )  # all-pad, unmask real
     for i, e in enumerate(examples):
         t = e.token_hidden.size(0)
         token_hidden[i, :t] = e.token_hidden
@@ -555,9 +572,7 @@ def collate(examples: Sequence[Example], device: Optional[torch.device] = None) 
     return batch
 
 
-def encode_examples(
-    router: PolarRouter, examples: Sequence[Example], batch_size: int = 16
-) -> None:
+def encode_examples(router: PolarRouter, examples: Sequence[Example], batch_size: int = 16) -> None:
     """Fill each example's ``token_hidden`` via the frozen encoder (in place).
 
     Encodes each UNIQUE question ONCE and SHARES the resulting ``token_hidden``
@@ -575,7 +590,7 @@ def encode_examples(
         by_question.setdefault(e.question, []).append(e)
     unique_questions = list(by_question.keys())
     for start in range(0, len(unique_questions), batch_size):
-        chunk = unique_questions[start:start + batch_size]
+        chunk = unique_questions[start : start + batch_size]
         token_hidden, key_padding_mask = router.encode_questions(chunk)
         token_hidden = token_hidden.detach().cpu()
         key_padding_mask = key_padding_mask.detach().cpu()
@@ -648,8 +663,11 @@ def compute_loss(
         ce_tok = focal.view(B, D)
     else:
         ce_tok = F.cross_entropy(
-            op_logits.reshape(-1, n_ops), op_labels.reshape(-1),
-            weight=weight, ignore_index=-100, reduction="none",
+            op_logits.reshape(-1, n_ops),
+            op_labels.reshape(-1),
+            weight=weight,
+            ignore_index=-100,
+            reduction="none",
         ).view(B, D)
     mask = (op_labels != -100).float()
     op_loss_per = (ce_tok * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1.0)  # (B,)
@@ -662,8 +680,8 @@ def compute_loss(
         w = w / (w.mean() + 1e-8)
     else:
         w = torch.ones_like(loss_per)
-    w = w * batch["weight"]                 # per-sample-weight-normalize (1.0 by default)
-    w = w / (w.mean() + 1e-8)               # keep loss scale ~invariant to the weights
+    w = w * batch["weight"]  # per-sample-weight-normalize (1.0 by default)
+    w = w / (w.mean() + 1e-8)  # keep loss scale ~invariant to the weights
     loss = (w * loss_per).mean()
 
     # anti-original penalty (TRAIN-ONLY): discourage collapsing to all-KEEP on
@@ -713,7 +731,7 @@ def evaluate_val_programs(
         # Batched forward (pad token_hidden to the batch max; padded positions are
         # masked in cross-attention), the per-question forward was the val bottleneck.
         for start in range(0, len(qs), batch_size):
-            chunk = qs[start:start + batch_size]
+            chunk = qs[start : start + batch_size]
             ths = [token_hiddens[q] for q in chunk]
             Tmax = max(t.size(0) for t in ths)
             ed = ths[0].size(-1)
@@ -721,8 +739,8 @@ def evaluate_val_programs(
             th = torch.zeros(len(chunk), Tmax, ed, device=dev)
             kpm = torch.ones(len(chunk), Tmax, dtype=torch.bool, device=dev)
             for i, t in enumerate(ths):
-                th[i, :t.size(0)] = t.to(dev)
-                kpm[i, :t.size(0)] = False
+                th[i, : t.size(0)] = t.to(dev)
+                kpm[i, : t.size(0)] = False
             seg_logits, op_logits = router(token_hidden_states=th, key_padding_mask=kpm)
             for i, q in enumerate(chunk):
                 vset = valid_sets.get(q) or set()
@@ -820,11 +838,15 @@ def _epoch_loss(
     total, batches = 0.0, 0
     with torch.no_grad():
         for start in range(0, len(examples), batch_size):
-            batch = collate(examples[start:start + batch_size], device=device)
+            batch = collate(examples[start : start + batch_size], device=device)
             loss, _, _ = compute_loss(
-                router, batch, policy_mode=policy_mode,
-                lenpref_beta=lenpref_beta, anti_original_lambda=anti_original_lambda,
-                op_class_weights=op_class_weights, op_focal_gamma=op_focal_gamma,
+                router,
+                batch,
+                policy_mode=policy_mode,
+                lenpref_beta=lenpref_beta,
+                anti_original_lambda=anti_original_lambda,
+                op_class_weights=op_class_weights,
+                op_focal_gamma=op_focal_gamma,
             )
             total += float(loss.detach())
             batches += 1
@@ -942,25 +964,31 @@ def train(
     n = len(examples)
     steps_per_epoch = max(1, math.ceil(n / max(1, batch_size)))
     lr_sched = _make_lr_scheduler(optimizer, lr_scheduler, warmup_steps, epochs * steps_per_epoch)
-    if select_by in ("val_cache_acc", "val_cache_acc_at1", "val_rescue_at1",
-                     "val_rescue_atk") and val_program_data is None:
+    if (
+        select_by in ("val_cache_acc", "val_cache_acc_at1", "val_rescue_at1", "val_rescue_atk")
+        and val_program_data is None
+    ):
         raise ValueError(f"select_by={select_by!r} requires val_program_data")
     result = TrainResult()
     result.select_by = select_by
-    best_val = float("inf")       # val_loss selection: minimise
-    best_acc = float("-inf")      # val_cache_acc selection: maximise
+    best_val = float("inf")  # val_loss selection: minimise
+    best_acc = float("-inf")  # val_cache_acc selection: maximise
     step = 0
     for epoch in range(epochs):
         router.train()
         order = torch.randperm(n, generator=rng).tolist() if shuffle else list(range(n))
         total, batches = 0.0, 0
         for bstart in range(0, n, batch_size):
-            batch_examples = [examples[i] for i in order[bstart:bstart + batch_size]]
+            batch_examples = [examples[i] for i in order[bstart : bstart + batch_size]]
             batch = collate(batch_examples, device=device)
             loss, seg_loss, op_loss = compute_loss(
-                router, batch, policy_mode=policy_mode,
-                lenpref_beta=lenpref_beta, anti_original_lambda=anti_original_lambda,
-                op_class_weights=op_class_weights, op_focal_gamma=op_focal_gamma,
+                router,
+                batch,
+                policy_mode=policy_mode,
+                lenpref_beta=lenpref_beta,
+                anti_original_lambda=anti_original_lambda,
+                op_class_weights=op_class_weights,
+                op_focal_gamma=op_focal_gamma,
             )
             optimizer.zero_grad()
             loss.backward()
@@ -971,31 +999,41 @@ def train(
             batches += 1
             step += 1
             if log_every and step % log_every == 0:
-                print(f"epoch {epoch} step {step} loss {float(loss.detach()):.4f} "
-                      f"(seg {float(seg_loss.detach()):.4f} op {float(op_loss.detach()):.4f})")
+                print(
+                    f"epoch {epoch} step {step} loss {float(loss.detach()):.4f} "
+                    f"(seg {float(seg_loss.detach()):.4f} op {float(op_loss.detach()):.4f})"
+                )
         mean_loss = total / max(batches, 1)
         result.train_losses.append(mean_loss)
 
         vloss: Optional[float] = None
         if val_examples:
             vloss = _epoch_loss(
-                router, val_examples, batch_size, device,
-                policy_mode=policy_mode, lenpref_beta=lenpref_beta,
+                router,
+                val_examples,
+                batch_size,
+                device,
+                policy_mode=policy_mode,
+                lenpref_beta=lenpref_beta,
                 anti_original_lambda=anti_original_lambda,
-                op_class_weights=op_class_weights, op_focal_gamma=op_focal_gamma,
+                op_class_weights=op_class_weights,
+                op_focal_gamma=op_focal_gamma,
             )
             result.val_losses.append(vloss)
 
         prog_metrics: Optional[Dict[str, float]] = None
         run_prog = val_program_data is not None and (
-            epoch % max(1, val_program_every) == 0 or epoch == epochs - 1)
+            epoch % max(1, val_program_every) == 0 or epoch == epochs - 1
+        )
         if run_prog:
             prog_metrics = evaluate_val_programs(
                 router,
-                val_program_data["questions"],       # type: ignore[arg-type]
-                val_program_data["token_hiddens"],    # type: ignore[arg-type]
-                val_program_data["valid_sets"],       # type: ignore[arg-type]
-                k=val_topk, device=device, batch_size=max(64, batch_size),
+                val_program_data["questions"],  # type: ignore[arg-type]
+                val_program_data["token_hiddens"],  # type: ignore[arg-type]
+                val_program_data["valid_sets"],  # type: ignore[arg-type]
+                k=val_topk,
+                device=device,
+                batch_size=max(64, batch_size),
             )
             result.val_cache_acc_epochs.append(epoch)
             result.val_cache_acc_at1.append(prog_metrics["val_cache_acc_at1"])
@@ -1004,10 +1042,12 @@ def train(
             result.val_rescue_atk.append(prog_metrics["val_rescue_atk"])
 
         # Best-checkpoint selection by the chosen metric.
-        _cache_metric_key = {"val_cache_acc": "val_cache_acc_atk",
-                             "val_cache_acc_at1": "val_cache_acc_at1",
-                             "val_rescue_at1": "val_rescue_at1",
-                             "val_rescue_atk": "val_rescue_atk"}.get(select_by)
+        _cache_metric_key = {
+            "val_cache_acc": "val_cache_acc_atk",
+            "val_cache_acc_at1": "val_cache_acc_at1",
+            "val_rescue_at1": "val_rescue_at1",
+            "val_rescue_atk": "val_rescue_atk",
+        }.get(select_by)
         if _cache_metric_key is not None:
             score = prog_metrics[_cache_metric_key] if prog_metrics else float("-inf")
             if score > best_acc:
@@ -1048,9 +1088,7 @@ def save_checkpoint(router: PolarRouter, out_path, meta: Optional[dict] = None) 
     """Save the trainable head + architecture meta (encoder weights excluded)."""
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    head_state = {
-        k: v for k, v in router.state_dict().items() if not k.startswith("encoder.")
-    }
+    head_state = {k: v for k, v in router.state_dict().items() if not k.startswith("encoder.")}
     payload = {"state_dict": head_state, "meta": _router_meta(router)}
     if meta:
         payload["train_meta"] = meta
@@ -1104,100 +1142,186 @@ def load_checkpoint(
 # --------------------------------------------------------------------------- #
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Train the PolarRouter on MCTS supervision.")
-    p.add_argument("--samples", required=True, nargs="+",
-                   help="one or more merged_mcts_samples.json (concatenated; the "
-                        "router trains on all difficulties combined, per the paper)")
-    p.add_argument("--model", default="qwen3_8b",
-                   help="target model in MODEL_REGISTRY (sets router D); default qwen3_8b")
+    p.add_argument(
+        "--samples",
+        required=True,
+        nargs="+",
+        help="one or more merged_mcts_samples.json (concatenated; the "
+        "router trains on all difficulties combined, per the paper)",
+    )
+    p.add_argument(
+        "--model",
+        default="qwen3_8b",
+        help="target model in MODEL_REGISTRY (sets router D); default qwen3_8b",
+    )
     p.add_argument("--out", required=True, help="checkpoint output path (.pt)")
     # PoLar's released recipe defaults.
     p.add_argument("--epochs", type=int, default=20)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--batch-size", type=int, default=16)
     p.add_argument("--weight-decay", type=float, default=0.0)
-    p.add_argument("--max-paths-per-sample", type=int, default=50,
-                   help="cap on valid paths per question (deterministic RNG sample above it)")
+    p.add_argument(
+        "--max-paths-per-sample",
+        type=int,
+        default=50,
+        help="cap on valid paths per question (deterministic RNG sample above it)",
+    )
     # validation / best-checkpoint
-    p.add_argument("--val-frac", type=float, default=0.1,
-                   help="per-difficulty holdout fraction for val-loss best-checkpoint")
-    p.add_argument("--no-validation", action="store_true",
-                   help="train on all samples and save the LAST epoch (no holdout)")
-    p.add_argument("--select-by",
-                   choices=["val_loss", "val_cache_acc", "val_cache_acc_at1"],
-                   default="val_loss",
-                   help="checkpoint selection metric. val_loss (default, unchanged) rewards "
-                        "collapse-to-identity (min loss = predict majority op everywhere). "
-                        "val_cache_acc (top-k any-hit) and val_cache_acc_at1 (top-1 hit only) "
-                        "both reward decoding a KNOWN-MCTS-valid program instead; but val_cache_acc "
-                        "can favour an UNDER-TRAINED epoch (near-uniform logits -> wider, more "
-                        "diverse top-k beam -> more lucky cache hits) even as its top-1 gets worse "
-                        "-- val_cache_acc_at1 is immune to that beam-width "
-                        "confound and is the recommended reward-aligned choice.")
-    p.add_argument("--val-topk", type=int, default=5,
-                   help="k for val_cache_acc_atk (generation-free val pass@k metric)")
-    p.add_argument("--val-program-every", type=int, default=1,
-                   help="run the (batched) val_cache_acc metric every N epochs (last epoch "
-                        "always included); >1 speeds up long runs")
+    p.add_argument(
+        "--val-frac",
+        type=float,
+        default=0.1,
+        help="per-difficulty holdout fraction for val-loss best-checkpoint",
+    )
+    p.add_argument(
+        "--no-validation",
+        action="store_true",
+        help="train on all samples and save the LAST epoch (no holdout)",
+    )
+    p.add_argument(
+        "--select-by",
+        choices=["val_loss", "val_cache_acc", "val_cache_acc_at1"],
+        default="val_loss",
+        help="checkpoint selection metric. val_loss (default, unchanged) rewards "
+        "collapse-to-identity (min loss = predict majority op everywhere). "
+        "val_cache_acc (top-k any-hit) and val_cache_acc_at1 (top-1 hit only) "
+        "both reward decoding a KNOWN-MCTS-valid program instead; but val_cache_acc "
+        "can favour an UNDER-TRAINED epoch (near-uniform logits -> wider, more "
+        "diverse top-k beam -> more lucky cache hits) even as its top-1 gets worse "
+        "-- val_cache_acc_at1 is immune to that beam-width "
+        "confound and is the recommended reward-aligned choice.",
+    )
+    p.add_argument(
+        "--val-topk",
+        type=int,
+        default=5,
+        help="k for val_cache_acc_atk (generation-free val pass@k metric)",
+    )
+    p.add_argument(
+        "--val-program-every",
+        type=int,
+        default=1,
+        help="run the (batched) val_cache_acc metric every N epochs (last epoch "
+        "always included); >1 speeds up long runs",
+    )
     # speed
-    p.add_argument("--encodings-on-device", action="store_true",
-                   help="move the frozen encodings to the GPU once so training batches are "
-                        "built on-device (removes the per-step CPU->GPU copy; ~1.5GB VRAM)")
+    p.add_argument(
+        "--encodings-on-device",
+        action="store_true",
+        help="move the frozen encodings to the GPU once so training batches are "
+        "built on-device (removes the per-step CPU->GPU copy; ~1.5GB VRAM)",
+    )
     # optional ablation knobs (default recipe = plain 'polar', all off)
-    p.add_argument("--policy-mode", choices=["polar", "polar_lenpref"], default="polar",
-                   help="polar_lenpref reweights each example by exp(-beta*path_len)")
-    p.add_argument("--lenpref-beta", type=float, default=0.05,
-                   help="polar_lenpref length-preference beta")
-    p.add_argument("--anti-original-lambda", type=float, default=0.0,
-                   help="penalty on mean KEEP-prob for samples whose identity path is not valid")
-    p.add_argument("--per-sample-weight-normalize", action="store_true",
-                   help="scale each sample's examples by 1/n_paths")
-    p.add_argument("--reweight-original-path-if-shorter-valid", action="store_true",
-                   help="downweight the identity/full-depth path to --original-path-weight "
-                        "when a strictly-shorter valid path exists (PoLar anti-collapse lever)")
-    p.add_argument("--original-path-weight", type=float, default=1.0,
-                   help="weight for the identity path when reweighting is on (PoLar uses 0.30)")
-    p.add_argument("--drop-original-path-if-shorter-valid", action="store_true",
-                   help="DROP the identity path from targets when a strictly-shorter valid path "
-                        "exists (stronger PoLar anti-collapse lever). Mutually exclusive with "
-                        "--reweight-original-path-if-shorter-valid (ignored while that is set).")
-    p.add_argument("--keep-original-prob", type=float, default=0.0,
-                   help="soft-drop: keep the identity path with this probability (0.0 = hard drop)")
-    p.add_argument("--label-mode", choices=["multi", "shortest"], default="multi",
-                   help="multi (default): one example per valid path (PoLar labelling, "
-                        "original_path_weight/drop_original_path apply). shortest: collapse each "
-                        "sample to its single SHORTEST valid path -- an ablation that collapsed the "
-                        "router to identity before multi-path labelling was adopted; see "
-                        "build_examples' own docstring. original-path-weight/"
-                        "drop-original-path-if-shorter-valid are ignored in this mode.")
-    p.add_argument("--segment-cap", choices=["all", "edit-only"], default="all",
-                   help="all (default, unchanged): MAX_SEGMENT_LEN caps every segment, including KEEP "
-                        "runs -- a long uninterrupted keep stretch is chunked into consecutive <=4-layer "
-                        "pieces purely to fit the router's fixed-length segment representation (PoLar "
-                        "Sec 3.1's literal text). edit-only (an ablation testing a specific hypothesis): "
-                        "only SKIP/REPEAT segments stay capped; each maximal KEEP run merges into ONE "
-                        "segment however long, so seg_flip boundaries only fire where the operation "
-                        "actually changes. Execution-equivalent either way (KEEP takes no params) -- "
-                        "this changes the router's training TARGET only, not the search space. See "
-                        "program_from_layer_path(cap_keep=...)'s own docstring.")
-    p.add_argument("--strict-repeat-2x", dest="strict_repeat_2x", action="store_true", default=True,
-                   help="Drop: repeat-count != 2x paths are dropped, not parsed (default: on, "
-                        "matches PoLar's own parser -- current/main-recipe behavior, unchanged).")
-    p.add_argument("--no-strict-repeat-2x", dest="strict_repeat_2x", action="store_false",
-                   help="Crop instead of Drop: truncate a repeat run to exactly 2x rather than "
-                        "dropping the path (see analysis/router_recipe_sweep's Drop-CE/Crop-CE "
-                        "comparison; ported here as a plain option, same underlying parser flag "
-                        "program_from_layer_path/build_examples already take).")
-    p.add_argument("--focal-gamma", type=float, default=0.0,
-                   help="DR.LLM-style focal loss gamma for the op-head CE (0.0 = plain CE, default/"
-                        "current behavior, unchanged). When >0, op_class_weights are the DR.LLM-exact "
-                        "class-balanced weights (Cui et al. effective-number-of-samples, beta=0.999) "
-                        "computed from this run's own train op-label counts -- same computation as "
-                        "analysis/router_recipe_sweep/sweep_router.py's --focal-gamma, ported "
-                        "verbatim, not reimplemented.")
-    p.add_argument("--lr-scheduler", choices=["none", "cosine", "linear"], default="none",
-                   help="LR schedule (warmup then decay); PoLar sample recipe uses cosine")
-    p.add_argument("--warmup-steps", type=int, default=0,
-                   help="linear warmup steps before decay (PoLar sample recipe uses 10)")
+    p.add_argument(
+        "--policy-mode",
+        choices=["polar", "polar_lenpref"],
+        default="polar",
+        help="polar_lenpref reweights each example by exp(-beta*path_len)",
+    )
+    p.add_argument(
+        "--lenpref-beta", type=float, default=0.05, help="polar_lenpref length-preference beta"
+    )
+    p.add_argument(
+        "--anti-original-lambda",
+        type=float,
+        default=0.0,
+        help="penalty on mean KEEP-prob for samples whose identity path is not valid",
+    )
+    p.add_argument(
+        "--per-sample-weight-normalize",
+        action="store_true",
+        help="scale each sample's examples by 1/n_paths",
+    )
+    p.add_argument(
+        "--reweight-original-path-if-shorter-valid",
+        action="store_true",
+        help="downweight the identity/full-depth path to --original-path-weight "
+        "when a strictly-shorter valid path exists (PoLar anti-collapse lever)",
+    )
+    p.add_argument(
+        "--original-path-weight",
+        type=float,
+        default=1.0,
+        help="weight for the identity path when reweighting is on (PoLar uses 0.30)",
+    )
+    p.add_argument(
+        "--drop-original-path-if-shorter-valid",
+        action="store_true",
+        help="DROP the identity path from targets when a strictly-shorter valid path "
+        "exists (stronger PoLar anti-collapse lever). Mutually exclusive with "
+        "--reweight-original-path-if-shorter-valid (ignored while that is set).",
+    )
+    p.add_argument(
+        "--keep-original-prob",
+        type=float,
+        default=0.0,
+        help="soft-drop: keep the identity path with this probability (0.0 = hard drop)",
+    )
+    p.add_argument(
+        "--label-mode",
+        choices=["multi", "shortest"],
+        default="multi",
+        help="multi (default): one example per valid path (PoLar labelling, "
+        "original_path_weight/drop_original_path apply). shortest: collapse each "
+        "sample to its single SHORTEST valid path -- an ablation that collapsed the "
+        "router to identity before multi-path labelling was adopted; see "
+        "build_examples' own docstring. original-path-weight/"
+        "drop-original-path-if-shorter-valid are ignored in this mode.",
+    )
+    p.add_argument(
+        "--segment-cap",
+        choices=["all", "edit-only"],
+        default="all",
+        help="all (default, unchanged): MAX_SEGMENT_LEN caps every segment, including KEEP "
+        "runs -- a long uninterrupted keep stretch is chunked into consecutive <=4-layer "
+        "pieces purely to fit the router's fixed-length segment representation (PoLar "
+        "Sec 3.1's literal text). edit-only (an ablation testing a specific hypothesis): "
+        "only SKIP/REPEAT segments stay capped; each maximal KEEP run merges into ONE "
+        "segment however long, so seg_flip boundaries only fire where the operation "
+        "actually changes. Execution-equivalent either way (KEEP takes no params) -- "
+        "this changes the router's training TARGET only, not the search space. See "
+        "program_from_layer_path(cap_keep=...)'s own docstring.",
+    )
+    p.add_argument(
+        "--strict-repeat-2x",
+        dest="strict_repeat_2x",
+        action="store_true",
+        default=True,
+        help="Drop: repeat-count != 2x paths are dropped, not parsed (default: on, "
+        "matches PoLar's own parser -- current/main-recipe behavior, unchanged).",
+    )
+    p.add_argument(
+        "--no-strict-repeat-2x",
+        dest="strict_repeat_2x",
+        action="store_false",
+        help="Crop instead of Drop: truncate a repeat run to exactly 2x rather than "
+        "dropping the path (see analysis/router_recipe_sweep's Drop-CE/Crop-CE "
+        "comparison; ported here as a plain option, same underlying parser flag "
+        "program_from_layer_path/build_examples already take).",
+    )
+    p.add_argument(
+        "--focal-gamma",
+        type=float,
+        default=0.0,
+        help="DR.LLM-style focal loss gamma for the op-head CE (0.0 = plain CE, default/"
+        "current behavior, unchanged). When >0, op_class_weights are the DR.LLM-exact "
+        "class-balanced weights (Cui et al. effective-number-of-samples, beta=0.999) "
+        "computed from this run's own train op-label counts -- same computation as "
+        "analysis/router_recipe_sweep/sweep_router.py's --focal-gamma, ported "
+        "verbatim, not reimplemented.",
+    )
+    p.add_argument(
+        "--lr-scheduler",
+        choices=["none", "cosine", "linear"],
+        default="none",
+        help="LR schedule (warmup then decay); PoLar sample recipe uses cosine",
+    )
+    p.add_argument(
+        "--warmup-steps",
+        type=int,
+        default=0,
+        help="linear warmup steps before decay (PoLar sample recipe uses 10)",
+    )
     p.add_argument("--encode-batch-size", type=int, default=16)
     p.add_argument("--limit", type=int, default=None, help="use only the first N samples per file")
     p.add_argument("--device", default=None, help="cpu / cuda / mps (default: auto)")
@@ -1222,7 +1346,9 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
     router = PolarRouter.for_model(args.model)
     anti_original = args.anti_original_lambda > 0.0
     if args.select_by in ("val_cache_acc", "val_cache_acc_at1") and args.no_validation:
-        raise SystemExit(f"--select-by {args.select_by} needs a validation split (drop --no-validation).")
+        raise SystemExit(
+            f"--select-by {args.select_by} needs a validation split (drop --no-validation)."
+        )
 
     # Per-DIFFICULTY split: hold out the last val_frac of EACH file's samples so
     # the val set is balanced across difficulties (build examples per split).
@@ -1253,19 +1379,27 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
         seed=args.seed,
     )
     examples = build_examples(train_samples, router.num_layers, **build_kwargs)
-    val_examples = build_examples(val_samples, router.num_layers, **build_kwargs) if val_samples else []
+    val_examples = (
+        build_examples(val_samples, router.num_layers, **build_kwargs) if val_samples else []
+    )
 
     n_train_q = len({e.question for e in examples})
     n_val_q = len({e.question for e in val_examples})
-    print(f"Loaded {len(train_samples)} train + {len(val_samples)} val samples "
-          f"from {len(args.samples)} file(s).")
-    print(f"Multi-path examples: {len(examples)} train (from {n_train_q} questions) + "
-          f"{len(val_examples)} val (from {n_val_q} questions).")
+    print(
+        f"Loaded {len(train_samples)} train + {len(val_samples)} val samples "
+        f"from {len(args.samples)} file(s)."
+    )
+    print(
+        f"Multi-path examples: {len(examples)} train (from {n_train_q} questions) + "
+        f"{len(val_examples)} val (from {n_val_q} questions)."
+    )
     if not examples:
         raise SystemExit("No trainable examples (every sample lacked a valid program).")
 
-    print(f"Encoding {n_train_q + n_val_q} unique questions with {router.embedding_model_name} "
-          f"(frozen; shared across each question's paths)...")
+    print(
+        f"Encoding {n_train_q + n_val_q} unique questions with {router.embedding_model_name} "
+        f"(frozen; shared across each question's paths)..."
+    )
     # Move to `device` BEFORE encoding: the frozen encoder's forward over every
     # question is the heavy step. Left on CPU it maxes the CPU while the GPU sits
     # idle; on GPU it's a fast one-shot. encode_examples stores hidden states back
@@ -1292,10 +1426,15 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
                 token_hiddens[e.question] = e.token_hidden
         vq = [q for q in token_hiddens if q in valid_sets]
         if vq:
-            val_program_data = {"questions": vq, "token_hiddens": token_hiddens,
-                                "valid_sets": valid_sets}
-            print(f"Val-program metric on {len(vq)} val questions "
-                  f"(select_by={args.select_by}, val_topk={args.val_topk}).")
+            val_program_data = {
+                "questions": vq,
+                "token_hiddens": token_hiddens,
+                "valid_sets": valid_sets,
+            }
+            print(
+                f"Val-program metric on {len(vq)} val questions "
+                f"(select_by={args.select_by}, val_topk={args.val_topk})."
+            )
 
     # DR.LLM-exact class-balanced focal weights, computed once from this run's own
     # TRAIN op-label counts -- same computation as
@@ -1315,8 +1454,10 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
         eff_num = [(1 - cb_beta**c) / (1 - cb_beta) for c in counts]
         op_class_weights = torch.tensor([1.0 / e for e in eff_num], dtype=torch.float32)
         op_class_weights = (op_class_weights / op_class_weights.mean()).to(device)
-        print(f"focal_gamma={args.focal_gamma} op_counts={counts} "
-              f"class_weights={op_class_weights.tolist()}")
+        print(
+            f"focal_gamma={args.focal_gamma} op_counts={counts} "
+            f"class_weights={op_class_weights.tolist()}"
+        )
 
     result = train(
         router,
@@ -1345,35 +1486,47 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
     if result.best_epoch is not None:
         sel = result.select_by
         mval = result.best_metric
-        print(f"Selected epoch {result.best_epoch} by {sel}"
-              + (f" = {mval:.4f}" if mval is not None else "")
-              + f" (final train loss {result.train_losses[-1]:.4f}, first {result.train_losses[0]:.4f}).")
+        print(
+            f"Selected epoch {result.best_epoch} by {sel}"
+            + (f" = {mval:.4f}" if mval is not None else "")
+            + f" (final train loss {result.train_losses[-1]:.4f}, first {result.train_losses[0]:.4f})."
+        )
         if result.val_cache_acc_atk:
             print(f"  evaluated epochs                : {result.val_cache_acc_epochs}")
-            print(f"  val_cache_acc_at1  per evaluated epoch (top-1 known-valid; "
-                  f"immune to beam width): {[round(x, 4) for x in result.val_cache_acc_at1]}")
-            print(f"  val_cache_acc@{args.val_topk} per evaluated epoch (any-of-{args.val_topk}; "
-                  f"can favour an under-trained/diverse epoch): "
-                  f"{[round(x, 4) for x in result.val_cache_acc_atk]}")
+            print(
+                f"  val_cache_acc_at1  per evaluated epoch (top-1 known-valid; "
+                f"immune to beam width): {[round(x, 4) for x in result.val_cache_acc_at1]}"
+            )
+            print(
+                f"  val_cache_acc@{args.val_topk} per evaluated epoch (any-of-{args.val_topk}; "
+                f"can favour an under-trained/diverse epoch): "
+                f"{[round(x, 4) for x in result.val_cache_acc_atk]}"
+            )
     else:
-        print(f"Final epoch mean loss: {result.train_losses[-1]:.4f} "
-              f"(first: {result.train_losses[0]:.4f}).")
+        print(
+            f"Final epoch mean loss: {result.train_losses[-1]:.4f} "
+            f"(first: {result.train_losses[0]:.4f})."
+        )
 
-    out = save_checkpoint(router, args.out, meta={
-        "train_losses": result.train_losses,
-        "val_losses": result.val_losses,
-        "val_cache_acc_epochs": result.val_cache_acc_epochs,
-        "val_cache_acc_at1": result.val_cache_acc_at1,
-        "val_cache_acc_atk": result.val_cache_acc_atk,
-        "best_epoch": result.best_epoch,
-        "best_metric": result.best_metric,
-        "select_by": result.select_by,
-        "val_topk": args.val_topk,
-        "model": args.model,
-        "policy_mode": args.policy_mode,
-        "max_paths_per_sample": args.max_paths_per_sample,
-        "n_examples": len(examples),
-    })
+    out = save_checkpoint(
+        router,
+        args.out,
+        meta={
+            "train_losses": result.train_losses,
+            "val_losses": result.val_losses,
+            "val_cache_acc_epochs": result.val_cache_acc_epochs,
+            "val_cache_acc_at1": result.val_cache_acc_at1,
+            "val_cache_acc_atk": result.val_cache_acc_atk,
+            "best_epoch": result.best_epoch,
+            "best_metric": result.best_metric,
+            "select_by": result.select_by,
+            "val_topk": args.val_topk,
+            "model": args.model,
+            "policy_mode": args.policy_mode,
+            "max_paths_per_sample": args.max_paths_per_sample,
+            "n_examples": len(examples),
+        },
+    )
     print(f"Saved router checkpoint -> {out}")
     return out
 

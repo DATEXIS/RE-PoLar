@@ -107,7 +107,7 @@ def collect_layer_token_vectors(
     labels: List[str] = None
 
     for start in range(0, len(prompts), batch_size):
-        batch_prompts = prompts[start:start + batch_size]
+        batch_prompts = prompts[start : start + batch_size]
         inputs = tokenizer(batch_prompts, padding=True, truncation=True, return_tensors="pt")
         inputs = {k: v.to(device) for k, v in inputs.items()}
         attention_mask = inputs["attention_mask"].bool()
@@ -151,7 +151,10 @@ def gaussian_stats(layer_vectors: List[np.ndarray]) -> Tuple[np.ndarray, np.ndar
 
 
 def symmetric_kl_diag_gaussian(
-    mean_p: np.ndarray, var_p: np.ndarray, mean_q: np.ndarray, var_q: np.ndarray,
+    mean_p: np.ndarray,
+    var_p: np.ndarray,
+    mean_q: np.ndarray,
+    var_q: np.ndarray,
 ) -> float:
     """Symmetric KL between two diagonal Gaussians N(mean_p, var_p) and
     N(mean_q, var_q), summed over the hidden dimension: 0.5*(KL(p||q) +
@@ -192,17 +195,27 @@ def main(argv=None) -> None:
     from re_polar.models import MODEL_REGISTRY
     from re_polar.core.model_loader import load_model_and_tokenizer
 
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     model_group = p.add_mutually_exclusive_group(required=True)
     model_group.add_argument("--model", choices=list(MODEL_REGISTRY.keys()))
     model_group.add_argument("--model-id", help="Arbitrary HuggingFace model id")
-    p.add_argument("--n-per-domain", type=int, default=40,
-                   help="mmlu_pro_domains samples per domain (paper default: 40, matching "
-                        "the published figure's run -- see build_prompts docstring)")
+    p.add_argument(
+        "--n-per-domain",
+        type=int,
+        default=40,
+        help="mmlu_pro_domains samples per domain (paper default: 40, matching "
+        "the published figure's run -- see build_prompts docstring)",
+    )
     p.add_argument("--batch-size", type=int, default=4)
-    p.add_argument("--max-tokens", type=int, default=20000,
-                   help="Subsample token count per layer-state (paper default: 20000, "
-                        "matching the published figure's run)")
+    p.add_argument(
+        "--max-tokens",
+        type=int,
+        default=20000,
+        help="Subsample token count per layer-state (paper default: 20000, "
+        "matching the published figure's run)",
+    )
     p.add_argument("--output-dir", default="./prestudy/results")
     args = p.parse_args(argv)
 
@@ -214,12 +227,15 @@ def main(argv=None) -> None:
         model_id = args.model_id
         trust_remote_code = True
 
-    model, tokenizer, device = load_model_and_tokenizer(model_id, trust_remote_code=trust_remote_code)
+    model, tokenizer, device = load_model_and_tokenizer(
+        model_id, trust_remote_code=trust_remote_code
+    )
 
     prompts = build_prompts(n_per_domain=args.n_per_domain)
     print(f"Collecting layer-state token vectors on {len(prompts)} mmlu_pro_domains prompts ...")
     vectors, labels = collect_layer_token_vectors(
-        model, tokenizer, prompts, device, batch_size=args.batch_size, max_tokens=args.max_tokens)
+        model, tokenizer, prompts, device, batch_size=args.batch_size, max_tokens=args.max_tokens
+    )
     print(f"Collected {len(labels)} layer-states with {vectors[0].shape[0]} tokens each.")
 
     distance = symkl_distance_matrix(vectors)
@@ -233,10 +249,15 @@ def main(argv=None) -> None:
     np.save(out_dir / f"layer_similarity_{tag}_symkl_similarity.npy", similarity)
 
     summary = {
-        "model_id": model_id, "num_layer_states": len(labels), "layer_labels": labels,
-        "num_prompts": len(prompts), "num_tokens_per_layer_state": int(vectors[0].shape[0]),
+        "model_id": model_id,
+        "num_layer_states": len(labels),
+        "layer_labels": labels,
+        "num_prompts": len(prompts),
+        "num_tokens_per_layer_state": int(vectors[0].shape[0]),
     }
-    (out_dir / f"layer_similarity_{tag}_symkl_summary.json").write_text(json.dumps(summary, indent=2))
+    (out_dir / f"layer_similarity_{tag}_symkl_summary.json").write_text(
+        json.dumps(summary, indent=2)
+    )
     print(f"Summary saved -> {out_dir / f'layer_similarity_{tag}_symkl_summary.json'}")
 
 

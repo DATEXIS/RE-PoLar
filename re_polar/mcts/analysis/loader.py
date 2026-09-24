@@ -4,6 +4,7 @@ Deliberately thin, reuses `re_polar.datasets.schemas.load_samples` (the same rea
 `re_polar/mcts` and the router pipeline use) rather than reimplementing JSON
 loading, so this stays in sync with the schema by construction.
 """
+
 import json
 from collections import defaultdict
 from functools import lru_cache
@@ -160,6 +161,7 @@ def load_menu_crosschecks(crosscheck_dir, model: str) -> Dict[str, dict]:
         try:
             if f.suffix == ".gz":
                 import gzip
+
                 with gzip.open(f, "rt") as fh:
                     data = json.load(fh)
             else:

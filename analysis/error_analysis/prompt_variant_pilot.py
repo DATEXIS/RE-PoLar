@@ -77,6 +77,7 @@ Top-level classify_formatting/select_samples/mathruler_grade/truncate_at_stop
 are stdlib-only (mathruler imported lazily) so they're unit-testable without
 torch.
 """
+
 import argparse
 import json
 import random
@@ -90,6 +91,7 @@ from typing import Callable, Dict, List, Optional
 # script), so the plain `from analysis_utils import ...` below needs it
 # added explicitly -- same fix as tag_with_llm.py in this directory.
 import sys
+
 _THIS_DIR = str(Path(__file__).resolve().parent)
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
@@ -98,22 +100,22 @@ from analysis_utils import has_unfilled_boxed_placeholder
 
 @dataclass
 class Protocol:
-    prompt_style: str   # key into re_polar.mcts.rewards.PROMPT_STYLES
+    prompt_style: str  # key into re_polar.mcts.rewards.PROMPT_STYLES
     max_new_tokens: int
-    grader: str          # "ours" | "mathruler"
+    grader: str  # "ours" | "mathruler"
     stop: Optional[str]  # truncate generated text at first occurrence, if set
     truncate_after_boxed: bool = False  # also apply truncate_after_first_boxed (see
-                                         # its docstring) -- separator-agnostic
-                                         # complement to `stop`, for prompts whose
-                                         # real answer is always the first (only)
-                                         # thing that should be graded
-    prefill: Optional[str] = None       # text injected into the PROMPT (e.g. a
-                                         # response-prefill trick) that generate_all's
-                                         # tokenizer.batch_decode of just the new
-                                         # tokens won't include -- prepended back onto
-                                         # each generation before grading/classifying,
-                                         # so e.g. a prefilled "\boxed{" + generated
-                                         # "42}" is correctly seen as "\boxed{42}"
+    # its docstring) -- separator-agnostic
+    # complement to `stop`, for prompts whose
+    # real answer is always the first (only)
+    # thing that should be graded
+    prefill: Optional[str] = None  # text injected into the PROMPT (e.g. a
+    # response-prefill trick) that generate_all's
+    # tokenizer.batch_decode of just the new
+    # tokens won't include -- prepended back onto
+    # each generation before grading/classifying,
+    # so e.g. a prefilled "\boxed{" + generated
+    # "42}" is correctly seen as "\boxed{42}"
 
 
 PROTOCOLS = {
@@ -131,44 +133,61 @@ PROTOCOLS = {
     # Qwen2.5-7B-Instruct: "\boxed{(6,1)} Solve the following math problem...",
     # caught on the first full-scale run, 3-11/200 samples across all four fewshot
     # runs -- see truncate_after_first_boxed's docstring).
-    "paper_fewshot": Protocol("paper_fewshot", max_new_tokens=50, grader="ours", stop="\n\n",
-                               truncate_after_boxed=True),
-    "drllm_fewshot": Protocol("drllm_fewshot", max_new_tokens=50, grader="ours", stop="\n\n",
-                               truncate_after_boxed=True),
+    "paper_fewshot": Protocol(
+        "paper_fewshot", max_new_tokens=50, grader="ours", stop="\n\n", truncate_after_boxed=True
+    ),
+    "drllm_fewshot": Protocol(
+        "drllm_fewshot", max_new_tokens=50, grader="ours", stop="\n\n", truncate_after_boxed=True
+    ),
     # These four isolate one candidate explanation each for why DR.LLM's chat-wrapped
     # protocol collapses on Qwen3-8B but works on Qwen2.5-7B-Instruct, all still at
     # DR.LLM's real 15-token DART budget, zero-shot, no fewshot. mathruler grading
     # kept for direct comparability against the "drllm" faithful row they're all
     # trying to beat.
-    "drllm_raw": Protocol("drllm_raw", max_new_tokens=15, grader="mathruler", stop=None,
-                           truncate_after_boxed=True),  # raw has no chat turn boundary to
-                                                         # stop hallucination -- same class
-                                                         # of risk as the fewshot prompts
-    "drllm_chat_prefill": Protocol("drllm_chat_prefill", max_new_tokens=15, grader="mathruler",
-                                    stop=None, prefill="\\boxed{"),
-    "drllm_chat_strict": Protocol("drllm_chat_strict", max_new_tokens=15, grader="mathruler",
-                                   stop=None),
-    "drllm_chat_qwen_deadcode": Protocol("drllm_chat_qwen_deadcode", max_new_tokens=15,
-                                          grader="mathruler", stop=None),
+    "drllm_raw": Protocol(
+        "drllm_raw", max_new_tokens=15, grader="mathruler", stop=None, truncate_after_boxed=True
+    ),  # raw has no chat turn boundary to
+    # stop hallucination -- same class
+    # of risk as the fewshot prompts
+    "drllm_chat_prefill": Protocol(
+        "drllm_chat_prefill", max_new_tokens=15, grader="mathruler", stop=None, prefill="\\boxed{"
+    ),
+    "drllm_chat_strict": Protocol(
+        "drllm_chat_strict", max_new_tokens=15, grader="mathruler", stop=None
+    ),
+    "drllm_chat_qwen_deadcode": Protocol(
+        "drllm_chat_qwen_deadcode", max_new_tokens=15, grader="mathruler", stop=None
+    ),
     # ONE trivial demo (What is 1+1? -> \boxed{2}), not 4 real MATH problems --
     # near-zero token cost if it works, the cheapest possible thing to actually
     # adopt. mathruler grading (DR.LLM wording) / ours (paper wording) to match
     # each one's own comparison anchor.
-    "paper_minimal_fewshot": Protocol("paper_minimal_fewshot", max_new_tokens=50, grader="ours",
-                                       stop="\n\n", truncate_after_boxed=True),
-    "drllm_chat_minimal_fewshot": Protocol("drllm_chat_minimal_fewshot", max_new_tokens=15,
-                                            grader="mathruler", stop=None),
+    "paper_minimal_fewshot": Protocol(
+        "paper_minimal_fewshot",
+        max_new_tokens=50,
+        grader="ours",
+        stop="\n\n",
+        truncate_after_boxed=True,
+    ),
+    "drllm_chat_minimal_fewshot": Protocol(
+        "drllm_chat_minimal_fewshot", max_new_tokens=15, grader="mathruler", stop=None
+    ),
     # Combine BOTH winners -- prefill on top of the minimal-fewshot prompt. Only the
     # REAL question's answer is prefilled (the demo turn already has its own
     # complete answer baked in as real chat history).
     "drllm_chat_minimal_fewshot_prefill": Protocol(
-        "drllm_chat_minimal_fewshot_prefill", max_new_tokens=15, grader="mathruler",
-        stop=None, prefill="\\boxed{"),
+        "drllm_chat_minimal_fewshot_prefill",
+        max_new_tokens=15,
+        grader="mathruler",
+        stop=None,
+        prefill="\\boxed{",
+    ),
     # Our own CURRENT PRODUCTION prompt (PAPER_INSTRUCTION, \boxed{ANSWER}, raw, 50
     # tok) -- every other row here needs this as the actual reference point.
-    "paper_default": Protocol("raw", max_new_tokens=50,  # PAPER_MAX_NEW_TOKENS in rewards.py;
-                               grader="ours", stop=None),  # hardcoded here, not imported, to
-                                                            # keep heavy imports inside main()
+    "paper_default": Protocol(
+        "raw", max_new_tokens=50, grader="ours", stop=None  # PAPER_MAX_NEW_TOKENS in rewards.py;
+    ),  # hardcoded here, not imported, to
+    # keep heavy imports inside main()
 }
 
 
@@ -229,7 +248,7 @@ def truncate_after_first_boxed(text: str) -> str:
             depth -= 1
             if depth == 0:
                 break
-    return prefix + "oxed{" + rest[:i + 1]
+    return prefix + "oxed{" + rest[: i + 1]
 
 
 def classify_formatting(extract_boxed_fn: Callable[[str], Optional[str]], text: str) -> dict:
@@ -251,6 +270,7 @@ def mathruler_grade(gt: str, text: str) -> bool:
     docstring); DR.LLM's own code has no such guard, but a bare try/except
     costs nothing."""
     from mathruler.grader import extract_boxed_content, grade_answer
+
     try:
         pred = extract_boxed_content(text.strip())
         return bool(pred) and bool(grade_answer(pred, gt))
@@ -295,14 +315,19 @@ def grade_all_pooled(refs: List[str], texts: List[str], workers: int = 4) -> Lis
                 pool.stop()
             except Exception:
                 pass
-        pool = ProcessPool(max_workers=workers, max_tasks=GRADE_MAX_TASKS,
-                            context=mp.get_context("spawn"),
-                            initializer=_grade_worker_init, initargs=(GRADE_MEM_BYTES,))
+        pool = ProcessPool(
+            max_workers=workers,
+            max_tasks=GRADE_MAX_TASKS,
+            context=mp.get_context("spawn"),
+            initializer=_grade_worker_init,
+            initargs=(GRADE_MEM_BYTES,),
+        )
         futures: Dict[int, object] = {}
         try:
             for i in remaining:
-                futures[i] = pool.schedule(_grade_worker, args=(refs[i], texts[i]),
-                                            timeout=GRADE_TIMEOUT_S)
+                futures[i] = pool.schedule(
+                    _grade_worker, args=(refs[i], texts[i]), timeout=GRADE_TIMEOUT_S
+                )
         except Exception:
             pass  # pool broke mid-schedule -> unscheduled indices stay in `remaining`
         still: List[int] = []
@@ -338,39 +363,65 @@ def main(argv=None):
     from re_polar.vendor.dart_math.eval import extract_boxed
 
     import sys
+
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from select_and_generate import generate_all  # noqa: E402
 
     p = argparse.ArgumentParser()
     p.add_argument("--protocol", required=True, choices=list(PROTOCOLS))
     p.add_argument("--dataset-dir", default="dart_math_v2")
-    p.add_argument("--difficulty", type=int, action="append", default=None,
-                   help="1-5 (repeatable); default 1-5")
+    p.add_argument(
+        "--difficulty",
+        type=int,
+        action="append",
+        default=None,
+        help="1-5 (repeatable); default 1-5",
+    )
     p.add_argument("--n-per-difficulty", type=int, default=40)
-    p.add_argument("--splits", nargs="+", default=["test"], choices=["train", "val", "test"],
-                   help="which dart_math_v2 splits to pull from per difficulty; default "
-                        "test only (500/difficulty, matches every pilot run so far)")
-    p.add_argument("--full", action="store_true",
-                   help="use ALL samples per difficulty across --splits, ignoring "
-                        "--n-per-difficulty entirely (e.g. --splits train val test --full "
-                        "= the complete 10,000 on disk -- train(1250)+val(250)+test(500) "
-                        "per difficulty x 5; NOT the full ~14,941-query pre-binning pool, "
-                        "which was never materialized on disk -- the paper's echo-sweep "
-                        "table only ever needed the released 10,000)")
-    p.add_argument("--model", default="qwen3_8b",
-                   help="MODEL_REGISTRY key; ignored if --model-id is given")
-    p.add_argument("--model-id", default=None,
-                   help="raw HF model id, bypasses MODEL_REGISTRY (e.g. for a model "
-                        "outside this repo's registry, such as Qwen2.5-7B-Instruct "
-                        "cross-checks against the DR.LLM protocol)")
-    p.add_argument("--trust-remote-code", action="store_true", default=None,
-                   help="only used with --model-id; default True")
+    p.add_argument(
+        "--splits",
+        nargs="+",
+        default=["test"],
+        choices=["train", "val", "test"],
+        help="which dart_math_v2 splits to pull from per difficulty; default "
+        "test only (500/difficulty, matches every pilot run so far)",
+    )
+    p.add_argument(
+        "--full",
+        action="store_true",
+        help="use ALL samples per difficulty across --splits, ignoring "
+        "--n-per-difficulty entirely (e.g. --splits train val test --full "
+        "= the complete 10,000 on disk -- train(1250)+val(250)+test(500) "
+        "per difficulty x 5; NOT the full ~14,941-query pre-binning pool, "
+        "which was never materialized on disk -- the paper's echo-sweep "
+        "table only ever needed the released 10,000)",
+    )
+    p.add_argument(
+        "--model", default="qwen3_8b", help="MODEL_REGISTRY key; ignored if --model-id is given"
+    )
+    p.add_argument(
+        "--model-id",
+        default=None,
+        help="raw HF model id, bypasses MODEL_REGISTRY (e.g. for a model "
+        "outside this repo's registry, such as Qwen2.5-7B-Instruct "
+        "cross-checks against the DR.LLM protocol)",
+    )
+    p.add_argument(
+        "--trust-remote-code",
+        action="store_true",
+        default=None,
+        help="only used with --model-id; default True",
+    )
     p.add_argument("--batch-size", type=int, default=8)
-    p.add_argument("--grade-workers", type=int, default=4,
-                   help="pool size for grade_all_pooled (grader='ours' protocols only; "
-                        "'mathruler' protocols grade in-process, see mathruler_grade's "
-                        "docstring). Matches GenerationReward's memory-capped subprocess "
-                        "pattern (re_polar/mcts/rewards.py).")
+    p.add_argument(
+        "--grade-workers",
+        type=int,
+        default=4,
+        help="pool size for grade_all_pooled (grader='ours' protocols only; "
+        "'mathruler' protocols grade in-process, see mathruler_grade's "
+        "docstring). Matches GenerationReward's memory-capped subprocess "
+        "pattern (re_polar/mcts/rewards.py).",
+    )
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--output", required=True)
     args = p.parse_args(argv)
@@ -389,8 +440,11 @@ def main(argv=None):
             selected.extend(rows)
         else:
             selected.extend(select_samples(rows, args.n_per_difficulty, rng))
-    print(f"Selected {len(selected)} samples across difficulties {difficulties} "
-          f"({args.n_per_difficulty}/difficulty)", flush=True)
+    print(
+        f"Selected {len(selected)} samples across difficulties {difficulties} "
+        f"({args.n_per_difficulty}/difficulty)",
+        flush=True,
+    )
     if not selected:
         raise SystemExit("No samples selected -- nothing to do.")
 
@@ -403,9 +457,12 @@ def main(argv=None):
         cfg = MODEL_REGISTRY[args.model]
         model_id = cfg["model_id"]
         trust_remote_code = cfg.get("trust_remote_code", True)
-    print(f"=== protocol={args.protocol!r} model_id={model_id!r} "
-          f"prompt={protocol.prompt_style} max_new_tokens={protocol.max_new_tokens} "
-          f"grader={protocol.grader} stop={protocol.stop!r} ===", flush=True)
+    print(
+        f"=== protocol={args.protocol!r} model_id={model_id!r} "
+        f"prompt={protocol.prompt_style} max_new_tokens={protocol.max_new_tokens} "
+        f"grader={protocol.grader} stop={protocol.stop!r} ===",
+        flush=True,
+    )
 
     engine = LayerEngine(model_id, trust_remote_code=trust_remote_code)
     tokenizer = engine.tokenizer
@@ -416,9 +473,17 @@ def main(argv=None):
     questions = [s["question"] for s in selected]
     gts = [s["gt_ans"] for s in selected]
 
-    raw_texts = generate_all(engine, tokenizer, engine.device, PROMPT_STYLES[protocol.prompt_style],
-                              identity_path, questions, protocol.max_new_tokens, args.batch_size,
-                              label=args.protocol)
+    raw_texts = generate_all(
+        engine,
+        tokenizer,
+        engine.device,
+        PROMPT_STYLES[protocol.prompt_style],
+        identity_path,
+        questions,
+        protocol.max_new_tokens,
+        args.batch_size,
+        label=args.protocol,
+    )
     if protocol.prefill:
         raw_texts = [protocol.prefill + t for t in raw_texts]
     texts = [truncate_at_stop(t, protocol.stop) for t in raw_texts]
@@ -427,12 +492,16 @@ def main(argv=None):
 
     if protocol.grader == "mathruler":
         from mathruler.grader import extract_boxed_content as extract_fn
+
         print(f"Grading {len(texts)} samples (mathruler, in-process)...", flush=True)
         corrects = [mathruler_grade(gt, text) for gt, text in zip(gts, texts)]
     else:
         extract_fn = extract_boxed
-        print(f"Grading {len(texts)} samples (pooled, {args.grade_workers} "
-              f"memory-capped workers)...", flush=True)
+        print(
+            f"Grading {len(texts)} samples (pooled, {args.grade_workers} "
+            f"memory-capped workers)...",
+            flush=True,
+        )
         corrects = grade_all_pooled(gts, texts, workers=args.grade_workers)
     print(f"Grading done: {sum(corrects)}/{len(corrects)} correct.", flush=True)
 
@@ -462,11 +531,16 @@ def main(argv=None):
 
     n = len(selected)
     print(f"Wrote {n} records -> {out_path}", flush=True)
-    print(f"\n=== Summary (protocol={args.protocol}, model={model_id}, "
-          f"identity-path generation) ===", flush=True)
-    print(f"n={n}  accuracy={n_correct / n:.1%}  has_boxed={n_has_boxed / n:.1%}  "
-          f"boxed_empty={n_boxed_empty / n:.1%}  placeholder_echo={n_placeholder_echo / n:.1%}",
-          flush=True)
+    print(
+        f"\n=== Summary (protocol={args.protocol}, model={model_id}, "
+        f"identity-path generation) ===",
+        flush=True,
+    )
+    print(
+        f"n={n}  accuracy={n_correct / n:.1%}  has_boxed={n_has_boxed / n:.1%}  "
+        f"boxed_empty={n_boxed_empty / n:.1%}  placeholder_echo={n_placeholder_echo / n:.1%}",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

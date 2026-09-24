@@ -24,6 +24,7 @@ from .model_loader import load_model_and_tokenizer
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def resolve_layer_parent(model: torch.nn.Module):
     """Locate the (module, attr_name) holding a model's transformer layer list.
 
@@ -88,6 +89,7 @@ def _shallow_copy_layer(layer: torch.nn.Module, new_layer_idx: int) -> torch.nn.
 # ---------------------------------------------------------------------------
 # LayerEngine
 # ---------------------------------------------------------------------------
+
 
 class LayerEngine:
     """

@@ -188,7 +188,9 @@ class EvalCache:
         if self.path:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with open(self.path, "a") as f:
-                f.write(json.dumps({"query_id": query_id, "path": list(path), "reward": reward}) + "\n")
+                f.write(
+                    json.dumps({"query_id": query_id, "path": list(path), "reward": reward}) + "\n"
+                )
 
 
 class MCTSRunner:
@@ -198,15 +200,26 @@ class MCTSRunner:
     inputs: [{"query_id", "question", "gt_ans", ...}], extra keys pass through.
     """
 
-    def __init__(self, inputs: List[dict], num_layers: int, reward_fn, budget: int,
-                 c: float, lam: float, seed: int = 42, cache: Optional[EvalCache] = None,
-                 max_repeat_times: int = DEFAULT_MAX_REPEAT_TIMES,
-                 per_tree_seed: bool = True,
-                 reward_fns: Optional[List] = None, epsilon: float = 0.0,
-                 masked_batch_reward_fn=None,
-                 global_selection: bool = False,
-                 ucb_global_v: bool = True,
-                 alpha: float = 2.0, beta: float = 0.5):
+    def __init__(
+        self,
+        inputs: List[dict],
+        num_layers: int,
+        reward_fn,
+        budget: int,
+        c: float,
+        lam: float,
+        seed: int = 42,
+        cache: Optional[EvalCache] = None,
+        max_repeat_times: int = DEFAULT_MAX_REPEAT_TIMES,
+        per_tree_seed: bool = True,
+        reward_fns: Optional[List] = None,
+        epsilon: float = 0.0,
+        masked_batch_reward_fn=None,
+        global_selection: bool = False,
+        ucb_global_v: bool = True,
+        alpha: float = 2.0,
+        beta: float = 0.5,
+    ):
         self.inputs = inputs
         # MASKED-BATCH SCHEDULER (opt-in, see module docstring below):
         # None (default) -> zero behavior change, _evaluate_jobs takes the exact
@@ -273,11 +286,18 @@ class MCTSRunner:
         self.alpha, self.beta = alpha, beta
         self.trees = {
             inp["query_id"]: ProgramMCTS(
-                num_layers, budget=budget, c=c, lam=lam,
+                num_layers,
+                budget=budget,
+                c=c,
+                lam=lam,
                 seed=derive_tree_seed(seed, inp["query_id"]) if per_tree_seed else seed,
                 max_repeat_times=max_repeat_times,
-                epsilon=epsilon, global_selection=global_selection,
-                ucb_global_v=ucb_global_v, alpha=alpha, beta=beta)
+                epsilon=epsilon,
+                global_selection=global_selection,
+                ucb_global_v=ucb_global_v,
+                alpha=alpha,
+                beta=beta,
+            )
             for inp in inputs
         }
         self.by_id = {inp["query_id"]: inp for inp in inputs}
@@ -314,8 +334,9 @@ class MCTSRunner:
         for qid, r in fresh.items():
             self.cache.put(qid, path, r)
 
-    def _evaluate_group(self, program: Program, query_ids: List[str],
-                        reward_fn=None) -> Dict[str, float]:
+    def _evaluate_group(
+        self, program: Program, query_ids: List[str], reward_fn=None
+    ) -> Dict[str, float]:
         """Cache-aware evaluation of one program (serial). Used for the identity
         precompute; the per-round path goes through `_evaluate_jobs`."""
         path, cached, missing = self._cache_split(program, query_ids)
@@ -331,18 +352,21 @@ class MCTSRunner:
         SERIAL; only the reward-fn generation (phase 2) fans out across the
         replica pool. A 1-replica pool takes the serial branch and is
         bit-identical to calling `_evaluate_group` per job."""
-        prepared = [(*self._cache_split(program, qids), program)
-                    for _path, program, qids in jobs]  # (path, cached, missing, program)
-        gen_jobs = [(path, program, missing)
-                    for path, _cached, missing, program in prepared if missing]
+        prepared = [
+            (*self._cache_split(program, qids), program) for _path, program, qids in jobs
+        ]  # (path, cached, missing, program)
+        gen_jobs = [
+            (path, program, missing) for path, _cached, missing, program in prepared if missing
+        ]
         if self._masked_batch_reward is not None and len(gen_jobs) > 1:
             fresh_by_path = self._generate_masked_batch(gen_jobs)
         elif len(self._reward_pool) > 1 and len(gen_jobs) > 1:
             fresh_by_path = self._generate_parallel(gen_jobs)
         else:
             rf = self._reward_pool[0]
-            fresh_by_path = {path: self._generate(rf, program, missing)
-                             for path, program, missing in gen_jobs}
+            fresh_by_path = {
+                path: self._generate(rf, program, missing) for path, program, missing in gen_jobs
+            }
         results = {}
         for path, cached, _missing, _program in prepared:
             fresh = fresh_by_path.get(path, {})
@@ -455,8 +479,10 @@ class MCTSRunner:
             if not pending:
                 break
             rounds += 1
-            jobs = [(path, entries[0][1], [qid for qid, _, _ in entries])
-                    for path, entries in pending.items()]
+            jobs = [
+                (path, entries[0][1], [qid for qid, _, _ in entries])
+                for path, entries in pending.items()
+            ]
             results = self._evaluate_jobs(jobs)
             for path, entries in pending.items():
                 rewards = results[path]
@@ -465,9 +491,11 @@ class MCTSRunner:
             if log_every and rounds % log_every == 0:
                 done = sum(t.exhausted for t in self.trees.values())
                 solved = sum(bool(t.valid_paths()) for t in self.trees.values())
-                print(f"round {rounds}: distinct programs={len(pending)}, "
-                      f"trees done={done}/{len(self.trees)}, solved={solved}, "
-                      f"replicas={len(self._reward_pool)}")
+                print(
+                    f"round {rounds}: distinct programs={len(pending)}, "
+                    f"trees done={done}/{len(self.trees)}, solved={solved}, "
+                    f"replicas={len(self._reward_pool)}"
+                )
         return self.trees
 
     def _run_async(self, log_every: int = 1) -> Dict[str, ProgramMCTS]:
@@ -532,7 +560,7 @@ class MCTSRunner:
             finally:
                 available.put(rf)
 
-        ready = list(self.trees)      # qids due for a fresh propose()
+        ready = list(self.trees)  # qids due for a fresh propose()
         frontier: Dict[Tuple[int, ...], list] = defaultdict(list)  # path -> pending entries
         rounds = 0
 
@@ -591,7 +619,9 @@ class MCTSRunner:
                 if log_every and rounds % log_every == 0:
                     done_ct = sum(t.exhausted for t in self.trees.values())
                     solved = sum(bool(t.valid_paths()) for t in self.trees.values())
-                    print(f"async: dispatched={rounds}, in_flight={len(in_flight)}, "
-                          f"trees done={done_ct}/{len(self.trees)}, solved={solved}, "
-                          f"replicas={len(pool)}")
+                    print(
+                        f"async: dispatched={rounds}, in_flight={len(in_flight)}, "
+                        f"trees done={done_ct}/{len(self.trees)}, solved={solved}, "
+                        f"replicas={len(pool)}"
+                    )
         return self.trees

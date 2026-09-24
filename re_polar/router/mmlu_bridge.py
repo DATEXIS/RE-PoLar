@@ -36,9 +36,11 @@ def format_mmlu_question(question: Dict, *, no_think: bool = True) -> str:
     from re_polar.core.mmlu_pro_scoring import MMLUProSample, _build_prompt
 
     sample = MMLUProSample(
-        id=0, question=str(question["question"]),
+        id=0,
+        question=str(question["question"]),
         options=tuple(str(o) for o in question["options"]),
-        answer_index=0, category=str(question.get("category", "")),
+        answer_index=0,
+        category=str(question.get("category", "")),
     )
     return _build_prompt(sample, no_think)
 

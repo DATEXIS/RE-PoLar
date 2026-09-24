@@ -6,8 +6,15 @@ from re_polar.datasets.mawps import build_eval_split
 
 
 def _row(id_, question, result, result_float, equation="x=1", expression="1"):
-    return {"id": id_, "question": question, "chain": "", "result": result,
-            "result_float": result_float, "equation": equation, "expression": expression}
+    return {
+        "id": id_,
+        "question": question,
+        "chain": "",
+        "result": result,
+        "result_float": result_float,
+        "equation": equation,
+        "expression": expression,
+    }
 
 
 def test_build_eval_split_basic_fields_and_fraction_flag(tmp_path, monkeypatch):
@@ -16,6 +23,7 @@ def test_build_eval_split_basic_fields_and_fraction_flag(tmp_path, monkeypatch):
         _row("mawps__b", "What fraction?", "56/9", 6.222),
     ]
     import datasets
+
     monkeypatch.setattr(datasets, "load_dataset", lambda *a, **k: rows)
     monkeypatch.setattr("re_polar.datasets.mawps.EXPECTED_N", 2)
 
@@ -37,6 +45,7 @@ def test_build_eval_split_counts_duplicate_questions(tmp_path, monkeypatch):
         _row("mawps__b", "same question", "1", 1.0),
     ]
     import datasets
+
     monkeypatch.setattr(datasets, "load_dataset", lambda *a, **k: rows)
     monkeypatch.setattr("re_polar.datasets.mawps.EXPECTED_N", 2)
 

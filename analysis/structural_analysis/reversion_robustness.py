@@ -36,6 +36,7 @@ explicitly, not assumed complete.
 Auto-detected: format 2 if the file is a single JSON document with a
 top-level "samples" key, format 1 otherwise (line-delimited JSON).
 """
+
 import argparse
 import itertools
 import json
@@ -56,6 +57,7 @@ def parse_program(path: Sequence[int], num_layers: int):
     torch-touching import, kept local so this module stays torch-free at
     import time."""
     from re_polar.router.train import program_from_layer_path
+
     return program_from_layer_path(list(path), num_layers, strict_repeat_2x=False)
 
 
@@ -67,8 +69,9 @@ def op_seq(program) -> OpSeq:
     return tuple(s.op.value for s in program.segments)
 
 
-def classify_reversions(records: List[dict], num_layers: int,
-                         max_group_size: int = 40) -> Dict[str, object]:
+def classify_reversions(
+    records: List[dict], num_layers: int, max_group_size: int = 40
+) -> Dict[str, object]:
     """For one query_id's logged (path, reward) records: find its identity
     reward, then for every single-segment keep-reversion pair where the
     non-keep side is a genuine RESCUE program (identity reward 0, this
@@ -118,10 +121,12 @@ def classify_reversions(records: List[dict], num_layers: int,
             if edit_side["reward"] != 1.0:
                 continue  # not a confirmed-working RESCUE program, nothing to break
             broke = keep_side["reward"] == 0.0
-            result["reversions"].append({
-                "broke": broke,
-                "edit_side_path": tuple(edit_side["path"]),
-            })
+            result["reversions"].append(
+                {
+                    "broke": broke,
+                    "edit_side_path": tuple(edit_side["path"]),
+                }
+            )
 
     return result
 
@@ -130,11 +135,13 @@ def aggregate(all_query_results: List[dict]) -> dict:
     reversions = [rev for qres in all_query_results for rev in qres["reversions"]]
     n = len(reversions)
     n_broken = sum(1 for rev in reversions if rev["broke"])
-    n_distinct_programs = len({
-        (qidx, rev["edit_side_path"])
-        for qidx, qres in enumerate(all_query_results)
-        for rev in qres["reversions"]
-    })
+    n_distinct_programs = len(
+        {
+            (qidx, rev["edit_side_path"])
+            for qidx, qres in enumerate(all_query_results)
+            for rev in qres["reversions"]
+        }
+    )
     return {
         "n_queries_eligible": sum(1 for qres in all_query_results if qres["eligible"]),
         "n_reversions_tested": n,
@@ -177,13 +184,21 @@ def load_by_query(path: str, num_layers: int = None) -> Dict[str, List[dict]]:
                 by_query[r["query_id"]].append(r)
                 n_lines += 1
                 if n_lines % 200000 == 0:
-                    print(f"read {n_lines} lines, {len(by_query)} distinct query_ids so far", flush=True)
-        print(f"Loaded {n_lines} records across {len(by_query)} distinct query_ids (raw cache log)", flush=True)
+                    print(
+                        f"read {n_lines} lines, {len(by_query)} distinct query_ids so far",
+                        flush=True,
+                    )
+        print(
+            f"Loaded {n_lines} records across {len(by_query)} distinct query_ids (raw cache log)",
+            flush=True,
+        )
         return by_query
 
     if num_layers is None:
-        raise ValueError("--num-layers is required to read the released merged_mcts_samples.json format "
-                          "(needed to construct the identity path for initial_transition_metric)")
+        raise ValueError(
+            "--num-layers is required to read the released merged_mcts_samples.json format "
+            "(needed to construct the identity path for initial_transition_metric)"
+        )
     identity_path = list(range(num_layers))
 
     with open(path) as f:
@@ -201,18 +216,28 @@ def load_by_query(path: str, num_layers: int = None) -> Dict[str, List[dict]]:
             by_query[qid].append({"path": r["path"], "reward": r["reward"]})
             n_lines += 1
     if n_no_traj:
-        print(f"{n_no_traj}/{len(data['samples'])} samples had no search_trajectory "
-              f"(identity-only coverage for those, from initial_transition_metric)", flush=True)
-    print(f"Loaded {n_lines} records across {len(by_query)} distinct query_ids "
-          f"(released merged_mcts_samples.json)", flush=True)
+        print(
+            f"{n_no_traj}/{len(data['samples'])} samples had no search_trajectory "
+            f"(identity-only coverage for those, from initial_transition_metric)",
+            flush=True,
+        )
+    print(
+        f"Loaded {n_lines} records across {len(by_query)} distinct query_ids "
+        f"(released merged_mcts_samples.json)",
+        flush=True,
+    )
     return by_query
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--search-log", required=True)
     parser.add_argument("--num-layers", type=int, default=36)
-    parser.add_argument("--max-queries", type=int, default=None, help="debug: first N distinct query_ids")
+    parser.add_argument(
+        "--max-queries", type=int, default=None, help="debug: first N distinct query_ids"
+    )
     parser.add_argument("--max-group-size", type=int, default=40)
     parser.add_argument("--output", required=True)
     args = parser.parse_args(argv)
@@ -221,7 +246,7 @@ def main(argv=None):
 
     query_ids = list(by_query)
     if args.max_queries is not None:
-        query_ids = query_ids[:args.max_queries]
+        query_ids = query_ids[: args.max_queries]
 
     all_query_results = []
     total_skipped_groups = 0
@@ -231,7 +256,10 @@ def main(argv=None):
         total_skipped_groups += qres["skipped_groups"]
         if (i + 1) % 500 == 0:
             n_so_far = sum(len(r["reversions"]) for r in all_query_results)
-            print(f"processed {i + 1}/{len(query_ids)} queries -- {n_so_far} reversion pairs so far", flush=True)
+            print(
+                f"processed {i + 1}/{len(query_ids)} queries -- {n_so_far} reversion pairs so far",
+                flush=True,
+            )
 
     agg = aggregate(all_query_results)
     result = {
@@ -240,13 +268,21 @@ def main(argv=None):
         **agg,
     }
 
-    print(f"\n=== DONE: {len(query_ids)} queries, {total_skipped_groups} groups skipped "
-          f"(over --max-group-size={args.max_group_size}) ===", flush=True)
+    print(
+        f"\n=== DONE: {len(query_ids)} queries, {total_skipped_groups} groups skipped "
+        f"(over --max-group-size={args.max_group_size}) ===",
+        flush=True,
+    )
     print(f"queries with identity wrong (RESCUE-eligible): {agg['n_queries_eligible']}", flush=True)
     print(f"single-segment reversions tested: {agg['n_reversions_tested']}", flush=True)
-    print(f"distinct RESCUE programs covered: {agg['n_distinct_rescue_programs_covered']}", flush=True)
+    print(
+        f"distinct RESCUE programs covered: {agg['n_distinct_rescue_programs_covered']}", flush=True
+    )
     if agg["break_rate"] is not None:
-        print(f"break_rate: {agg['break_rate']*100:.1f}% ({agg['n_broken']}/{agg['n_reversions_tested']})", flush=True)
+        print(
+            f"break_rate: {agg['break_rate']*100:.1f}% ({agg['n_broken']}/{agg['n_reversions_tested']})",
+            flush=True,
+        )
     else:
         print("no reversion pairs found in this log -- 0 coverage", flush=True)
 

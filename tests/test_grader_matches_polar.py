@@ -11,6 +11,7 @@ has been fixed (upstream or locally) and `re_polar/core/grader.py` (which
 grades with `strict_extract=True`, the actual MCTS reward path) needs to be
 re-checked against anything that grades with `strict_extract=False`.
 """
+
 import sys
 from pathlib import Path
 
@@ -35,4 +36,5 @@ def test_strict_extract_true_and_false_give_identical_extraction():
         "strict_extract=False behaving like True (e.g. analysis/error_analysis/"
         "prompt_variant_pilot.py's grader='ours', which never passes strict_extract) "
         "needs to change to match re_polar/core/grader.py's strict_extract=True path, "
-        "now that the two could behave differently")
+        "now that the two could behave differently"
+    )

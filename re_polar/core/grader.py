@@ -51,6 +51,7 @@ def _grade_worker_init(mem_bytes: int) -> None:
     parent job down. Cap AFTER imports so the sympy import itself isn't starved."""
     global _WORKER_EV
     from re_polar.vendor.dart_math.eval import EvaluatorMath
+
     # strict_extract=True: only the \boxed{} span is parsed (PoLar eval.py uses
     # EvaluatorMathBatch(strict_extract=True)). No last-number fallback over the
     # whole generation -> collapsed babble can't feed a giant expression to sympy.

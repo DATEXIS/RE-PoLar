@@ -48,8 +48,10 @@ def main():
     }
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
-    print(f"wrote {len(records)} rows across {len(counts)} categories -> {out_dir}/test.json",
-          flush=True)
+    print(
+        f"wrote {len(records)} rows across {len(counts)} categories -> {out_dir}/test.json",
+        flush=True,
+    )
     for cat, n in sorted(counts.items()):
         print(f"  {cat:20s} {n}", flush=True)
     print(f"manifest -> {out_dir}/manifest.json", flush=True)

@@ -5,6 +5,7 @@ programs (`merged_mcts_samples.json`), generalized to any model via
 Every insight: `fn(groups: dict[str, list[sample]], num_layers: int) -> dict`,
 `groups` = {group_label: [merged_mcts_samples.json sample dict, ...]}.
 """
+
 from collections import Counter, defaultdict
 from typing import Dict, List
 
@@ -65,8 +66,11 @@ def menu_concentration(groups: Dict[str, List[dict]], num_layers: int) -> dict:
     id_ = identity(num_layers)
     table, curves = {}, {}
     for label, samples in groups.items():
-        n_solved = sum(1 for s in samples if s.get("initial_transition_metric") == 1.0
-                        or s.get("final_valid_transitions"))
+        n_solved = sum(
+            1
+            for s in samples
+            if s.get("initial_transition_metric") == 1.0 or s.get("final_valid_transitions")
+        )
         if n_solved == 0:
             table[label] = {"solved": 0}
             curves[label] = []
@@ -79,9 +83,13 @@ def menu_concentration(groups: Dict[str, List[dict]], num_layers: int) -> dict:
             top10 |= prog_qids[p]
         n_distinct = len(prog_qids)
         unique1 = sum(1 for qs in prog_qids.values() if len(qs) == 1)
-        mean_edit = sum(
-            len({tuple(p) for p in s.get("final_valid_transitions", [])} - {id_}) for s in samples
-        ) / n_solved
+        mean_edit = (
+            sum(
+                len({tuple(p) for p in s.get("final_valid_transitions", [])} - {id_})
+                for s in samples
+            )
+            / n_solved
+        )
         table[label] = {
             "solved": n_solved,
             "base_ok_share": base_ok / n_solved,
@@ -197,11 +205,17 @@ def rescue_breakdown(groups: Dict[str, List[dict]], num_layers: int) -> dict:
     for label, samples in groups.items():
         n = len(samples)
         baseline = sum(1 for s in samples if s.get("initial_transition_metric") == 1.0)
-        rescued = sum(1 for s in samples
-                       if s.get("initial_transition_metric") != 1.0 and s.get("final_valid_transitions"))
+        rescued = sum(
+            1
+            for s in samples
+            if s.get("initial_transition_metric") != 1.0 and s.get("final_valid_transitions")
+        )
         unsolved = n - baseline - rescued
         table[label] = {
-            "n": n, "baseline_solved": baseline, "rescued": rescued, "unsolved": unsolved,
+            "n": n,
+            "baseline_solved": baseline,
+            "rescued": rescued,
+            "unsolved": unsolved,
             "baseline_rate": baseline / n if n else 0.0,
             "rescued_rate": rescued / n if n else 0.0,
             "solved_rate": (baseline + rescued) / n if n else 0.0,
@@ -254,7 +268,9 @@ def op_class_coverage(groups: Dict[str, List[dict]], num_layers: int) -> dict:
         sv_total = sum(sv_counts.values())
         all_total = sum(all_counts.values())
         mix_sv[label] = {c: (sv_counts.get(c, 0) / sv_total if sv_total else 0.0) for c in classes}
-        mix_all[label] = {c: (all_counts.get(c, 0) / all_total if all_total else 0.0) for c in classes}
+        mix_all[label] = {
+            c: (all_counts.get(c, 0) / all_total if all_total else 0.0) for c in classes
+        }
     return {"table": table, "mix_shortest_valid": mix_sv, "mix_all_instances": mix_all}
 
 
@@ -279,8 +295,12 @@ def menu_size_distribution(groups: Dict[str, List[dict]], num_layers: int) -> di
             continue
         q1, med, q3 = np.percentile(counts, [25, 50, 75])
         table[label] = {
-            "min": float(counts.min()), "q1": float(q1), "median": float(med),
-            "q3": float(q3), "max": float(counts.max()), "mean": float(counts.mean()),
+            "min": float(counts.min()),
+            "q1": float(q1),
+            "median": float(med),
+            "q3": float(q3),
+            "max": float(counts.max()),
+            "mean": float(counts.mean()),
             "n": int(counts.size),
         }
     return {"boxplot": table}

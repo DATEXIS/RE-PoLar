@@ -2,6 +2,7 @@
 analysis, kept separate from tag_with_llm.py's LLM-assigned error_category
 so they can't be confused with a qualitative judgment call.
 """
+
 import re
 
 # re_polar/mcts/rewards.py's PAPER_INSTRUCTION literally tells the model:
@@ -11,8 +12,8 @@ import re
 # answer for the word "ANSWER") instead of following it. Tolerant of $...$
 # math-mode wrapping and internal whitespace, case-insensitive on "ANSWER".
 _BOXED_PLACEHOLDER_RE = re.compile(
-    r"\$?\s*\\boxed\s*\{\s*\(?\s*(?:\\text\s*\{\s*)?ANSWER\s*\}?\s*\)?\s*\}\s*\$?",
-    re.IGNORECASE)
+    r"\$?\s*\\boxed\s*\{\s*\(?\s*(?:\\text\s*\{\s*)?ANSWER\s*\}?\s*\)?\s*\}\s*\$?", re.IGNORECASE
+)
 
 
 def has_unfilled_boxed_placeholder(text: str) -> bool:

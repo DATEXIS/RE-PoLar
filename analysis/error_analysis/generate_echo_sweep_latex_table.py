@@ -22,6 +22,7 @@ the real file I/O.
         --data-dir full10k_for_gen \\
         --output generated_echo_sweep_table.tex
 """
+
 import argparse
 import json
 import math
@@ -49,8 +50,11 @@ VARIANT_ORDER = [
     ("drllm_chat_prefill", "drllm_chat_prefill", "drllm\\_chat\\_prefill"),
     ("polar_oneshot", "paper_minimal_fewshot", "polar\\_oneshot"),
     ("drllm_chat_oneshot", "drllm_chat_minimal_fewshot", "drllm\\_chat\\_oneshot"),
-    ("drllm_chat_oneshot_prefill", "drllm_chat_minimal_fewshot_prefill",
-     "drllm\\_chat\\_oneshot\\_prefill"),
+    (
+        "drllm_chat_oneshot_prefill",
+        "drllm_chat_minimal_fewshot_prefill",
+        "drllm\\_chat\\_oneshot\\_prefill",
+    ),
 ]
 
 # Which grader each variant is scored with (prompt_variant_pilot.py's PROTOCOLS
@@ -109,7 +113,9 @@ def mcnemar_p(rows_a: List[dict], rows_b: List[dict]) -> float:
     ca = {r["query_id"]: bool(r["correct"]) for r in rows_a}
     cb = {r["query_id"]: bool(r["correct"]) for r in rows_b}
     if set(ca) != set(cb):
-        raise ValueError(f"mcnemar_p: query_id sets differ ({len(ca)} vs {len(cb)}) -- not a valid pairing")
+        raise ValueError(
+            f"mcnemar_p: query_id sets differ ({len(ca)} vs {len(cb)}) -- not a valid pairing"
+        )
     b = sum(1 for q in ca if ca[q] and not cb[q])
     c = sum(1 for q in ca if not ca[q] and cb[q])
     if b + c == 0:
@@ -130,12 +136,16 @@ def significance_marker(p: Optional[float]) -> str:
     return ""
 
 
-def format_row(variant_tex: str, stats: Dict[str, float], sig: str, is_best: bool, grader: str) -> str:
+def format_row(
+    variant_tex: str, stats: Dict[str, float], sig: str, is_best: bool, grader: str
+) -> str:
     acc_str = f"{stats['acc'] * 100:.1f}\\%"
     if is_best:
         acc_str = f"\\textbf{{{acc_str}}}"
-    return (f" & \\texttt{{{variant_tex}}} & {grader} & {acc_str}{sig} & "
-            f"{stats['unboxed_rate'] * 100:.1f}\\% & {stats['echo_rate'] * 100:.2f}\\% \\\\")
+    return (
+        f" & \\texttt{{{variant_tex}}} & {grader} & {acc_str}{sig} & "
+        f"{stats['unboxed_rate'] * 100:.1f}\\% & {stats['echo_rate'] * 100:.2f}\\% \\\\"
+    )
 
 
 def generate_table_tex(data_dir: Path) -> str:
@@ -190,25 +200,35 @@ def generate_table_tex(data_dir: Path) -> str:
                 variant_tex_final = "polar\\_default"
             else:
                 sig = significance_marker(mcnemar_p(default_rows, rows_by_variant[variant_slug]))
-                variant_tex_final = variant_tex if variant_slug != "drllm_faithful" else "drllm} (faithful)"
-            is_best = (variant_slug == best_variant)
+                variant_tex_final = (
+                    variant_tex if variant_slug != "drllm_faithful" else "drllm} (faithful)"
+                )
+            is_best = variant_slug == best_variant
             if variant_slug == "drllm_faithful":
                 # special-cased tex (closing brace mid-token for the "(faithful)" annotation)
                 acc_str = f"{stats['acc'] * 100:.1f}\\%"
                 if is_best:
                     acc_str = f"\\textbf{{{acc_str}}}"
-                lines.append(f" & \\texttt{{drllm}} (faithful) & {grader} & {acc_str}{sig} & "
-                             f"{stats['unboxed_rate'] * 100:.1f}\\% & {stats['echo_rate'] * 100:.2f}\\% \\\\")
+                lines.append(
+                    f" & \\texttt{{drllm}} (faithful) & {grader} & {acc_str}{sig} & "
+                    f"{stats['unboxed_rate'] * 100:.1f}\\% & {stats['echo_rate'] * 100:.2f}\\% \\\\"
+                )
             else:
                 lines.append(format_row(variant_tex_final, stats, sig, is_best, grader))
-        lines.append(r"\midrule" if (model_label, model_slug) != MODEL_ORDER[-1] else r"\bottomrule")
+        lines.append(
+            r"\midrule" if (model_label, model_slug) != MODEL_ORDER[-1] else r"\bottomrule"
+        )
     lines += [r"\end{tabular}", r"\end{table}"]
     return "\n".join(lines)
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--data-dir", required=True, help="dir containing the 30 full10k_*.jsonl files")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--data-dir", required=True, help="dir containing the 30 full10k_*.jsonl files"
+    )
     parser.add_argument("--output", required=True, help="where to write the generated .tex snippet")
     args = parser.parse_args(argv)
 

@@ -27,7 +27,7 @@ class Op(str, Enum):
 @dataclass(frozen=True)
 class Segment:
     start: int  # first layer index, inclusive
-    end: int    # past-last layer index, exclusive
+    end: int  # past-last layer index, exclusive
     op: Op
     params: Dict = field(default_factory=dict)  # REPEAT: {"times": k>=2}
 
@@ -39,7 +39,12 @@ class Segment:
         return self.params.get("times", 2 if self.op is Op.REPEAT else 1)
 
     def to_dict(self) -> Dict:
-        return {"start": self.start, "end": self.end, "op": self.op.value, "params": dict(self.params)}
+        return {
+            "start": self.start,
+            "end": self.end,
+            "op": self.op.value,
+            "params": dict(self.params),
+        }
 
     @classmethod
     def from_dict(cls, d: Dict) -> "Segment":
@@ -84,4 +89,6 @@ class Program:
 
     @classmethod
     def from_dict(cls, d: Dict) -> "Program":
-        return cls(num_layers=d["num_layers"], segments=[Segment.from_dict(s) for s in d["segments"]])
+        return cls(
+            num_layers=d["num_layers"], segments=[Segment.from_dict(s) for s in d["segments"]]
+        )

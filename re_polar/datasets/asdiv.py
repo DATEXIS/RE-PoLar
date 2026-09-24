@@ -74,7 +74,7 @@ _SEG_PAT = re.compile(r"^(.*?)\s*\(([^()]*)\)$")
 
 
 def parse_answer(raw: str) -> list:
-    """"5 (years old); 15 (years old)" -> ["5", "15"]; "9 (apples)" -> ["9"];
+    """ "5 (years old); 15 (years old)" -> ["5", "15"]; "9 (apples)" -> ["9"];
     "Purple" -> ["Purple"] (no unit to strip, passed through as-is)."""
     parts = [s.strip() for s in raw.split(";")]
     out = []
@@ -101,8 +101,10 @@ def build_eval_split(out_dir: Path) -> dict:
 
     ds = datasets.load_dataset(SOURCE_DATASET, split=SOURCE_SPLIT)
     if len(ds) != EXPECTED_N:
-        raise ValueError(f"{SOURCE_DATASET}:{SOURCE_SPLIT} has {len(ds)} rows, "
-                         f"expected {EXPECTED_N}, source dataset changed upstream?")
+        raise ValueError(
+            f"{SOURCE_DATASET}:{SOURCE_SPLIT} has {len(ds)} rows, "
+            f"expected {EXPECTED_N}, source dataset changed upstream?"
+        )
 
     seen = set()
     n_dupe = 0
@@ -124,20 +126,23 @@ def build_eval_split(out_dir: Path) -> dict:
         else:
             n_other += 1
 
-        records.append({
-            "id": len(records),
-            "question": f"{row['body']} {row['question']}".strip(),
-            "gt_ans": ", ".join(parts),
-            "gt_ans_parts": parts,
-            "is_multi_answer": is_multi,
-            "is_pure_numeric": is_pure_numeric,
-            "solution_type": str(row["solution_type"]),
-            "formula": str(row["formula"]),
-            "raw_answer": str(row["answer"]),
-        })
+        records.append(
+            {
+                "id": len(records),
+                "question": f"{row['body']} {row['question']}".strip(),
+                "gt_ans": ", ".join(parts),
+                "gt_ans_parts": parts,
+                "is_multi_answer": is_multi,
+                "is_pure_numeric": is_pure_numeric,
+                "solution_type": str(row["solution_type"]),
+                "formula": str(row["formula"]),
+                "raw_answer": str(row["answer"]),
+            }
+        )
 
     manifest = {
-        "source_dataset": SOURCE_DATASET, "source_split": SOURCE_SPLIT,
+        "source_dataset": SOURCE_DATASET,
+        "source_split": SOURCE_SPLIT,
         "role": "OOD eval-only (out-of-domain transfer check), whole corpus, no train/val",
         "citation": "Miao et al., 2020 (arXiv:2106.15772)",
         "license": "cc-by-nc-4.0",
@@ -155,8 +160,10 @@ def build_eval_split(out_dir: Path) -> dict:
         json.dump(records, f, indent=1)
     with open(out_dir / "manifest.json", "w") as f:
         json.dump(manifest, f, indent=2)
-    print(f"Wrote {len(records)} ASDiv eval records -> {out_dir / 'test.json'} "
-          f"(numeric={n_numeric} other={n_other} multi={n_multi} dupes={n_dupe})")
+    print(
+        f"Wrote {len(records)} ASDiv eval records -> {out_dir / 'test.json'} "
+        f"(numeric={n_numeric} other={n_other} multi={n_multi} dupes={n_dupe})"
+    )
     return manifest
 
 

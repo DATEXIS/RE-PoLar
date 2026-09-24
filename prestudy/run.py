@@ -38,31 +38,53 @@ def build_parser() -> argparse.ArgumentParser:
     )
     model_group = p.add_mutually_exclusive_group(required=True)
     model_group.add_argument(
-        "--model", choices=list(MODEL_REGISTRY.keys()),
-        help="Use a registered model config"
+        "--model", choices=list(MODEL_REGISTRY.keys()), help="Use a registered model config"
     )
     model_group.add_argument("--model-id", help="Arbitrary HuggingFace model id")
     p.add_argument("--output-dir", default="./prestudy/results")
-    p.add_argument("--mode", choices=["dup", "skip", "both"], default="both",
-                   help="Which rerouting configs to sweep (default: both)")
-    p.add_argument("--baseline", type=float, default=None,
-                   help="Pre-computed mmlu_pro_domains baseline score, e.g. 0.71")
-    p.add_argument("--quick-test", type=int, default=0,
-                   help="Run N random configs instead of the full sweep")
-    p.add_argument("--configs-file", default=None,
-                   help="JSON file with a list of [mode, i, j] configs to run, bypassing the "
-                        "full sweep. Accepts a bare list or {\"configs\": [...]}. "
-                        "Honors --num-shards/--shard-index.")
-    p.add_argument("--stride", type=int, default=1,
-                   help="Keep every STRIDE-th config per mode (subsample a big sweep)")
+    p.add_argument(
+        "--mode",
+        choices=["dup", "skip", "both"],
+        default="both",
+        help="Which rerouting configs to sweep (default: both)",
+    )
+    p.add_argument(
+        "--baseline",
+        type=float,
+        default=None,
+        help="Pre-computed mmlu_pro_domains baseline score, e.g. 0.71",
+    )
+    p.add_argument(
+        "--quick-test", type=int, default=0, help="Run N random configs instead of the full sweep"
+    )
+    p.add_argument(
+        "--configs-file",
+        default=None,
+        help="JSON file with a list of [mode, i, j] configs to run, bypassing the "
+        'full sweep. Accepts a bare list or {"configs": [...]}. '
+        "Honors --num-shards/--shard-index.",
+    )
+    p.add_argument(
+        "--stride",
+        type=int,
+        default=1,
+        help="Keep every STRIDE-th config per mode (subsample a big sweep)",
+    )
     p.add_argument("--num-shards", type=int, default=1)
     p.add_argument("--shard-index", type=int, default=0)
-    p.add_argument("--no-pretokenize", action="store_true",
-                   help="Disable prompt pre-tokenization")
-    p.add_argument("--batch-size", type=int, default=None,
-                   help="mmlu_pro_domains forward-pass batch size (default: 8)")
-    p.add_argument("--n-per-domain", type=int, default=200,
-                   help="mmlu_pro_domains samples per domain (paper default: 200; -1=all available)")
+    p.add_argument("--no-pretokenize", action="store_true", help="Disable prompt pre-tokenization")
+    p.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help="mmlu_pro_domains forward-pass batch size (default: 8)",
+    )
+    p.add_argument(
+        "--n-per-domain",
+        type=int,
+        default=200,
+        help="mmlu_pro_domains samples per domain (paper default: 200; -1=all available)",
+    )
     return p
 
 
@@ -86,6 +108,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     if args.configs_file:
         import json
         from pathlib import Path
+
         raw = json.loads(Path(args.configs_file).read_text(encoding="utf-8"))
         items = raw["configs"] if isinstance(raw, dict) else raw
         explicit_configs = [(str(c[0]), int(c[1]), int(c[2])) for c in items]

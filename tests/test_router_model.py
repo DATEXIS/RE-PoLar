@@ -14,10 +14,10 @@ torch = pytest.importorskip("torch")
 from re_polar.core import MAX_SEGMENT_LEN, Op, Program, validate_program
 from re_polar.router import DEFAULT_OPS, PolarRouter, decode
 
-D = 12          # small target-model layer count for fast tests
-EMBED = 16      # synthetic encoder hidden size
-T = 7           # question token count
-DM = 32         # router d_model
+D = 12  # small target-model layer count for fast tests
+EMBED = 16  # synthetic encoder hidden size
+T = 7  # question token count
+DM = 32  # router d_model
 
 
 def build_router(num_layers=D, n_ops=3, **kw):
@@ -45,8 +45,8 @@ def test_forward_shapes_default_ops():
     router = build_router()
     hidden = synthetic_tokens(batch=3)
     seg_logits, op_logits = router(token_hidden_states=hidden)
-    assert seg_logits.shape == (3, D)          # l^seg in R^D per example
-    assert op_logits.shape == (3, D, 3)        # l^op in R^{D x n_ops}
+    assert seg_logits.shape == (3, D)  # l^seg in R^D per example
+    assert op_logits.shape == (3, D, 3)  # l^op in R^{D x n_ops}
 
 
 def test_forward_no_encoder_download():
@@ -105,7 +105,7 @@ def test_decode_returns_valid_program():
     router = build_router()
     seg_logits, op_logits = router(token_hidden_states=synthetic_tokens())
     prog = decode(seg_logits[0], op_logits[0])
-    validate_program(prog)                      # raises if invalid
+    validate_program(prog)  # raises if invalid
     assert isinstance(prog, Program)
     assert prog.num_layers == D
     assert sum(len(s) for s in prog.segments) == D  # contiguous full cover
@@ -132,7 +132,7 @@ def test_decode_is_deterministic():
 def test_decode_accepts_leading_batch_of_one():
     router = build_router()
     seg_logits, op_logits = router(token_hidden_states=synthetic_tokens(batch=1))
-    prog = decode(seg_logits, op_logits)        # (1,D) / (1,D,n_ops)
+    prog = decode(seg_logits, op_logits)  # (1,D) / (1,D,n_ops)
     validate_program(prog)
     assert prog.num_layers == D
 
@@ -150,7 +150,7 @@ def test_decode_no_segment_longer_than_max(seg_fill):
 
 
 def test_decode_all_below_threshold_makes_max_len_segments():
-    seg_logits = torch.full((D,), -10.0)        # no interior boundaries
+    seg_logits = torch.full((D,), -10.0)  # no interior boundaries
     op_logits = torch.zeros(D, 3)
     prog = decode(seg_logits, op_logits)
     validate_program(prog)
@@ -164,8 +164,8 @@ def test_decode_avoids_all_skip_program():
     op_logits = torch.zeros(D, 3)
     op_logits[:, DEFAULT_OPS.index(Op.SKIP)] = 50.0
     prog = decode(seg_logits, op_logits)
-    validate_program(prog)                      # would raise on all-skip (empty path)
-    assert prog.to_layer_path()                 # non-empty execution path
+    validate_program(prog)  # would raise on all-skip (empty path)
+    assert prog.to_layer_path()  # non-empty execution path
     assert any(s.op is not Op.SKIP for s in prog.segments)
 
 

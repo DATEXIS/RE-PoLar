@@ -27,6 +27,7 @@ separate driver needed.
 
 Top level is stdlib-only so the spawn grading workers stay torch-free.
 """
+
 import argparse
 import json
 from pathlib import Path
@@ -70,14 +71,20 @@ def main(argv=None):
     p.add_argument("--output", required=True)
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--k", type=int, default=5, help="samples per temperature / menu size cap")
-    p.add_argument("--temperatures", default="0.3,0.7,1.0",
-                   help="comma-separated sampling temperatures for Base(sampling)")
-    p.add_argument("--prompt-style", default="paper_minimal_fewshot",
-                   help="passed through to GenerationReward -- default matches this "
-                        "project's own canonical MCTS-search prompt choice; the paper's "
-                        "literal Appendix D.4 zero-shot prompt is 'raw' (pass "
-                        "--prompt-style raw / paper_chat_sys for the PoLar-literal "
-                        "reproduction track, see module docstring)")
+    p.add_argument(
+        "--temperatures",
+        default="0.3,0.7,1.0",
+        help="comma-separated sampling temperatures for Base(sampling)",
+    )
+    p.add_argument(
+        "--prompt-style",
+        default="paper_minimal_fewshot",
+        help="passed through to GenerationReward -- default matches this "
+        "project's own canonical MCTS-search prompt choice; the paper's "
+        "literal Appendix D.4 zero-shot prompt is 'raw' (pass "
+        "--prompt-style raw / paper_chat_sys for the PoLar-literal "
+        "reproduction track, see module docstring)",
+    )
     p.add_argument("--no-menu", action="store_true", help="skip the hardcoded-menu control")
     p.add_argument("--limit", type=int, default=None)
     args = p.parse_args(argv)
@@ -99,16 +106,23 @@ def main(argv=None):
     # filename convention.
     try:
         import torch
+
         gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu"
     except Exception:
         gpu_name = "unknown"
-    run_env = {"gpu_name": gpu_name, "batch_size": args.batch_size,
-               "prompt_style": args.prompt_style, "data_dir": str(args.data_dir),
-               "num_layers": D}
-    print(f"[env] {run_env}", flush=True)
-    menu = None if args.no_menu else {
-        name: program_from_layer_path(path, D) for name, path in menu_paths(D).items()
+    run_env = {
+        "gpu_name": gpu_name,
+        "batch_size": args.batch_size,
+        "prompt_style": args.prompt_style,
+        "data_dir": str(args.data_dir),
+        "num_layers": D,
     }
+    print(f"[env] {run_env}", flush=True)
+    menu = (
+        None
+        if args.no_menu
+        else {name: program_from_layer_path(path, D) for name, path in menu_paths(D).items()}
+    )
 
     def mean(xs):
         return sum(xs) / len(xs) if xs else 0.0
@@ -121,7 +135,7 @@ def main(argv=None):
         n = len(qs)
         print(f"[diff {diff}] {n} questions...", flush=True)
 
-        greedy1 = mean(reward(identity, qs, gt))                     # Base (τ=0) p@1
+        greedy1 = mean(reward(identity, qs, gt))  # Base (τ=0) p@1
 
         # FULL pass@k curve (k=1..args.k) per temperature, from ONE k=args.k
         # generation batch per temp -- passk_curve's own docstring covers why a
@@ -132,9 +146,11 @@ def main(argv=None):
         for t in temps:
             curve = reward.passk_curve(identity, qs, gt, k_max=args.k, temperature=t)
             per_temp_curve[t] = {k: mean(v) for k, v in curve.items()}
-            print(f"  base sampling p@1..{args.k} T={t}: "
-                  + " ".join(f"p@{k}={per_temp_curve[t][k]:.4f}" for k in range(1, args.k + 1)),
-                  flush=True)
+            print(
+                f"  base sampling p@1..{args.k} T={t}: "
+                + " ".join(f"p@{k}={per_temp_curve[t][k]:.4f}" for k in range(1, args.k + 1)),
+                flush=True,
+            )
         # best-across-temperature AT EACH k independently (matches the paper's
         # monotonic-in-k table -- taking one fixed "best" temperature for the whole
         # row would NOT generally be monotonic in k across temps).
@@ -149,22 +165,34 @@ def main(argv=None):
             menu_passk = mean(any_solved)
             print(f"  menu p@{len(menu)}: {menu_passk:.4f}", flush=True)
 
-        row = {"difficulty": diff, "n": n,
-               "base_greedy_p1": round(greedy1, 4),
-               "base_sampling_curve_per_temp": {
-                   str(t): {str(k): round(a, 4) for k, a in curve.items()}
-                   for t, curve in per_temp_curve.items()},
-               "base_sampling_pk_best_per_k": {str(k): round(a, 4) for k, a in best_per_k.items()},
-               "base_sampling_p1_best": round(best_per_k[1], 4),
-               "base_sampling_pk_best": round(best_per_k[args.k], 4),  # back-compat name, == p@k_max
-               "menu_pk": None if menu_passk is None else round(menu_passk, 4)}
+        row = {
+            "difficulty": diff,
+            "n": n,
+            "base_greedy_p1": round(greedy1, 4),
+            "base_sampling_curve_per_temp": {
+                str(t): {str(k): round(a, 4) for k, a in curve.items()}
+                for t, curve in per_temp_curve.items()
+            },
+            "base_sampling_pk_best_per_k": {str(k): round(a, 4) for k, a in best_per_k.items()},
+            "base_sampling_p1_best": round(best_per_k[1], 4),
+            "base_sampling_pk_best": round(best_per_k[args.k], 4),  # back-compat name, == p@k_max
+            "menu_pk": None if menu_passk is None else round(menu_passk, 4),
+        }
         results.append(row)
-        print(f"[diff {diff}] greedy@1 {greedy1:.4f} | base_sampling@1(best) {best_per_k[1]:.4f} | "
-              f"base_sampling@{args.k}(best) {best_per_k[args.k]:.4f} | menu@{args.k} "
-              f"{'n/a' if menu_passk is None else f'{menu_passk:.4f}'}", flush=True)
+        print(
+            f"[diff {diff}] greedy@1 {greedy1:.4f} | base_sampling@1(best) {best_per_k[1]:.4f} | "
+            f"base_sampling@{args.k}(best) {best_per_k[args.k]:.4f} | menu@{args.k} "
+            f"{'n/a' if menu_passk is None else f'{menu_passk:.4f}'}",
+            flush=True,
+        )
 
-    out = {"model": args.model, "k": args.k, "temperatures": temps, "env": run_env,
-           "per_difficulty": results}
+    out = {
+        "model": args.model,
+        "k": args.k,
+        "temperatures": temps,
+        "env": run_env,
+        "per_difficulty": results,
+    }
     outp = Path(args.output)
     outp.parent.mkdir(parents=True, exist_ok=True)
     outp.write_text(json.dumps(out, indent=2))
@@ -173,8 +201,10 @@ def main(argv=None):
     print(f"\n{'diff':>4} {'greedy@1':>9} {'baseSamp@'+str(args.k):>11} {'menu@'+str(args.k):>9}")
     for r in results:
         menu_str = "n/a" if r["menu_pk"] is None else f"{r['menu_pk']:.4f}"
-        print(f"{r['difficulty']:>4} {r['base_greedy_p1']:>9.4f} "
-              f"{r['base_sampling_pk_best']:>11.4f} {menu_str:>9}")
+        print(
+            f"{r['difficulty']:>4} {r['base_greedy_p1']:>9.4f} "
+            f"{r['base_sampling_pk_best']:>11.4f} {menu_str:>9}"
+        )
     return outp
 
 

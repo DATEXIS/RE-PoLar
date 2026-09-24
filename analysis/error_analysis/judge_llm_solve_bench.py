@@ -92,6 +92,7 @@ expensive part (live network calls) is what's actually protected.
     python -m analysis.error_analysis.judge_llm_solve_bench \\
         --output results/error_analysis/judge_llm_solve_bench.jsonl
 """
+
 import argparse
 import asyncio
 import json
@@ -110,8 +111,10 @@ from prompt_variant_pilot import classify_formatting, grade_all_pooled  # noqa: 
 
 # MUST match re_polar/mcts/rewards.py's PAPER_INSTRUCTION / _paper_input_text
 # EXACTLY (Appendix D.4).
-PAPER_INSTRUCTION = ("Solve the following math problem and output ONLY the final "
-                     "answer directly, formatted strictly as \\boxed{ANSWER}.")
+PAPER_INSTRUCTION = (
+    "Solve the following math problem and output ONLY the final "
+    "answer directly, formatted strictly as \\boxed{ANSWER}."
+)
 PAPER_MAX_NEW_TOKENS = 50
 
 # MUST match rewards.py's MINIMAL_FEWSHOT_QUESTION/_ANSWER exactly.
@@ -120,11 +123,9 @@ MINIMAL_FEWSHOT_ANSWER = "2"
 
 
 def paper_input_text(question: str) -> str:
-    return (f"{PAPER_INSTRUCTION}\n"
-            "### Problem Start\n"
-            f"{question}\n"
-            "### Problem End\n"
-            "Answer:")
+    return (
+        f"{PAPER_INSTRUCTION}\n" "### Problem Start\n" f"{question}\n" "### Problem End\n" "Answer:"
+    )
 
 
 def paper_minimal_fewshot_input_text(question: str) -> str:
@@ -151,9 +152,13 @@ def load_dart_math(dataset_dir: str, difficulties: list, splits: list) -> list:
     return rows
 
 
-async def solve_one(client: LLMClient, r: dict, max_tokens: int,
-                     call_timeout_s: float | None,
-                     prompt_fn=paper_minimal_fewshot_input_text) -> dict:
+async def solve_one(
+    client: LLMClient,
+    r: dict,
+    max_tokens: int,
+    call_timeout_s: float | None,
+    prompt_fn=paper_minimal_fewshot_input_text,
+) -> dict:
     """Solve one DART-Math question with the judge LLM, prompt_fn's output as
     the only content of a single user turn (see module docstring's note on
     the chat-vs-raw deviation). Never raises on a hung call -- isolates it as
@@ -161,13 +166,15 @@ async def solve_one(client: LLMClient, r: dict, max_tokens: int,
     stuck request must not stall a worker slot forever)."""
     prompt = prompt_fn(r["question"])
     try:
-        raw = await client.achat([{"role": "user", "content": prompt}],
-                                  temperature=0.0, max_tokens=max_tokens,
-                                  timeout_s=call_timeout_s)
+        raw = await client.achat(
+            [{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=max_tokens,
+            timeout_s=call_timeout_s,
+        )
     except LLMCallTimeout as e:
         print(f"WARNING: LLM call timed out for {r['query_id']}: {e}", flush=True)
-        return {**r, "generated_text": None, "raw_llm_response": None,
-                "status": "LLM_CALL_TIMEOUT"}
+        return {**r, "generated_text": None, "raw_llm_response": None, "status": "LLM_CALL_TIMEOUT"}
     return {**r, "generated_text": strip_think(raw), "raw_llm_response": raw, "status": "OK"}
 
 
@@ -186,9 +193,12 @@ def load_existing(out_path: Path) -> dict:
             try:
                 rec = json.loads(line)
             except json.JSONDecodeError:
-                print(f"WARNING: skipping unparseable line {lineno} in {out_path} "
-                      f"(likely truncated by a mid-write kill) -- record will be "
-                      f"reprocessed", flush=True)
+                print(
+                    f"WARNING: skipping unparseable line {lineno} in {out_path} "
+                    f"(likely truncated by a mid-write kill) -- record will be "
+                    f"reprocessed",
+                    flush=True,
+                )
                 continue
             existing[rec["query_id"]] = rec
     return existing
@@ -205,10 +215,15 @@ def partition_existing_for_retry(existing: dict, retry_statuses) -> tuple:
     return keep, retry
 
 
-async def _run_solving_async(records: list, client: LLMClient, max_workers: int,
-                              max_tokens: int, call_timeout_s: float | None,
-                              out_path: Path | None,
-                              prompt_fn=paper_minimal_fewshot_input_text) -> list:
+async def _run_solving_async(
+    records: list,
+    client: LLMClient,
+    max_workers: int,
+    max_tokens: int,
+    call_timeout_s: float | None,
+    out_path: Path | None,
+    prompt_fn=paper_minimal_fewshot_input_text,
+) -> list:
     sem = asyncio.Semaphore(max_workers)
     solved = [None] * len(records)
     n_done = 0
@@ -224,8 +239,11 @@ async def _run_solving_async(records: list, client: LLMClient, max_workers: int,
             out_f.write(json.dumps(result) + "\n")
             out_f.flush()
         snippet = " ".join((result["generated_text"] or "").split())[:120]
-        print(f"solved {n_done}/{len(records)}: {result['query_id']} "
-              f"gt={result['gt_ans']!r} -> [{snippet}] status={result['status']}", flush=True)
+        print(
+            f"solved {n_done}/{len(records)}: {result['query_id']} "
+            f"gt={result['gt_ans']!r} -> [{snippet}] status={result['status']}",
+            flush=True,
+        )
 
     try:
         await asyncio.gather(*(worker(i, r) for i, r in enumerate(records)))
@@ -235,12 +253,19 @@ async def _run_solving_async(records: list, client: LLMClient, max_workers: int,
     return solved
 
 
-def run_solving(records: list, client: LLMClient, max_workers: int, max_tokens: int,
-                 call_timeout_s: float | None = None, out_path=None,
-                 prompt_fn=paper_minimal_fewshot_input_text) -> list:
+def run_solving(
+    records: list,
+    client: LLMClient,
+    max_workers: int,
+    max_tokens: int,
+    call_timeout_s: float | None = None,
+    out_path=None,
+    prompt_fn=paper_minimal_fewshot_input_text,
+) -> list:
     out = Path(out_path) if out_path is not None else None
-    return asyncio.run(_run_solving_async(records, client, max_workers, max_tokens,
-                                           call_timeout_s, out, prompt_fn))
+    return asyncio.run(
+        _run_solving_async(records, client, max_workers, max_tokens, call_timeout_s, out, prompt_fn)
+    )
 
 
 def grade_and_summarize(solved: list, grade_workers: int) -> list:
@@ -250,8 +275,11 @@ def grade_and_summarize(solved: list, grade_workers: int) -> list:
     from re_polar.vendor.dart_math.eval import extract_boxed
 
     gradeable_idx = [i for i, s in enumerate(solved) if s["status"] == "OK"]
-    print(f"Grading {len(gradeable_idx)}/{len(solved)} solved records "
-          f"({grade_workers} memory-capped workers)...", flush=True)
+    print(
+        f"Grading {len(gradeable_idx)}/{len(solved)} solved records "
+        f"({grade_workers} memory-capped workers)...",
+        flush=True,
+    )
     refs = [solved[i]["gt_ans"] for i in gradeable_idx]
     texts = [solved[i]["generated_text"] for i in gradeable_idx]
     corrects_by_idx = dict(zip(gradeable_idx, grade_all_pooled(refs, texts, workers=grade_workers)))
@@ -263,8 +291,12 @@ def grade_and_summarize(solved: list, grade_workers: int) -> list:
             fmt = classify_formatting(extract_boxed, s["generated_text"])
         else:
             correct = False
-            fmt = {"has_boxed": False, "boxed_content": "", "boxed_empty": False,
-                   "is_placeholder_echo": False}
+            fmt = {
+                "has_boxed": False,
+                "boxed_content": "",
+                "boxed_empty": False,
+                "is_placeholder_echo": False,
+            }
         final.append({**s, "correct": correct, **fmt})
     return final
 
@@ -272,70 +304,111 @@ def grade_and_summarize(solved: list, grade_workers: int) -> list:
 def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--dataset-dir", default="./data/dart_math")
-    p.add_argument("--difficulty", type=int, action="append", default=None,
-                   help="1-5 (repeatable); default 1-5")
-    p.add_argument("--splits", nargs="+", default=["train", "val", "test"],
-                   choices=["train", "val", "test"],
-                   help="default train+val+test = the full dataset on disk")
+    p.add_argument(
+        "--difficulty",
+        type=int,
+        action="append",
+        default=None,
+        help="1-5 (repeatable); default 1-5",
+    )
+    p.add_argument(
+        "--splits",
+        nargs="+",
+        default=["train", "val", "test"],
+        choices=["train", "val", "test"],
+        help="default train+val+test = the full dataset on disk",
+    )
     p.add_argument("--output", required=True)
-    p.add_argument("--calibrate", type=int, default=0,
-                   help="if >0, run only on the first N questions and print raw "
-                        "responses -- no output file, no grading")
-    p.add_argument("--max-tokens", type=int, default=16000,
-                   help="DEVIATES from PAPER_MAX_NEW_TOKENS=50 on purpose: a "
-                        "--calibrate/--limit 50 smoke test showed the judge LLM "
-                        "opens a <think> block on every response and the paper's "
-                        "50-token budget cuts it off mid-thought essentially "
-                        "always (has_boxed~4%%, accuracy~0%%). A smaller fix "
-                        "(4096) looked fine on the easier difficulties but is "
-                        "still an arbitrary number picked without seeing the "
-                        "harder ones, and the whole POINT of this benchmark is "
-                        "to see what the judge can actually do, not measure a "
-                        "budget artifact -- raised to match tag_with_llm.py's "
-                        "own budget for this exact model instead of guessing a "
-                        "new number. This means the resulting number is NOT "
-                        "strictly budget-comparable to the local models' "
-                        "50-token full-dataset row; report it as such, not as a "
-                        "literal apples-to-apples figure")
-    p.add_argument("--max-workers", type=int, default=15,
-                   help="concurrency against the judge LLM's own endpoint")
-    p.add_argument("--call-timeout-s", type=float, default=None,
-                   help="hard wall-clock cap per LLM call (see the llm client's "
-                        "LLMCallTimeout). Default None = no forced abort. Set this "
-                        "for any unattended run -- some endpoints have been observed "
-                        "to go silent past their own read timeout without ever "
-                        "raising.")
+    p.add_argument(
+        "--calibrate",
+        type=int,
+        default=0,
+        help="if >0, run only on the first N questions and print raw "
+        "responses -- no output file, no grading",
+    )
+    p.add_argument(
+        "--max-tokens",
+        type=int,
+        default=16000,
+        help="DEVIATES from PAPER_MAX_NEW_TOKENS=50 on purpose: a "
+        "--calibrate/--limit 50 smoke test showed the judge LLM "
+        "opens a <think> block on every response and the paper's "
+        "50-token budget cuts it off mid-thought essentially "
+        "always (has_boxed~4%%, accuracy~0%%). A smaller fix "
+        "(4096) looked fine on the easier difficulties but is "
+        "still an arbitrary number picked without seeing the "
+        "harder ones, and the whole POINT of this benchmark is "
+        "to see what the judge can actually do, not measure a "
+        "budget artifact -- raised to match tag_with_llm.py's "
+        "own budget for this exact model instead of guessing a "
+        "new number. This means the resulting number is NOT "
+        "strictly budget-comparable to the local models' "
+        "50-token full-dataset row; report it as such, not as a "
+        "literal apples-to-apples figure",
+    )
+    p.add_argument(
+        "--max-workers",
+        type=int,
+        default=15,
+        help="concurrency against the judge LLM's own endpoint",
+    )
+    p.add_argument(
+        "--call-timeout-s",
+        type=float,
+        default=None,
+        help="hard wall-clock cap per LLM call (see the llm client's "
+        "LLMCallTimeout). Default None = no forced abort. Set this "
+        "for any unattended run -- some endpoints have been observed "
+        "to go silent past their own read timeout without ever "
+        "raising.",
+    )
     p.add_argument("--grade-workers", type=int, default=4)
     p.add_argument("--limit", type=int, default=None)
-    p.add_argument("--retry-statuses", nargs="*", default=None,
-                   help="status values treated as NOT done on a resume -- re-sent to "
-                        f"the LLM. Default: {sorted(DEFAULT_RETRY_STATUSES)}. Pass with "
-                        "no values (--retry-statuses) to disable retrying.")
-    p.add_argument("--prompt-style", default="paper_minimal_fewshot", choices=sorted(PROMPT_STYLES),
-                   help="which of rewards.py's prompt families to send (see module "
-                        "docstring). Defaults to paper_minimal_fewshot, the "
-                        "project's favored prompt everywhere, not just here. Pass "
-                        "paper_default explicitly to reproduce the original zero-"
-                        "shot D.4 run. A resume (--output pointing at an existing "
-                        "file) does NOT check this matches the style the file was "
-                        "originally written with -- use a distinct --output per "
-                        "style, don't reuse one filename across styles.")
+    p.add_argument(
+        "--retry-statuses",
+        nargs="*",
+        default=None,
+        help="status values treated as NOT done on a resume -- re-sent to "
+        f"the LLM. Default: {sorted(DEFAULT_RETRY_STATUSES)}. Pass with "
+        "no values (--retry-statuses) to disable retrying.",
+    )
+    p.add_argument(
+        "--prompt-style",
+        default="paper_minimal_fewshot",
+        choices=sorted(PROMPT_STYLES),
+        help="which of rewards.py's prompt families to send (see module "
+        "docstring). Defaults to paper_minimal_fewshot, the "
+        "project's favored prompt everywhere, not just here. Pass "
+        "paper_default explicitly to reproduce the original zero-"
+        "shot D.4 run. A resume (--output pointing at an existing "
+        "file) does NOT check this matches the style the file was "
+        "originally written with -- use a distinct --output per "
+        "style, don't reuse one filename across styles.",
+    )
     args = p.parse_args(argv)
     prompt_fn = PROMPT_STYLES[args.prompt_style]
 
     difficulties = args.difficulty or [1, 2, 3, 4, 5]
     records = load_dart_math(args.dataset_dir, difficulties, args.splits)
-    print(f"Loaded {len(records)} DART-Math records (difficulties={difficulties}, "
-          f"splits={args.splits})", flush=True)
+    print(
+        f"Loaded {len(records)} DART-Math records (difficulties={difficulties}, "
+        f"splits={args.splits})",
+        flush=True,
+    )
     if args.limit:
-        records = records[:args.limit]
+        records = records[: args.limit]
 
     with LLMClient() as client:
         if args.calibrate:
-            for r in records[:args.calibrate]:
+            for r in records[: args.calibrate]:
                 prompt = prompt_fn(r["question"])
-                resp = strip_think(client.chat([{"role": "user", "content": prompt}],
-                                                temperature=0.0, max_tokens=args.max_tokens))
+                resp = strip_think(
+                    client.chat(
+                        [{"role": "user", "content": prompt}],
+                        temperature=0.0,
+                        max_tokens=args.max_tokens,
+                    )
+                )
                 print(f"=== {r['query_id']} (gt={r['gt_ans']!r}) ===")
                 print(resp)
                 print()
@@ -344,12 +417,16 @@ def main(argv=None):
         out_path = Path(args.output)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         existing_all = load_existing(out_path)
-        retry_statuses = (set(args.retry_statuses) if args.retry_statuses is not None
-                           else DEFAULT_RETRY_STATUSES)
+        retry_statuses = (
+            set(args.retry_statuses) if args.retry_statuses is not None else DEFAULT_RETRY_STATUSES
+        )
         existing, to_retry = partition_existing_for_retry(existing_all, retry_statuses)
         if to_retry:
-            print(f"Retrying {len(to_retry)} previously-timed-out records -- dropping "
-                  f"their stale entries from {out_path} before this run starts", flush=True)
+            print(
+                f"Retrying {len(to_retry)} previously-timed-out records -- dropping "
+                f"their stale entries from {out_path} before this run starts",
+                flush=True,
+            )
             tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
             with open(tmp_path, "w") as f:
                 for rec in existing.values():
@@ -357,11 +434,21 @@ def main(argv=None):
             tmp_path.replace(out_path)
         remaining = [r for r in records if r["query_id"] not in existing]
         if existing:
-            print(f"Resuming {out_path}: {len(existing)}/{len(records)} already solved, "
-                  f"{len(remaining)} remaining", flush=True)
+            print(
+                f"Resuming {out_path}: {len(existing)}/{len(records)} already solved, "
+                f"{len(remaining)} remaining",
+                flush=True,
+            )
 
-        newly_solved = run_solving(remaining, client, args.max_workers, args.max_tokens,
-                                    args.call_timeout_s, out_path=out_path, prompt_fn=prompt_fn)
+        newly_solved = run_solving(
+            remaining,
+            client,
+            args.max_workers,
+            args.max_tokens,
+            args.call_timeout_s,
+            out_path=out_path,
+            prompt_fn=prompt_fn,
+        )
 
     solved = list(existing.values()) + newly_solved
     n_timed_out = sum(1 for s in solved if s["status"] == "LLM_CALL_TIMEOUT")
@@ -381,11 +468,17 @@ def main(argv=None):
     n_placeholder_echo = sum(r["is_placeholder_echo"] for r in final)
 
     print(f"Wrote {n} graded records -> {out_path}", flush=True)
-    print(f"\n=== Summary (protocol={args.prompt_style} via chat, model=judge LLM, "
-          f"DART-Math solve-accuracy benchmark) ===", flush=True)
-    print(f"n={n}  accuracy={n_correct / n:.1%}  has_boxed={n_has_boxed / n:.1%}  "
-          f"boxed_empty={n_boxed_empty / n:.1%}  placeholder_echo={n_placeholder_echo / n:.1%}  "
-          f"llm_call_timeout={n_timed_out / n:.1%}", flush=True)
+    print(
+        f"\n=== Summary (protocol={args.prompt_style} via chat, model=judge LLM, "
+        f"DART-Math solve-accuracy benchmark) ===",
+        flush=True,
+    )
+    print(
+        f"n={n}  accuracy={n_correct / n:.1%}  has_boxed={n_has_boxed / n:.1%}  "
+        f"boxed_empty={n_boxed_empty / n:.1%}  placeholder_echo={n_placeholder_echo / n:.1%}  "
+        f"llm_call_timeout={n_timed_out / n:.1%}",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

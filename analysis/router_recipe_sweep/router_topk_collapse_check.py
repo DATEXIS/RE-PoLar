@@ -43,6 +43,7 @@ sharing one encoder load):
       --splits test,val,train --k 5 \
       --output topk_collapse_winning_recipe_strict_ce_all.json
 """
+
 import argparse
 import json
 import re
@@ -72,7 +73,9 @@ def resolve_difficulties(raw) -> List[int]:
     return sorted({int(x) for x in raw})
 
 
-def collapse_diagnostics(topk_programs: Sequence[Sequence[object]], num_layers: int, k_max: int) -> dict:
+def collapse_diagnostics(
+    topk_programs: Sequence[Sequence[object]], num_layers: int, k_max: int
+) -> dict:
     """Per-k (1..k_max) menu-collapse diagnostics over one (model, diff, split).
 
     topk_programs[i] = question i's decoded candidates, best-first (already
@@ -99,10 +102,13 @@ def collapse_diagnostics(topk_programs: Sequence[Sequence[object]], num_layers: 
                 rank_top.append({"program": None, "share": 0.0, "is_identity": None})
                 continue
             best_p, best_c = max(rank_counts[r].items(), key=lambda kv: kv[1])
-            rank_top.append({
-                "program": list(best_p), "share": round(best_c / total_r, 4),
-                "is_identity": best_p == identity,
-            })
+            rank_top.append(
+                {
+                    "program": list(best_p),
+                    "share": round(best_c / total_r, 4),
+                    "is_identity": best_p == identity,
+                }
+            )
         # exact top-k SET collapse: how often does a question's whole candidate
         # set (order-independent) match the single most common set?
         set_counts = {}
@@ -134,7 +140,9 @@ def _resolve_device(name):
     return torch.device("cpu")
 
 
-def discover_checkpoints(recipe_dir, models: Optional[Sequence[str]] = None) -> List[Tuple[str, int, Path]]:
+def discover_checkpoints(
+    recipe_dir, models: Optional[Sequence[str]] = None
+) -> List[Tuple[str, int, Path]]:
     """(model, diff, path) for every ``*_diffN_*.pt`` under one subdir per model.
 
     Filenames may vary slightly by model (some checkpoint-naming conventions
@@ -183,33 +191,56 @@ def _run_router_over_splits(router, model, diff, data_dir, splits, k, batch_size
         diag.update(model=model, difficulty=diff, split=split, seconds=round(time.time() - t1, 2))
         rows.append(diag)
         top_k_diag = diag["per_k"][str(k)]
-        print(f"[{model} diff{diff}, {split}, n={diag['n_questions']}] "
-              f"menu_size@1={diag['per_k']['1']['menu_size']} "
-              f"menu_size@{k}={top_k_diag['menu_size']} "
-              f"({top_k_diag['menu_size_over_n']:.1%} of n) "
-              f"most_common_set_share@{k}={top_k_diag['most_common_set_share']:.1%} "
-              f"identity@1={diag['per_k']['1']['identity_at_rank1_share']:.1%} "
-              f"({diag['seconds']}s)", flush=True)
+        print(
+            f"[{model} diff{diff}, {split}, n={diag['n_questions']}] "
+            f"menu_size@1={diag['per_k']['1']['menu_size']} "
+            f"menu_size@{k}={top_k_diag['menu_size']} "
+            f"({top_k_diag['menu_size_over_n']:.1%} of n) "
+            f"most_common_set_share@{k}={top_k_diag['most_common_set_share']:.1%} "
+            f"identity@1={diag['per_k']['1']['identity_at_rank1_share']:.1%} "
+            f"({diag['seconds']}s)",
+            flush=True,
+        )
     return rows
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Router pass@k menu-collapse check (decode-only, no generation).")
+    ap = argparse.ArgumentParser(
+        description="Router pass@k menu-collapse check (decode-only, no generation)."
+    )
     ap.add_argument("--checkpoint", help="single-checkpoint mode: one .pt file")
-    ap.add_argument("--difficulty", action="append", default=None,
-                     help="single-checkpoint mode only: int (repeatable) or 'all'")
-    ap.add_argument("--recipe-dir",
-                     help="batch mode: dir with one subdir per model, each holding *_diffN_*.pt "
-                          "checkpoints -- loads the frozen encoder ONCE and shares it across "
-                          "every checkpoint found")
-    ap.add_argument("--models", action="append", default=None,
-                     help="batch mode only: restrict to these model subdir names (repeatable)")
+    ap.add_argument(
+        "--difficulty",
+        action="append",
+        default=None,
+        help="single-checkpoint mode only: int (repeatable) or 'all'",
+    )
+    ap.add_argument(
+        "--recipe-dir",
+        help="batch mode: dir with one subdir per model, each holding *_diffN_*.pt "
+        "checkpoints -- loads the frozen encoder ONCE and shares it across "
+        "every checkpoint found",
+    )
+    ap.add_argument(
+        "--models",
+        action="append",
+        default=None,
+        help="batch mode only: restrict to these model subdir names (repeatable)",
+    )
     ap.add_argument("--data-dir", required=True)
-    ap.add_argument("--split", default=None, choices=["train", "val", "test"],
-                     help="single-checkpoint mode: one split (legacy flag, still supported)")
-    ap.add_argument("--splits", action="append", default=None,
-                     help="batch mode: comma-separated and/or repeatable, e.g. test,val,train "
-                          "(default: test only)")
+    ap.add_argument(
+        "--split",
+        default=None,
+        choices=["train", "val", "test"],
+        help="single-checkpoint mode: one split (legacy flag, still supported)",
+    )
+    ap.add_argument(
+        "--splits",
+        action="append",
+        default=None,
+        help="batch mode: comma-separated and/or repeatable, e.g. test,val,train "
+        "(default: test only)",
+    )
     ap.add_argument("--k", type=int, default=5)
     ap.add_argument("--batch-size", type=int, default=64)
     ap.add_argument("--limit", type=int, default=None, help="first N questions per split (smoke)")
@@ -236,14 +267,27 @@ def main(argv=None):
         router.eval()
         load_s = time.time() - t0
         for diff in difficulties:
-            results.extend(_run_router_over_splits(
-                router, "checkpoint", diff, args.data_dir, splits, args.k, args.batch_size, args.limit))
+            results.extend(
+                _run_router_over_splits(
+                    router,
+                    "checkpoint",
+                    diff,
+                    args.data_dir,
+                    splits,
+                    args.k,
+                    args.batch_size,
+                    args.limit,
+                )
+            )
     else:
         # --- batch mode: one encoder+tokenizer load shared across every checkpoint ---
         splits = resolve_splits(args.splits)
         jobs = discover_checkpoints(args.recipe_dir, args.models)
-        print(f"Found {len(jobs)} checkpoints under {args.recipe_dir} "
-              f"({len(set(m for m, _, _ in jobs))} model(s)); splits={splits}", flush=True)
+        print(
+            f"Found {len(jobs)} checkpoints under {args.recipe_dir} "
+            f"({len(set(m for m, _, _ in jobs))} model(s)); splits={splits}",
+            flush=True,
+        )
         shared_encoder = None
         shared_tokenizer = None
         load_s = None
@@ -257,23 +301,33 @@ def main(argv=None):
                 load_s = time.time() - t1  # one-time cost, reported separately
             else:
                 router = load_checkpoint(ckpt_path, encoder=shared_encoder)
-                router._tokenizer = shared_tokenizer  # skip a redundant AutoTokenizer.from_pretrained
+                router._tokenizer = (
+                    shared_tokenizer  # skip a redundant AutoTokenizer.from_pretrained
+                )
             router.to(device)
             router.eval()
-            results.extend(_run_router_over_splits(
-                router, model, diff, args.data_dir, splits, args.k, args.batch_size, args.limit))
+            results.extend(
+                _run_router_over_splits(
+                    router, model, diff, args.data_dir, splits, args.k, args.batch_size, args.limit
+                )
+            )
 
     out = {
         "mode": "batch" if args.recipe_dir else "single",
-        "source": str(args.recipe_dir or args.checkpoint), "k": args.k,
-        "device": str(device), "first_load_seconds": round(load_s, 2) if load_s is not None else None,
+        "source": str(args.recipe_dir or args.checkpoint),
+        "k": args.k,
+        "device": str(device),
+        "first_load_seconds": round(load_s, 2) if load_s is not None else None,
         "total_seconds": round(time.time() - t0, 2),
         "rows": results,
     }
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     Path(args.output).write_text(json.dumps(out, indent=2))
-    print(f"Wrote {args.output} -- {len(results)} (checkpoint x split) rows, "
-          f"total wall-clock {out['total_seconds']}s (first load {out['first_load_seconds']}s)", flush=True)
+    print(
+        f"Wrote {args.output} -- {len(results)} (checkpoint x split) rows, "
+        f"total wall-clock {out['total_seconds']}s (first load {out['first_load_seconds']}s)",
+        flush=True,
+    )
     return Path(args.output)
 
 

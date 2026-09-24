@@ -10,8 +10,12 @@ from re_polar.datasets.mmlu_pro_domains import _dedup_key, build_train_split
 
 
 def _row(category, question, options, answer_index):
-    return {"category": category, "question": question, "options": options,
-            "answer_index": answer_index}
+    return {
+        "category": category,
+        "question": question,
+        "options": options,
+        "answer_index": answer_index,
+    }
 
 
 def _write_official(tmp_path, rows):
@@ -42,15 +46,20 @@ def test_build_train_split_caps_thin_domains(tmp_path):
     # math has plenty; history has only 3 rows total -> after carving
     # test_n_per_domain=1, only 2 remain, too thin for the target n_per_domain=3
     # -> must be CAPPED, not raise/oversample.
-    official_rows = (
-        [_row("math", f"m-{i}", ["a", "b"], i % 2) for i in range(8)]
-        + [_row("history", f"h-{i}", ["a", "b"], i % 2) for i in range(3)]
-    )
+    official_rows = [_row("math", f"m-{i}", ["a", "b"], i % 2) for i in range(8)] + [
+        _row("history", f"h-{i}", ["a", "b"], i % 2) for i in range(3)
+    ]
     official_path = _write_official(tmp_path, official_rows)
 
     out_dir = tmp_path / "mmlu_pro_domains_14"
-    manifest = build_train_split(out_dir, official_path=official_path, seed=0,
-                                 n_per_domain=3, domains=domains, test_n_per_domain=1)
+    manifest = build_train_split(
+        out_dir,
+        official_path=official_path,
+        seed=0,
+        n_per_domain=3,
+        domains=domains,
+        test_n_per_domain=1,
+    )
 
     train = json.loads((out_dir / "train.json").read_text())
     test = json.loads((out_dir / "test.json").read_text())
@@ -61,8 +70,8 @@ def test_build_train_split_caps_thin_domains(tmp_path):
     by_domain = {}
     for r in train:
         by_domain.setdefault(r["category"], []).append(r)
-    assert len(by_domain["math"]) == 3          # plenty of pool -> hits the target
-    assert len(by_domain["history"]) == 2       # 3 total - 1 carved test = 2 available -> capped
+    assert len(by_domain["math"]) == 3  # plenty of pool -> hits the target
+    assert len(by_domain["history"]) == 2  # 3 total - 1 carved test = 2 available -> capped
 
     assert manifest["domains"]["math"]["capped"] is False
     assert manifest["domains"]["history"]["capped"] is True
@@ -89,9 +98,15 @@ def test_build_train_split_val_frac_is_disjoint_from_train_and_test(tmp_path):
     official_path = _write_official(tmp_path, official_rows)
 
     out_dir = tmp_path / "mmlu_pro_domains_14"
-    manifest = build_train_split(out_dir, official_path=official_path, seed=0,
-                                 n_per_domain=10, val_frac=0.2, domains=domains,
-                                 test_n_per_domain=2)
+    manifest = build_train_split(
+        out_dir,
+        official_path=official_path,
+        seed=0,
+        n_per_domain=10,
+        val_frac=0.2,
+        domains=domains,
+        test_n_per_domain=2,
+    )
 
     train = json.loads((out_dir / "train.json").read_text())
     val = json.loads((out_dir / "val.json").read_text())
@@ -109,8 +124,7 @@ def test_build_train_split_val_frac_is_disjoint_from_train_and_test(tmp_path):
     assert manifest["n_val_total"] == len(val)
     # math/physics: 22 total - 2 carved test = 20 available, target=10,
     # val=round(10*0.2)=2, train=8
-    assert manifest["domains"]["math"] == {**manifest["domains"]["math"],
-                                           "train": 8, "val": 2}
+    assert manifest["domains"]["math"] == {**manifest["domains"]["math"], "train": 8, "val": 2}
     assert manifest["domains"]["physics"]["train"] == 8
     assert manifest["domains"]["physics"]["val"] == 2
     # history: 5 total - 2 carved test = 3 available, capped at 3,
@@ -130,16 +144,21 @@ def test_every_domain_gets_its_own_carved_test_split(tmp_path):
     can never be evaluated on rows it trained on."""
     domains = ["math", "biology"]
 
-    official_rows = (
-        [_row("math", f"m-{i}", ["a", "b"], i % 2) for i in range(12)]
-        + [_row("biology", f"b-{i}", ["a", "b"], i % 2) for i in range(10)]
-    )
+    official_rows = [_row("math", f"m-{i}", ["a", "b"], i % 2) for i in range(12)] + [
+        _row("biology", f"b-{i}", ["a", "b"], i % 2) for i in range(10)
+    ]
     official_path = _write_official(tmp_path, official_rows)
 
     out_dir = tmp_path / "mmlu14"
-    manifest = build_train_split(out_dir, official_path=official_path, seed=0,
-                                 n_per_domain=5, val_frac=0.2, domains=domains,
-                                 test_n_per_domain=3)
+    manifest = build_train_split(
+        out_dir,
+        official_path=official_path,
+        seed=0,
+        n_per_domain=5,
+        val_frac=0.2,
+        domains=domains,
+        test_n_per_domain=3,
+    )
 
     train = json.loads((out_dir / "train.json").read_text())
     val = json.loads((out_dir / "val.json").read_text())
@@ -167,16 +186,21 @@ def test_uncapped_n_per_domain_makes_train_val_test_cover_the_whole_pool(tmp_pat
     --n-per-domain (uncapped relative to the pool) must make train+val+test
     partition every single row, nothing dropped."""
     domains = ["math", "history"]
-    official_rows = (
-        [_row("math", f"m-{i}", ["a", "b"], i % 2) for i in range(1351)]
-        + [_row("history", f"h-{i}", ["a", "b"], i % 2) for i in range(381)]
-    )
+    official_rows = [_row("math", f"m-{i}", ["a", "b"], i % 2) for i in range(1351)] + [
+        _row("history", f"h-{i}", ["a", "b"], i % 2) for i in range(381)
+    ]
     official_path = _write_official(tmp_path, official_rows)
 
     out_dir = tmp_path / "mmlu_pro_domains_14"
-    manifest = build_train_split(out_dir, official_path=official_path, seed=0,
-                                 n_per_domain=100000, val_frac=0.15, domains=domains,
-                                 test_n_per_domain=200)
+    manifest = build_train_split(
+        out_dir,
+        official_path=official_path,
+        seed=0,
+        n_per_domain=100000,
+        val_frac=0.15,
+        domains=domains,
+        test_n_per_domain=200,
+    )
 
     train = json.loads((out_dir / "train.json").read_text())
     val = json.loads((out_dir / "val.json").read_text())
@@ -190,9 +214,11 @@ def test_uncapped_n_per_domain_makes_train_val_test_cover_the_whole_pool(tmp_pat
     assert manifest["domains"]["history"]["total_rows"] == 381
     by_domain = {"math": 1351, "history": 381}
     for d, total in by_domain.items():
-        n_in_splits = (sum(1 for r in train if r["category"] == d)
-                      + sum(1 for r in val if r["category"] == d)
-                      + sum(1 for r in test if r["category"] == d))
+        n_in_splits = (
+            sum(1 for r in train if r["category"] == d)
+            + sum(1 for r in val if r["category"] == d)
+            + sum(1 for r in test if r["category"] == d)
+        )
         assert n_in_splits == total, f"{d}: {n_in_splits} != {total} -- rows dropped"
     assert len(train) + len(val) + len(test) == 1351 + 381
 

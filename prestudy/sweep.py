@@ -87,7 +87,8 @@ class LayerDuplicationSweep:
         self.stride = max(1, stride)
         self.explicit_configs = (
             [(str(c[0]), int(c[1]), int(c[2])) for c in explicit_configs]
-            if explicit_configs is not None else None
+            if explicit_configs is not None
+            else None
         )
 
         self._prepared_inputs = None
@@ -95,7 +96,8 @@ class LayerDuplicationSweep:
             print("Loading + pre-tokenizing mmlu_pro_domains prompts ...")
             samples = load_mmlu_pro_domain_samples(n_per_domain=self.n_per_domain)
             self._prepared_inputs = prepare_mmlu_pro_domain_inputs(
-                engine.tokenizer, samples, no_think=self.no_think, device=engine.device)
+                engine.tokenizer, samples, no_think=self.no_think, device=engine.device
+            )
 
     # ------------------------------------------------------------------
     # Baseline
@@ -111,9 +113,13 @@ class LayerDuplicationSweep:
 
     def _run_benchmark(self) -> Dict:
         return run_mmlu_pro_domains(
-            self.engine.model, self.engine.tokenizer, batch_size=self.batch_size,
-            no_think=self.no_think, prepared_inputs=self._prepared_inputs,
-            return_details=False)
+            self.engine.model,
+            self.engine.tokenizer,
+            batch_size=self.batch_size,
+            no_think=self.no_think,
+            prepared_inputs=self._prepared_inputs,
+            return_details=False,
+        )
 
     def _scores_only(self, result: Dict) -> Dict[str, float]:
         """{"mmlu_pro_domains": aggregate, "mmlu_pro_domains_<domain>": per-domain, ...}."""
@@ -191,7 +197,9 @@ class LayerDuplicationSweep:
                 entry[f"{name}_score"] = score
                 d = score - baseline_scores.get(name, 0.0)
                 entry[f"{name}_delta"] = d
-                if not name.startswith("mmlu_pro_domains_"):  # only the aggregate feeds combined_delta
+                if not name.startswith(
+                    "mmlu_pro_domains_"
+                ):  # only the aggregate feeds combined_delta
                     deltas.append(d)
             entry["combined_delta"] = float(np.mean(deltas)) if deltas else 0.0
             elapsed = time.time() - t0
@@ -238,7 +246,9 @@ class LayerDuplicationSweep:
             "metadata": self._meta(baseline_scores, sweep_results, total_per_mode, partial=True),
             "results": sweep_results,
         }
-        partial_path = self.output_dir / f"layer_duplication_{self._tag()}{self._shard_tag()}_partial.json"
+        partial_path = (
+            self.output_dir / f"layer_duplication_{self._tag()}{self._shard_tag()}_partial.json"
+        )
         tmp_path = partial_path.with_suffix(".json.tmp")
         tmp_path.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
         tmp_path.replace(partial_path)  # atomic on POSIX

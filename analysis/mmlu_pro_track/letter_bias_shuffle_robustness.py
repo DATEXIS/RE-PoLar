@@ -52,6 +52,7 @@ unit-testable without torch; heavy imports live inside main() (mirrors
         --full --seed 0 \\
         --output letter_bias_shuffle_robustness.jsonl
 """
+
 import argparse
 import json
 import random
@@ -107,9 +108,15 @@ def join_rescue_with_mmlu(rescue: Dict[str, dict], index: Dict[str, dict]) -> Di
             raise AssertionError(
                 f"{qid}: rescue file says num_options={info['num_options']} but "
                 f"rebuilt split has {len(row['options'])} options -- split mismatch, "
-                f"do not trust this join")
-        joined[qid] = {**info, "question": row["question"], "options": row["options"],
-                       "answer_index": row["answer_index"], "category": row["category"]}
+                f"do not trust this join"
+            )
+        joined[qid] = {
+            **info,
+            "question": row["question"],
+            "options": row["options"],
+            "answer_index": row["answer_index"],
+            "category": row["category"],
+        }
     return joined
 
 
@@ -137,6 +144,7 @@ def aggregate(records: List[dict]) -> dict:
     Solved-set sizes/rates for identity/program x original/shuffled, plus
     Jaccard overlap between the two SHUFFLED solved-sets, broken down overall
     and by num_options."""
+
     def rate(key: str, rows: List[dict]) -> float:
         return sum(r[key] for r in rows) / len(rows) if rows else 0.0
 
@@ -153,8 +161,9 @@ def aggregate(records: List[dict]) -> dict:
         "identity_shuffled_acc": rate("identity_shuffled_correct", records),
         "program_orig_acc": rate("program_orig_correct", records),
         "program_shuffled_acc": rate("program_shuffled_correct", records),
-        "jaccard_identity_shuffled_vs_program_shuffled":
-            jaccard(records, "identity_shuffled_correct", "program_shuffled_correct"),
+        "jaccard_identity_shuffled_vs_program_shuffled": jaccard(
+            records, "identity_shuffled_correct", "program_shuffled_correct"
+        ),
     }
 
     by_n: Dict[int, dict] = {}
@@ -180,48 +189,77 @@ def aggregate(records: List[dict]) -> dict:
     # (identity_orig ~all False by construction, modulo the rare
     # same-hardware disagreement noted above).
     by_identity_orig: Dict[str, dict] = {}
-    for flag, rows in (("identity_orig_correct", [r for r in records if r["identity_orig_correct"]]),
-                       ("identity_orig_wrong", [r for r in records if not r["identity_orig_correct"]])):
+    for flag, rows in (
+        ("identity_orig_correct", [r for r in records if r["identity_orig_correct"]]),
+        ("identity_orig_wrong", [r for r in records if not r["identity_orig_correct"]]),
+    ):
         by_identity_orig[flag] = {
             "n": len(rows),
             "program_orig_acc": rate("program_orig_correct", rows),
             "program_shuffled_acc": rate("program_shuffled_correct", rows),
         }
 
-    return {"overall": overall, "by_num_options": by_n, "by_identity_orig_correct": by_identity_orig}
+    return {
+        "overall": overall,
+        "by_num_options": by_n,
+        "by_identity_orig_correct": by_identity_orig,
+    }
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--rescue-jsonl", required=True)
     parser.add_argument("--mmlu-data-dir", default="mmlu_pro_domains")
-    parser.add_argument("--official-path", default="mmlu_pro_official/test.json",
-                        help="mmlu_pro_official test.json, used only if --mmlu-data-dir needs "
-                             "rebuilding (see below)")
+    parser.add_argument(
+        "--official-path",
+        default="mmlu_pro_official/test.json",
+        help="mmlu_pro_official test.json, used only if --mmlu-data-dir needs "
+        "rebuilding (see below)",
+    )
     parser.add_argument("--model-id", default="Qwen/Qwen3-8B")
     parser.add_argument("--trust-remote-code", action="store_true", default=True)
     parser.add_argument("--n-samples", type=int, default=500)
-    parser.add_argument("--full", action="store_true", help="use ALL RESCUE queries, ignoring --n-samples")
+    parser.add_argument(
+        "--full", action="store_true", help="use ALL RESCUE queries, ignoring --n-samples"
+    )
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--batch-size", type=int, default=16, help="identity batched pass only; "
-                         "program pass is necessarily per-query (each query reroutes the model)")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=16,
+        help="identity batched pass only; "
+        "program pass is necessarily per-query (each query reroutes the model)",
+    )
     parser.add_argument("--output", required=True)
     args = parser.parse_args(argv)
 
     rescue = load_rescue(args.rescue_jsonl)
     print(f"Loaded {len(rescue)} RESCUE queries from {args.rescue_jsonl}", flush=True)
     chosen = rescue if args.full else subsample(rescue, args.n_samples, args.seed)
-    print(f"Using {len(chosen)} RESCUE queries "
-          f"({'all' if args.full else f'subsampled, seed={args.seed}'})", flush=True)
+    print(
+        f"Using {len(chosen)} RESCUE queries "
+        f"({'all' if args.full else f'subsampled, seed={args.seed}'})",
+        flush=True,
+    )
 
     data_dir = Path(args.mmlu_data_dir)
     if not (data_dir / "train.json").exists():
-        print(f"{data_dir}/train.json not found -- rebuilding mmlu_pro_domains locally "
-              f"from {args.official_path} (seed=42, val_frac=0.15, n_per_domain=500)...",
-              flush=True)
+        print(
+            f"{data_dir}/train.json not found -- rebuilding mmlu_pro_domains locally "
+            f"from {args.official_path} (seed=42, val_frac=0.15, n_per_domain=500)...",
+            flush=True,
+        )
         from re_polar.datasets.mmlu_pro_domains import build_train_split
-        build_train_split(data_dir, official_path=args.official_path, val_frac=0.15,
-                          n_per_domain=500, test_n_per_domain=200)
+
+        build_train_split(
+            data_dir,
+            official_path=args.official_path,
+            val_frac=0.15,
+            n_per_domain=500,
+            test_n_per_domain=200,
+        )
 
     rows_by_split = {
         "train": json.loads((data_dir / "train.json").read_text()),
@@ -233,28 +271,42 @@ def main(argv=None):
         # gets dropped from the population instead of scored.
         rows_by_split["test"] = json.loads((data_dir / "test.json").read_text())
     index = build_query_id_index(rows_by_split)
-    print(f"Rebuilt split has {len(index)} query_ids ("
-          + " + ".join(f"{len(rows)} {s}" for s, rows in rows_by_split.items()) + ")", flush=True)
+    print(
+        f"Rebuilt split has {len(index)} query_ids ("
+        + " + ".join(f"{len(rows)} {s}" for s, rows in rows_by_split.items())
+        + ")",
+        flush=True,
+    )
 
     joined = join_rescue_with_mmlu(chosen, index)
     missing = set(chosen) - set(joined)
     if missing:
-        print(f"WARNING: {len(missing)}/{len(chosen)} RESCUE query_ids not found in the "
-              f"rebuilt split -- dropped, not silently substituted", flush=True)
+        print(
+            f"WARNING: {len(missing)}/{len(chosen)} RESCUE query_ids not found in the "
+            f"rebuilt split -- dropped, not silently substituted",
+            flush=True,
+        )
     print(f"Joined {len(joined)} queries with real question/options/answer_index", flush=True)
     if not joined:
-        raise SystemExit("Nothing to do after joining -- check --mmlu-data-dir matches the "
-                          "split the rescue file's query_ids came from.")
+        raise SystemExit(
+            "Nothing to do after joining -- check --mmlu-data-dir matches the "
+            "split the rescue file's query_ids came from."
+        )
 
     for qid, info in joined.items():
-        shuf_options, shuf_answer = shuffle_options(info["options"], info["answer_index"],
-                                                      seed_key=f"{args.seed}:{qid}")
+        shuf_options, shuf_answer = shuffle_options(
+            info["options"], info["answer_index"], seed_key=f"{args.seed}:{qid}"
+        )
         info["shuffled_options"] = shuf_options
         info["shuffled_answer_index"] = shuf_answer
 
     # heavy imports inside main() (mirrors select_and_generate.py / run_mcts.py)
     from re_polar.core.layer_engine import LayerEngine
-    from re_polar.core.mmlu_pro_domain_eval import MMLUProSample, prepare_mmlu_pro_domain_inputs, run_mmlu_pro_domains
+    from re_polar.core.mmlu_pro_domain_eval import (
+        MMLUProSample,
+        prepare_mmlu_pro_domain_inputs,
+        run_mmlu_pro_domains,
+    )
 
     engine = LayerEngine(args.model_id, trust_remote_code=args.trust_remote_code)
     tokenizer = engine.tokenizer
@@ -270,27 +322,46 @@ def main(argv=None):
         info = joined[qid]
         composite_id = f"{qid}::{variant}"
         if variant == "orig":
-            return MMLUProSample(id=composite_id, question=info["question"], options=tuple(info["options"]),
-                                  answer_index=info["answer_index"], category=info["category"])
-        return MMLUProSample(id=composite_id, question=info["question"], options=tuple(info["shuffled_options"]),
-                              answer_index=info["shuffled_answer_index"], category=info["category"])
+            return MMLUProSample(
+                id=composite_id,
+                question=info["question"],
+                options=tuple(info["options"]),
+                answer_index=info["answer_index"],
+                category=info["category"],
+            )
+        return MMLUProSample(
+            id=composite_id,
+            question=info["question"],
+            options=tuple(info["shuffled_options"]),
+            answer_index=info["shuffled_answer_index"],
+            category=info["category"],
+        )
 
     print(f"\n=== IDENTITY pass (batched, {len(joined)} queries x 2 variants) ===", flush=True)
     identity_samples = []
     for qid in joined:
         identity_samples.append(make_sample(qid, "orig"))
         identity_samples.append(make_sample(qid, "shuf"))
-    identity_inputs = prepare_mmlu_pro_domain_inputs(tokenizer, identity_samples, no_think=True, device=device)
-    identity_result = run_mmlu_pro_domains(engine.model, tokenizer, prepared_inputs=identity_inputs,
-                                            batch_size=args.batch_size)
+    identity_inputs = prepare_mmlu_pro_domain_inputs(
+        tokenizer, identity_samples, no_think=True, device=device
+    )
+    identity_result = run_mmlu_pro_domains(
+        engine.model, tokenizer, prepared_inputs=identity_inputs, batch_size=args.batch_size
+    )
     identity_by_qid_variant: Dict[Tuple[str, str], dict] = {}
     for row in identity_result["per_prompt"]:
         qid, variant = row["id"].rsplit("::", 1)
         identity_by_qid_variant[(qid, variant)] = row
-    print(f"Identity done: {identity_result['n']} scored, "
-          f"overall avg={identity_result['average']:.3f} (orig+shuffled pooled)", flush=True)
+    print(
+        f"Identity done: {identity_result['n']} scored, "
+        f"overall avg={identity_result['average']:.3f} (orig+shuffled pooled)",
+        flush=True,
+    )
 
-    print(f"\n=== PROGRAM pass (per-query reroute, {len(joined)} queries x 2 variants) ===", flush=True)
+    print(
+        f"\n=== PROGRAM pass (per-query reroute, {len(joined)} queries x 2 variants) ===",
+        flush=True,
+    )
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     records: List[dict] = []
@@ -298,11 +369,14 @@ def main(argv=None):
         for i, qid in enumerate(joined):
             info = joined[qid]
             prog_samples = [make_sample(qid, "orig"), make_sample(qid, "shuf")]
-            prog_inputs = prepare_mmlu_pro_domain_inputs(tokenizer, prog_samples, no_think=True, device=device)
+            prog_inputs = prepare_mmlu_pro_domain_inputs(
+                tokenizer, prog_samples, no_think=True, device=device
+            )
             engine.apply_layer_rerouting(info["path"])
             try:
-                prog_result = run_mmlu_pro_domains(engine.model, tokenizer, prepared_inputs=prog_inputs,
-                                                    batch_size=2)
+                prog_result = run_mmlu_pro_domains(
+                    engine.model, tokenizer, prepared_inputs=prog_inputs, batch_size=2
+                )
             finally:
                 engine.restore_original()
             prog_orig, prog_shuf = prog_result["per_prompt"]
@@ -322,10 +396,13 @@ def main(argv=None):
             f.write(json.dumps(rec) + "\n")
             if (i + 1) % 100 == 0 or (i + 1) == len(joined):
                 agg_so_far = aggregate(records)["overall"]
-                print(f"  {i + 1}/{len(joined)}  running: identity_orig={agg_so_far['identity_orig_acc']:.1%} "
-                      f"identity_shuf={agg_so_far['identity_shuffled_acc']:.1%} "
-                      f"program_orig={agg_so_far['program_orig_acc']:.1%} "
-                      f"program_shuf={agg_so_far['program_shuffled_acc']:.1%}", flush=True)
+                print(
+                    f"  {i + 1}/{len(joined)}  running: identity_orig={agg_so_far['identity_orig_acc']:.1%} "
+                    f"identity_shuf={agg_so_far['identity_shuffled_acc']:.1%} "
+                    f"program_orig={agg_so_far['program_orig_acc']:.1%} "
+                    f"program_shuf={agg_so_far['program_shuffled_acc']:.1%}",
+                    flush=True,
+                )
 
     summary = aggregate(records)
     summary_path = out_path.with_suffix(".summary.json")
@@ -334,26 +411,43 @@ def main(argv=None):
     print("\n=== SUMMARY ===", flush=True)
     o = summary["overall"]
     print(f"n={o['n']} RESCUE queries", flush=True)
-    print(f"identity: original={o['identity_orig_acc']:.1%}  shuffled={o['identity_shuffled_acc']:.1%}  "
-          f"(gain from shuffling alone, no program: {o['identity_shuffled_acc'] - o['identity_orig_acc']:+.1%})",
-          flush=True)
-    print(f"program:  original={o['program_orig_acc']:.1%}  shuffled={o['program_shuffled_acc']:.1%}  "
-          f"(loss from shuffling the SAME rescue program: "
-          f"{o['program_shuffled_acc'] - o['program_orig_acc']:+.1%})", flush=True)
+    print(
+        f"identity: original={o['identity_orig_acc']:.1%}  shuffled={o['identity_shuffled_acc']:.1%}  "
+        f"(gain from shuffling alone, no program: {o['identity_shuffled_acc'] - o['identity_orig_acc']:+.1%})",
+        flush=True,
+    )
+    print(
+        f"program:  original={o['program_orig_acc']:.1%}  shuffled={o['program_shuffled_acc']:.1%}  "
+        f"(loss from shuffling the SAME rescue program: "
+        f"{o['program_shuffled_acc'] - o['program_orig_acc']:+.1%})",
+        flush=True,
+    )
     if o["jaccard_identity_shuffled_vs_program_shuffled"] is not None:
-        print(f"Jaccard(identity_shuffled solved, program_shuffled solved) = "
-              f"{o['jaccard_identity_shuffled_vs_program_shuffled']:.3f}", flush=True)
+        print(
+            f"Jaccard(identity_shuffled solved, program_shuffled solved) = "
+            f"{o['jaccard_identity_shuffled_vs_program_shuffled']:.3f}",
+            flush=True,
+        )
     print("\nBy num_options:", flush=True)
     for n_opts, s in sorted(summary["by_num_options"].items()):
-        print(f"  n_opts={n_opts:2d}  n={s['n']:4d}  identity orig/shuf="
-              f"{s['identity_orig_acc']:.1%}/{s['identity_shuffled_acc']:.1%}  "
-              f"program orig/shuf={s['program_orig_acc']:.1%}/{s['program_shuffled_acc']:.1%}", flush=True)
-    print("\nBy identity's OWN original correctness (program orig/shuf, this run's "
-          "fresh identity pass -- only interesting when --rescue-jsonl includes "
-          "identity-already-correct queries, i.e. --include-identity-correct):", flush=True)
+        print(
+            f"  n_opts={n_opts:2d}  n={s['n']:4d}  identity orig/shuf="
+            f"{s['identity_orig_acc']:.1%}/{s['identity_shuffled_acc']:.1%}  "
+            f"program orig/shuf={s['program_orig_acc']:.1%}/{s['program_shuffled_acc']:.1%}",
+            flush=True,
+        )
+    print(
+        "\nBy identity's OWN original correctness (program orig/shuf, this run's "
+        "fresh identity pass -- only interesting when --rescue-jsonl includes "
+        "identity-already-correct queries, i.e. --include-identity-correct):",
+        flush=True,
+    )
     for flag, s in summary["by_identity_orig_correct"].items():
-        print(f"  {flag:>22}  n={s['n']:4d}  program orig/shuf="
-              f"{s['program_orig_acc']:.1%}/{s['program_shuffled_acc']:.1%}", flush=True)
+        print(
+            f"  {flag:>22}  n={s['n']:4d}  program orig/shuf="
+            f"{s['program_orig_acc']:.1%}/{s['program_shuffled_acc']:.1%}",
+            flush=True,
+        )
     print(f"\nWrote {len(records)} per-query records -> {out_path}", flush=True)
     print(f"Wrote summary -> {summary_path}", flush=True)
 

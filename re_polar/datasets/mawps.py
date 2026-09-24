@@ -78,8 +78,10 @@ def build_eval_split(out_dir: Path) -> dict:
 
     ds = datasets.load_dataset(SOURCE_DATASET, split=SOURCE_SPLIT)
     if len(ds) != EXPECTED_N:
-        raise ValueError(f"{SOURCE_DATASET}:{SOURCE_SPLIT} has {len(ds)} rows, "
-                         f"expected {EXPECTED_N}, source dataset changed upstream?")
+        raise ValueError(
+            f"{SOURCE_DATASET}:{SOURCE_SPLIT} has {len(ds)} rows, "
+            f"expected {EXPECTED_N}, source dataset changed upstream?"
+        )
 
     seen_q = set()
     n_dupe_q = 0
@@ -96,23 +98,26 @@ def build_eval_split(out_dir: Path) -> dict:
         if not is_int_like:
             n_fraction += 1
 
-        records.append({
-            "id": len(records),
-            "query_id": str(row["id"]),
-            "question": q,
-            "gt_ans": result,
-            "gt_ans_float": float(row["result_float"]),
-            "equation": str(row["equation"]),
-            "expression": str(row["expression"]),
-        })
+        records.append(
+            {
+                "id": len(records),
+                "query_id": str(row["id"]),
+                "question": q,
+                "gt_ans": result,
+                "gt_ans_float": float(row["result_float"]),
+                "equation": str(row["equation"]),
+                "expression": str(row["expression"]),
+            }
+        )
 
     manifest = {
-        "source_dataset": SOURCE_DATASET, "source_split": SOURCE_SPLIT,
+        "source_dataset": SOURCE_DATASET,
+        "source_split": SOURCE_SPLIT,
         "role": "OOD eval-only (out-of-domain transfer check), test split only, "
-                "train/validation exist upstream but are intentionally unused",
+        "train/validation exist upstream but are intentionally unused",
         "citation": "Kadlčík et al., 2023 (Calc-X/Calcformers, EMNLP 2023), "
-                    "the MAWPS split PoLar's own citation points at, not the "
-                    "original 2016 MAWPS release",
+        "the MAWPS split PoLar's own citation points at, not the "
+        "original 2016 MAWPS release",
         "license": "mit",
         "n_total": len(records),
         "n_duplicate_questions_within_test": n_dupe_q,
@@ -123,8 +128,10 @@ def build_eval_split(out_dir: Path) -> dict:
         json.dump(records, f, indent=1)
     with open(out_dir / "manifest.json", "w") as f:
         json.dump(manifest, f, indent=2)
-    print(f"Wrote {len(records)} MAWPS eval records -> {out_dir / 'test.json'} "
-          f"(fractional_gt_ans={n_fraction} dupe_q={n_dupe_q})")
+    print(
+        f"Wrote {len(records)} MAWPS eval records -> {out_dir / 'test.json'} "
+        f"(fractional_gt_ans={n_fraction} dupe_q={n_dupe_q})"
+    )
     return manifest
 
 

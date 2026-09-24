@@ -5,12 +5,13 @@ arithmetic and torch-free. The actual model-building (`build_*_replicas`)
 needs a GPU and real loaded models, so it's validated by a real run, not
 unit-tested here.
 """
+
 from re_polar.mcts.replica_pool import (
     estimate_activation_bytes,
     safe_replica_count,
 )
 
-GB = 1024 ** 3
+GB = 1024**3
 
 
 def test_safe_replica_count_respects_budget():

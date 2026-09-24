@@ -25,6 +25,7 @@ __all__ = ["PolarRouter", "decode", "DEFAULT_OPS", "DEFAULT_EMBEDDING_MODEL"]
 def __getattr__(name):
     if name in __all__:
         from . import model
+
         return getattr(model, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

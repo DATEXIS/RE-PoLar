@@ -56,9 +56,20 @@ SEED = 42
 # All 14 of MMLU-Pro's native `category` values, as they appear in
 # mmlu_pro_official's manifest.json -- the default domain set.
 ALL_MMLU_PRO_DOMAINS = [
-    "biology", "business", "chemistry", "computer science", "economics",
-    "engineering", "health", "history", "law", "math", "other", "philosophy",
-    "physics", "psychology",
+    "biology",
+    "business",
+    "chemistry",
+    "computer science",
+    "economics",
+    "engineering",
+    "health",
+    "history",
+    "law",
+    "math",
+    "other",
+    "philosophy",
+    "physics",
+    "psychology",
 ]
 
 # The 13 MMLU-Pro subjects the PoLar paper reports (ICML Tables 3 / 8 / 9 / 10,
@@ -70,14 +81,25 @@ ALL_MMLU_PRO_DOMAINS = [
 # NOTE it is 13, not MMLU-Pro's full 14: **computer science is absent from every
 # PoLar table** (verified directly against the ICML PDF text).
 PAPER_MMLU_PRO_DOMAINS = [
-    "math", "physics", "chemistry", "law", "engineering", "other", "economics",
-    "health", "psychology", "business", "biology", "philosophy", "history",
+    "math",
+    "physics",
+    "chemistry",
+    "law",
+    "engineering",
+    "other",
+    "economics",
+    "health",
+    "psychology",
+    "business",
+    "biology",
+    "philosophy",
+    "history",
 ]
 
 # Held-out TEST rows carved per domain.
 TEST_N_PER_DOMAIN = 200
 VAL_FRAC = 0.0  # CLI default 0.0 (no val split) keeps build_train_split's historical
-                # train-only behaviour; the router split job passes --val-frac 0.15
+# train-only behaviour; the router split job passes --val-frac 0.15
 
 
 def _dedup_key(row: dict) -> tuple:
@@ -85,15 +107,23 @@ def _dedup_key(row: dict) -> tuple:
     target domains (verified directly: 0 collisions across 5674 rows), even
     though bare question text alone collides for ~86 rows (mostly `law`,
     reworded variants of the same lead-in sentence with different options)."""
-    return (str(row["category"]), str(row["question"]),
-            tuple(str(o) for o in row["options"]), int(row["answer_index"]))
+    return (
+        str(row["category"]),
+        str(row["question"]),
+        tuple(str(o) for o in row["options"]),
+        int(row["answer_index"]),
+    )
 
 
-def build_train_split(out_dir: Path, official_path: Path | str, seed: int = SEED,
-                      n_per_domain: int = TARGET_N_PER_DOMAIN,
-                      val_frac: float = VAL_FRAC,
-                      domains: list[str] | None = None,
-                      test_n_per_domain: int = TEST_N_PER_DOMAIN) -> dict:
+def build_train_split(
+    out_dir: Path,
+    official_path: Path | str,
+    seed: int = SEED,
+    n_per_domain: int = TARGET_N_PER_DOMAIN,
+    val_frac: float = VAL_FRAC,
+    domains: list[str] | None = None,
+    test_n_per_domain: int = TEST_N_PER_DOMAIN,
+) -> dict:
     """Build a train (+optional val, +optional test) split over `domains`,
     sourced from the local `mmlu_pro_official` pool at `official_path`
     (id/question/options/answer_index/category rows -- see module docstring).
@@ -117,9 +147,11 @@ def build_train_split(out_dir: Path, official_path: Path | str, seed: int = SEED
             by_domain[cat].append(row)
     empty = [d for d, rs in by_domain.items() if not rs]
     if empty:
-        raise ValueError(f"no rows found for requested domain(s) {empty} in "
-                         f"{official_path}, check spelling against the dataset's "
-                         f"own `category` values")
+        raise ValueError(
+            f"no rows found for requested domain(s) {empty} in "
+            f"{official_path}, check spelling against the dataset's "
+            f"own `category` values"
+        )
 
     rng = random.Random(seed)
     train_samples: list[dict] = []
@@ -128,7 +160,9 @@ def build_train_split(out_dir: Path, official_path: Path | str, seed: int = SEED
     manifest = {
         "source": "mmlu_pro_official (local, TIGER-Lab/MMLU-Pro full test split)",
         "official_path": str(official_path),
-        "seed": seed, "target_n_per_domain": n_per_domain, "val_frac": val_frac,
+        "seed": seed,
+        "target_n_per_domain": n_per_domain,
+        "val_frac": val_frac,
         "requested_domains": target_domains,
         "test_n_per_domain": test_n_per_domain,
         "domains": {},
@@ -145,41 +179,56 @@ def build_train_split(out_dir: Path, official_path: Path | str, seed: int = SEED
             carved_keys = {_dedup_key(r) for r in carved_test}
             pool = [row for row in pool if _dedup_key(row) not in carved_keys]
             for row in carved_test:
-                test_samples.append({
-                    "id": len(test_samples),
+                test_samples.append(
+                    {
+                        "id": len(test_samples),
+                        "question": str(row["question"]),
+                        "options": list(row["options"]),
+                        "answer_index": int(row["answer_index"]),
+                        "category": str(row["category"]),
+                    }
+                )
+        target = min(n_per_domain, len(pool))
+        chosen = rng.sample(
+            pool, target
+        )  # already a random order -> a positional cut is a random split
+        n_val = int(round(target * val_frac)) if val_frac > 0.0 else 0
+        val_rows, train_rows = chosen[:n_val], chosen[n_val:]
+        for row in train_rows:
+            train_samples.append(
+                {
+                    "id": len(train_samples),
                     "question": str(row["question"]),
                     "options": list(row["options"]),
                     "answer_index": int(row["answer_index"]),
                     "category": str(row["category"]),
-                })
-        target = min(n_per_domain, len(pool))
-        chosen = rng.sample(pool, target)  # already a random order -> a positional cut is a random split
-        n_val = int(round(target * val_frac)) if val_frac > 0.0 else 0
-        val_rows, train_rows = chosen[:n_val], chosen[n_val:]
-        for row in train_rows:
-            train_samples.append({
-                "id": len(train_samples),
-                "question": str(row["question"]),
-                "options": list(row["options"]),
-                "answer_index": int(row["answer_index"]),
-                "category": str(row["category"]),
-            })
+                }
+            )
         for row in val_rows:
-            val_samples.append({
-                "id": len(val_samples),
-                "question": str(row["question"]),
-                "options": list(row["options"]),
-                "answer_index": int(row["answer_index"]),
-                "category": str(row["category"]),
-            })
+            val_samples.append(
+                {
+                    "id": len(val_samples),
+                    "question": str(row["question"]),
+                    "options": list(row["options"]),
+                    "answer_index": int(row["answer_index"]),
+                    "category": str(row["category"]),
+                }
+            )
         manifest["domains"][domain] = {
-            "total_rows": total, "carved_test_rows": len(carved_test),
-            "available_pool": len(pool), "target": n_per_domain, "actual": target,
-            "capped": target < n_per_domain, "train": len(train_rows), "val": len(val_rows),
+            "total_rows": total,
+            "carved_test_rows": len(carved_test),
+            "available_pool": len(pool),
+            "target": n_per_domain,
+            "actual": target,
+            "capped": target < n_per_domain,
+            "train": len(train_rows),
+            "val": len(val_rows),
         }
         flag = " (CAPPED, insufficient pool)" if target < n_per_domain else ""
-        print(f"  {domain}: total={total} carved_test={len(carved_test)} "
-              f"available={len(pool)} -> train={len(train_rows)} val={len(val_rows)}{flag}")
+        print(
+            f"  {domain}: total={total} carved_test={len(carved_test)} "
+            f"available={len(pool)} -> train={len(train_rows)} val={len(val_rows)}{flag}"
+        )
 
     # Standing invariant: TRAIN/VAL/TEST are pairwise disjoint by construction
     # (one partition per domain, TEST removed from the pool before train/val
@@ -191,7 +240,8 @@ def build_train_split(out_dir: Path, official_path: Path | str, seed: int = SEED
         raise AssertionError(f"train/val overlap: {len(train_keys & val_keys)} shared content keys")
     if test_keys & (train_keys | val_keys):
         raise AssertionError(
-            f"carved test overlaps train/val: {len(test_keys & (train_keys | val_keys))} keys")
+            f"carved test overlaps train/val: {len(test_keys & (train_keys | val_keys))} keys"
+        )
 
     out_dir.mkdir(parents=True, exist_ok=True)
     with open(out_dir / "train.json", "w") as f:
@@ -218,26 +268,47 @@ def build_train_split(out_dir: Path, official_path: Path | str, seed: int = SEED
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--official-path", required=True,
-                        help="path to mmlu_pro_official's test.json (id/question/options/"
-                             "answer_index/category rows) to build this split from")
+    parser.add_argument(
+        "--official-path",
+        required=True,
+        help="path to mmlu_pro_official's test.json (id/question/options/"
+        "answer_index/category rows) to build this split from",
+    )
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--n-per-domain", type=int, default=TARGET_N_PER_DOMAIN)
-    parser.add_argument("--val-frac", type=float, default=VAL_FRAC,
-                        help="per-domain fraction of the sampled train pool carved into "
-                             "val.json (0 = no val split, historical behaviour)")
-    parser.add_argument("--domains", nargs="+", default=None,
-                        help="MMLU-Pro categories to build. Default = ALL "
-                             "14 native categories (ALL_MMLU_PRO_DOMAINS). Pass "
-                             "PAPER_MMLU_PRO_DOMAINS's 13 (excludes computer science) to "
-                             "reproduce a paper-table-comparable run.")
-    parser.add_argument("--test-n-per-domain", type=int, default=TEST_N_PER_DOMAIN,
-                        help="Held-out TEST rows carved per domain, before train/val are drawn. "
-                             "0 = carve no test at all (search/analysis-only run).")
+    parser.add_argument(
+        "--val-frac",
+        type=float,
+        default=VAL_FRAC,
+        help="per-domain fraction of the sampled train pool carved into "
+        "val.json (0 = no val split, historical behaviour)",
+    )
+    parser.add_argument(
+        "--domains",
+        nargs="+",
+        default=None,
+        help="MMLU-Pro categories to build. Default = ALL "
+        "14 native categories (ALL_MMLU_PRO_DOMAINS). Pass "
+        "PAPER_MMLU_PRO_DOMAINS's 13 (excludes computer science) to "
+        "reproduce a paper-table-comparable run.",
+    )
+    parser.add_argument(
+        "--test-n-per-domain",
+        type=int,
+        default=TEST_N_PER_DOMAIN,
+        help="Held-out TEST rows carved per domain, before train/val are drawn. "
+        "0 = carve no test at all (search/analysis-only run).",
+    )
     args = parser.parse_args()
-    build_train_split(Path(args.out_dir), official_path=args.official_path, seed=args.seed,
-                      n_per_domain=args.n_per_domain, val_frac=args.val_frac, domains=args.domains,
-                      test_n_per_domain=args.test_n_per_domain)
+    build_train_split(
+        Path(args.out_dir),
+        official_path=args.official_path,
+        seed=args.seed,
+        n_per_domain=args.n_per_domain,
+        val_frac=args.val_frac,
+        domains=args.domains,
+        test_n_per_domain=args.test_n_per_domain,
+    )
 
 
 if __name__ == "__main__":

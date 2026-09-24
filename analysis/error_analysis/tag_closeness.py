@@ -52,6 +52,7 @@ anchor, the aggregation) is ordinary regenerable code.
         --input tags.jsonl \\
         --output closeness.jsonl
 """
+
 import argparse
 import asyncio
 import json
@@ -145,8 +146,9 @@ def extract_wrong_answer(r: dict) -> str:
     return extract_boxed(identity_text).strip()
 
 
-async def tag_closeness_one(client: LLMClient, r: dict,
-                             call_timeout_s: float | None = None) -> dict:
+async def tag_closeness_one(
+    client: LLMClient, r: dict, call_timeout_s: float | None = None
+) -> dict:
     wrong_ans = extract_wrong_answer(r)
     prompt = CLOSENESS_PROMPT.format(gt_ans=r["gt_ans"], wrong_ans=wrong_ans)
 
@@ -157,24 +159,45 @@ async def tag_closeness_one(client: LLMClient, r: dict,
         mech = mechanical_closeness(gt_val, wrong_val)
 
     try:
-        raw = await client.achat([{"role": "user", "content": prompt}], max_tokens=4000,
-                                  timeout_s=call_timeout_s)
+        raw = await client.achat(
+            [{"role": "user", "content": prompt}], max_tokens=4000, timeout_s=call_timeout_s
+        )
     except LLMCallTimeout as e:
         print(f"WARNING: LLM call timed out for {r['query_id']}: {e}", flush=True)
-        return {**r, "closeness": None, "mechanical_closeness": mech,
-                "raw_llm_response": None, "llm_status": "LLM_CALL_TIMEOUT"}
+        return {
+            **r,
+            "closeness": None,
+            "mechanical_closeness": mech,
+            "raw_llm_response": None,
+            "llm_status": "LLM_CALL_TIMEOUT",
+        }
     try:
         closeness = parse_closeness(strip_think(raw))
     except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
         print(f"WARNING: unparseable LLM response for {r['query_id']}: {e}", flush=True)
-        return {**r, "closeness": None, "mechanical_closeness": mech,
-                "raw_llm_response": raw, "llm_status": "UNPARSED_LLM_OUTPUT"}
-    return {**r, "closeness": closeness, "mechanical_closeness": mech,
-            "raw_llm_response": raw, "llm_status": "OK"}
+        return {
+            **r,
+            "closeness": None,
+            "mechanical_closeness": mech,
+            "raw_llm_response": raw,
+            "llm_status": "UNPARSED_LLM_OUTPUT",
+        }
+    return {
+        **r,
+        "closeness": closeness,
+        "mechanical_closeness": mech,
+        "raw_llm_response": raw,
+        "llm_status": "OK",
+    }
 
 
-async def _run_closeness_async(records: list, client: LLMClient, max_workers: int,
-                                call_timeout_s: float | None, out_path: Path | None) -> list:
+async def _run_closeness_async(
+    records: list,
+    client: LLMClient,
+    max_workers: int,
+    call_timeout_s: float | None,
+    out_path: Path | None,
+) -> list:
     sem = asyncio.Semaphore(max_workers)
     tagged = [None] * len(records)
     n_done = 0
@@ -189,11 +212,17 @@ async def _run_closeness_async(records: list, client: LLMClient, max_workers: in
         if out_f is not None:
             out_f.write(json.dumps(result) + "\n")
             out_f.flush()
-        agree = ("AGREE" if result["mechanical_closeness"] == result["closeness"]
-                  else "disagree" if result["mechanical_closeness"] else "n/a")
-        print(f"closeness {n_done}/{len(records)}: {result['query_id']} "
-              f"gt={result['gt_ans']!r} -> {result['closeness']} "
-              f"(mechanical={result['mechanical_closeness']}, {agree})", flush=True)
+        agree = (
+            "AGREE"
+            if result["mechanical_closeness"] == result["closeness"]
+            else "disagree" if result["mechanical_closeness"] else "n/a"
+        )
+        print(
+            f"closeness {n_done}/{len(records)}: {result['query_id']} "
+            f"gt={result['gt_ans']!r} -> {result['closeness']} "
+            f"(mechanical={result['mechanical_closeness']}, {agree})",
+            flush=True,
+        )
 
     try:
         await asyncio.gather(*(worker(i, r) for i, r in enumerate(records)))
@@ -203,8 +232,13 @@ async def _run_closeness_async(records: list, client: LLMClient, max_workers: in
     return tagged
 
 
-def run_closeness_tagging(records: list, client: LLMClient, max_workers: int,
-                           call_timeout_s: float | None = None, out_path=None) -> list:
+def run_closeness_tagging(
+    records: list,
+    client: LLMClient,
+    max_workers: int,
+    call_timeout_s: float | None = None,
+    out_path=None,
+) -> list:
     out = Path(out_path) if out_path is not None else None
     return asyncio.run(_run_closeness_async(records, client, max_workers, call_timeout_s, out))
 
@@ -221,9 +255,12 @@ def load_existing(out_path: Path) -> dict:
             try:
                 rec = json.loads(line)
             except json.JSONDecodeError:
-                print(f"WARNING: skipping unparseable line {lineno} in {out_path} "
-                      f"(likely truncated by a mid-write kill) -- record will be "
-                      f"reprocessed", flush=True)
+                print(
+                    f"WARNING: skipping unparseable line {lineno} in {out_path} "
+                    f"(likely truncated by a mid-write kill) -- record will be "
+                    f"reprocessed",
+                    flush=True,
+                )
                 continue
             existing[rec["query_id"]] = rec
     return existing
@@ -242,8 +279,9 @@ def partition_existing_for_retry(existing: dict, retry_statuses) -> tuple:
 
 def main(argv=None):
     p = argparse.ArgumentParser()
-    p.add_argument("--input", required=True,
-                   help="tag_with_llm.py output (must have error_category)")
+    p.add_argument(
+        "--input", required=True, help="tag_with_llm.py output (must have error_category)"
+    )
     p.add_argument("--output", required=True)
     p.add_argument("--max-workers", type=int, default=15)
     p.add_argument("--call-timeout-s", type=float, default=1800.0)
@@ -254,16 +292,20 @@ def main(argv=None):
     with open(args.input) as f:
         all_records = [json.loads(line) for line in f]
     records = [r for r in all_records if r["error_category"] == "wrong_final_answer"]
-    print(f"{len(records)}/{len(all_records)} records are wrong_final_answer "
-          f"(only category with a comparable value to judge closeness of)", flush=True)
+    print(
+        f"{len(records)}/{len(all_records)} records are wrong_final_answer "
+        f"(only category with a comparable value to judge closeness of)",
+        flush=True,
+    )
     if args.limit:
-        records = records[:args.limit]
+        records = records[: args.limit]
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     existing_all = load_existing(out_path)
-    retry_statuses = (set(args.retry_statuses) if args.retry_statuses is not None
-                       else DEFAULT_RETRY_STATUSES)
+    retry_statuses = (
+        set(args.retry_statuses) if args.retry_statuses is not None else DEFAULT_RETRY_STATUSES
+    )
     existing, to_retry = partition_existing_for_retry(existing_all, retry_statuses)
     if to_retry:
         print(f"Retrying {len(to_retry)} previously-degraded records", flush=True)
@@ -274,15 +316,20 @@ def main(argv=None):
         tmp_path.replace(out_path)
     remaining = [r for r in records if r["query_id"] not in existing]
     if existing:
-        print(f"Resuming {out_path}: {len(existing)}/{len(records)} already tagged, "
-              f"{len(remaining)} remaining", flush=True)
+        print(
+            f"Resuming {out_path}: {len(existing)}/{len(records)} already tagged, "
+            f"{len(remaining)} remaining",
+            flush=True,
+        )
 
     with LLMClient() as client:
-        newly_tagged = run_closeness_tagging(remaining, client, args.max_workers,
-                                              args.call_timeout_s, out_path=out_path)
+        newly_tagged = run_closeness_tagging(
+            remaining, client, args.max_workers, args.call_timeout_s, out_path=out_path
+        )
     tagged = list(existing.values()) + newly_tagged
 
     from collections import Counter
+
     counts = Counter(t["closeness"] for t in tagged)
     calibratable = [t for t in tagged if t["mechanical_closeness"] is not None]
     agreeing = sum(1 for t in calibratable if t["closeness"] == t["mechanical_closeness"])
@@ -292,13 +339,19 @@ def main(argv=None):
     for label, n in counts.most_common():
         print(f"  {label}: {n}", flush=True)
     if calibratable:
-        print(f"\nMechanical calibration: {len(calibratable)}/{len(tagged)} records had a "
-              f"plain-number ground truth AND wrong answer (checkable). Agreement with "
-              f"the judge LLM's own label: {agreeing}/{len(calibratable)} "
-              f"({agreeing / len(calibratable):.1%})", flush=True)
+        print(
+            f"\nMechanical calibration: {len(calibratable)}/{len(tagged)} records had a "
+            f"plain-number ground truth AND wrong answer (checkable). Agreement with "
+            f"the judge LLM's own label: {agreeing}/{len(calibratable)} "
+            f"({agreeing / len(calibratable):.1%})",
+            flush=True,
+        )
     else:
-        print("\nNo records had a plain-number ground truth -- no mechanical calibration "
-              "possible on this input.", flush=True)
+        print(
+            "\nNo records had a plain-number ground truth -- no mechanical calibration "
+            "possible on this input.",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

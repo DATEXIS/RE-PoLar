@@ -35,6 +35,7 @@ Usage:
         --checkpoints strict_ce=./results/router_qwen3_8b_strict_ce.pt \
         --model qwen3_8b
 """
+
 from __future__ import annotations
 
 import argparse
@@ -84,10 +85,13 @@ def main() -> None:
     n_id_valid = sum(1 for vs in valid_sets if identity in vs)
     id_wrong_mask = [identity not in vs for vs in valid_sets]
     n_wrong = sum(id_wrong_mask)
-    print(f"n={n} test questions | device={device} | identity-wrong subset: {n_wrong} | "
-          f"of {n_id_valid} where identity is MCTS-verified-correct, {n_multi_alt} "
-          f"({100 * n_multi_alt / max(n_id_valid, 1):.1f}%) also have >=1 non-identity "
-          f"MCTS-verified-correct alternative", flush=True)
+    print(
+        f"n={n} test questions | device={device} | identity-wrong subset: {n_wrong} | "
+        f"of {n_id_valid} where identity is MCTS-verified-correct, {n_multi_alt} "
+        f"({100 * n_multi_alt / max(n_id_valid, 1):.1f}%) also have >=1 non-identity "
+        f"MCTS-verified-correct alternative",
+        flush=True,
+    )
 
     for pair in args.checkpoints:
         label, path = pair.split("=", 1)
@@ -127,13 +131,17 @@ def main() -> None:
             rank_membership, rank_present, cum_membership_by_k = bucket
             r1 = rank_membership[0] / max(rank_present[0], 1)
             c5 = cum_membership_by_k[4] / max(denom, 1)
-            print(f"  {label} [{name}, n={denom}]: rank-1 MCTS-verified-correct "
-                  f"{rank_membership[0]}/{rank_present[0]} ({100 * r1:.1f}%) | "
-                  f"cumulative through rank-5: {cum_membership_by_k[4]}/{denom} ({100 * c5:.1f}%)",
-                  flush=True)
-            print(f"    per-rank membership: " +
-                  ", ".join(f"@{i+1}={rank_membership[i]}/{rank_present[i]}" for i in range(5)),
-                  flush=True)
+            print(
+                f"  {label} [{name}, n={denom}]: rank-1 MCTS-verified-correct "
+                f"{rank_membership[0]}/{rank_present[0]} ({100 * r1:.1f}%) | "
+                f"cumulative through rank-5: {cum_membership_by_k[4]}/{denom} ({100 * c5:.1f}%)",
+                flush=True,
+            )
+            print(
+                f"    per-rank membership: "
+                + ", ".join(f"@{i+1}={rank_membership[i]}/{rank_present[i]}" for i in range(5)),
+                flush=True,
+            )
 
         _report("POOLED", pooled, n)
         _report("identity-WRONG subset (comparable to rescue-only@k)", wrong_only, n_wrong)
@@ -143,11 +151,14 @@ def main() -> None:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    print("\nDone. Low rank-1 membership despite the near-universal existence of a "
-          "non-identity MCTS-verified alternative (see the n_multi_alt line above) would "
-          "confirm: the router's identity-excluded guesses are near-identity noise from a "
-          "collapsed/KEEP-biased beam, not real draws from the space MCTS actually "
-          "searched -- explaining the sharp identity-excluded pass@1 drop.", flush=True)
+    print(
+        "\nDone. Low rank-1 membership despite the near-universal existence of a "
+        "non-identity MCTS-verified alternative (see the n_multi_alt line above) would "
+        "confirm: the router's identity-excluded guesses are near-identity noise from a "
+        "collapsed/KEEP-biased beam, not real draws from the space MCTS actually "
+        "searched -- explaining the sharp identity-excluded pass@1 drop.",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

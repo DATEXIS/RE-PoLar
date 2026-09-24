@@ -1,6 +1,7 @@
 """PROMPT_STYLES content checks (re_polar/mcts/rewards.py) -- pure string logic,
 no torch/model needed. Guards each prompt variant's exact wording against
 silent drift."""
+
 from re_polar.mcts.rewards import (
     DRLLM_QWEN_DEADCODE_INSTRUCTION,
     DRLLM_STRICT_INSTRUCTION,
@@ -42,11 +43,22 @@ class _FakeTokenizer:
 
 def test_prompt_styles_registry_has_expected_variants():
     assert set(PROMPT_STYLES) == {
-        "raw", "chat", "drllm_chat", "minerva_math", "paper_fewshot", "drllm_fewshot",
-        "drllm_raw", "drllm_chat_prefill", "drllm_chat_strict", "drllm_chat_qwen_deadcode",
-        "paper_minimal_fewshot", "paper_minimal_fewshot_chat", "paper_minimal_fewshot_chat_sys",
+        "raw",
+        "chat",
+        "drllm_chat",
+        "minerva_math",
+        "paper_fewshot",
+        "drllm_fewshot",
+        "drllm_raw",
+        "drllm_chat_prefill",
+        "drllm_chat_strict",
+        "drllm_chat_qwen_deadcode",
+        "paper_minimal_fewshot",
+        "paper_minimal_fewshot_chat",
+        "paper_minimal_fewshot_chat_sys",
         "paper_chat_sys",
-        "drllm_chat_minimal_fewshot", "drllm_chat_minimal_fewshot_prefill",
+        "drllm_chat_minimal_fewshot",
+        "drllm_chat_minimal_fewshot_prefill",
     }
 
 
@@ -105,7 +117,9 @@ def test_drllm_chat_prompt_uses_empty_boxed_not_a_placeholder_word():
 
 def test_minerva_math_prompt_has_four_real_worked_fewshot_examples():
     text = minerva_math_prompt(None, "What is 2+2?")
-    assert text.count("\\boxed{") == 4  # 4 fewshot solutions, one \boxed{} each; target has none yet
+    assert (
+        text.count("\\boxed{") == 4
+    )  # 4 fewshot solutions, one \boxed{} each; target has none yet
     assert "ANSWER" not in text
     assert text.endswith("Problem:\nWhat is 2+2?\n\nSolution:")
     # every fewshot example ends with the "I hope it is correct." tell -- never a
@@ -136,7 +150,8 @@ def test_paper_fewshot_prompt_never_demonstrates_the_placeholder_as_a_real_answe
     assert text.count("### Problem Start") == 5  # 4 fewshot + 1 target
     assert text.count(PAPER_INSTRUCTION) == 5
     assert text.endswith(
-        f"{PAPER_INSTRUCTION}\n### Problem Start\nWhat is 2+2?\n### Problem End\nAnswer:")
+        f"{PAPER_INSTRUCTION}\n### Problem Start\nWhat is 2+2?\n### Problem End\nAnswer:"
+    )
 
 
 def test_drllm_fewshot_prompt_shows_terse_real_answers():
@@ -149,20 +164,25 @@ def test_drllm_fewshot_prompt_shows_terse_real_answers():
     assert text.count("\\boxed{16}") == 1
     assert text.count("\\boxed{-\\frac{2}{3}}") == 1
     assert text.count("Question:") == 5  # 4 fewshot + 1 target
-    assert text.endswith("Question: What is 2+2?\nThe final answer MUST BE put in "
-                          "\\boxed{} and no explanation.")
+    assert text.endswith(
+        "Question: What is 2+2?\nThe final answer MUST BE put in " "\\boxed{} and no explanation."
+    )
 
 
 def test_fewshot_prompts_use_the_same_underlying_problems_as_minerva():
     # kept identical across variants deliberately, for comparability -- see
     # rewards.py's _TERSE_FEWSHOT_ANSWERS comment.
     from re_polar.mcts.rewards import _MINERVA_MATH_FEWSHOT, _TERSE_FEWSHOT_ANSWERS
+
     assert len(_TERSE_FEWSHOT_ANSWERS) == len(_MINERVA_MATH_FEWSHOT) == 4
 
 
 def test_drllm_raw_prompt_is_drllm_wording_with_no_chat_markup():
     text = drllm_raw_prompt(None, "What is 2+2?")
-    assert text == "Question: What is 2+2?\nThe final answer MUST BE put in \\boxed{} and no explanation."
+    assert (
+        text
+        == "Question: What is 2+2?\nThe final answer MUST BE put in \\boxed{} and no explanation."
+    )
     assert "<|im_start|>" not in text  # no chat template markup at all
 
 
@@ -199,7 +219,8 @@ def test_paper_minimal_fewshot_prompt_has_exactly_one_trivial_demo():
     # block (demo + target = 2), plus the demo's one real terse answer
     assert text.count("\\boxed{") == 3
     assert text.endswith(
-        f"{PAPER_INSTRUCTION}\n### Problem Start\nWhat is 2+2?\n### Problem End\nAnswer:")
+        f"{PAPER_INSTRUCTION}\n### Problem Start\nWhat is 2+2?\n### Problem End\nAnswer:"
+    )
 
 
 def test_drllm_chat_minimal_fewshot_prompt_is_a_real_multiturn_exchange():

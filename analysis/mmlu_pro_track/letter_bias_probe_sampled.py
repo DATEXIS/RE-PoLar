@@ -24,6 +24,7 @@ see `letter_bias_probe_best_program_run.py` for the actual model-loading
 driver (an exploratory diagnostic, not one of this pipeline's paper-cited
 results -- see that file's own docstring for what those are).
 """
+
 import random
 from itertools import permutations
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -181,7 +182,8 @@ def run_letter_bias_probe(
 
     if prepared_inputs is None:
         prepared_inputs = prepare_letter_bias_inputs(
-            tokenizer, num_options, k_orderings=k_orderings, seed=seed, device=str(device))
+            tokenizer, num_options, k_orderings=k_orderings, seed=seed, device=str(device)
+        )
 
     choice_token_ids = _get_choice_token_ids(tokenizer, num_options)
     choice_ids_tensor = torch.tensor(choice_token_ids, device=device)

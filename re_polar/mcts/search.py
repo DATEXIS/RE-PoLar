@@ -160,7 +160,7 @@ class Node:
     which order its edits were placed in, so a node may have several parents."""
 
     edits: Tuple[Edit, ...]  # canonical: sorted by start, non-overlapping
-    executed_len: int        # len(to_layer_path()) of this node's program
+    executed_len: int  # len(to_layer_path()) of this node's program
     untried: List[Edit]
     children: Dict[Edit, "Node"] = field(default_factory=dict)
     visits: int = 0
@@ -175,20 +175,28 @@ class Node:
 class ProgramMCTS:
     """One search tree for one input. propose() -> evaluate externally -> update()."""
 
-    def __init__(self, num_layers: int, budget: int, c: float = math.sqrt(2),
-                 lam: float = 5.0, seed: int = 0, *,
-                 alpha: float = 2.0, beta: float = 0.5,
-                 max_repeat_times: int = DEFAULT_MAX_REPEAT_TIMES,
-                 epsilon: float = 0.0,
-                 global_selection: bool = False,
-                 ucb_global_v: bool = True):
+    def __init__(
+        self,
+        num_layers: int,
+        budget: int,
+        c: float = math.sqrt(2),
+        lam: float = 5.0,
+        seed: int = 0,
+        *,
+        alpha: float = 2.0,
+        beta: float = 0.5,
+        max_repeat_times: int = DEFAULT_MAX_REPEAT_TIMES,
+        epsilon: float = 0.0,
+        global_selection: bool = False,
+        ucb_global_v: bool = True
+    ):
         self.num_layers = num_layers
         self.budget = budget
         self.c = c
         self.lam = lam
         self.seed = seed
         self.alpha = alpha  # progressive-widening scale
-        self.beta = beta    # progressive-widening exponent (k = alpha * visits**beta)
+        self.beta = beta  # progressive-widening exponent (k = alpha * visits**beta)
         self.max_repeat_times = max_repeat_times  # segment exec-count cap; paper bounds r<=4
         # PRE paper Appendix B (arXiv:2507.07996, same MCTS pre-ICML-rename): "the
         # algorithm selects a random unexplored child node with probability 0.1
@@ -228,7 +236,7 @@ class ProgramMCTS:
         # lazily by _propose_global's first call, not here, so a tree that
         # never calls propose() costs nothing extra either way.
         self.global_selection = global_selection
-        self._all_nodes: List[Node] = [self.root]      # flat scan pool (global_selection only)
+        self._all_nodes: List[Node] = [self.root]  # flat scan pool (global_selection only)
         # paper's literal "V" -- tracked for BOTH modes (see update()); only
         # ever READ by global_selection's _global_ucb or by _ucb when
         # ucb_global_v=True, but cheap enough (one int) to always maintain.
@@ -272,8 +280,7 @@ class ProgramMCTS:
                 occupied[i] = 1
         # filter the interned universe rather than building fresh tuples, so a
         # node's untried list costs one pointer per entry (see _ACTION_UNIVERSE)
-        return [a for a in self._universe
-                if not any(occupied[i] for i in range(a[0], a[0] + a[1]))]
+        return [a for a in self._universe if not any(occupied[i] for i in range(a[0], a[0] + a[1]))]
 
     def _child_edits(self, edits: Tuple[Edit, ...], action: Edit) -> Tuple[Edit, ...]:
         """Canonical (sorted-by-start) edit tuple for placing `action` on `edits`.
@@ -288,8 +295,11 @@ class ProgramMCTS:
         order already built it (module docstring, TRANSPOSITION)."""
         node = self._nodes.get(edits)
         if node is None:
-            node = Node(edits=edits, executed_len=self._executed_len(edits),
-                        untried=self._actions_for(edits))
+            node = Node(
+                edits=edits,
+                executed_len=self._executed_len(edits),
+                untried=self._actions_for(edits),
+            )
             self.rng.shuffle(node.untried)
             self._nodes[edits] = node
         return node
@@ -348,7 +358,7 @@ class ProgramMCTS:
 
     def _widening_limit(self, visits: int) -> int:
         """Max children a node with `visits` visits may hold (progressive widening)."""
-        return max(1, math.ceil(self.alpha * (visits ** self.beta)))
+        return max(1, math.ceil(self.alpha * (visits**self.beta)))
 
     def _can_expand(self, node: Node) -> bool:
         """True iff `node` may add a NEW child now (has an untried edit and is
@@ -508,8 +518,12 @@ class ProgramMCTS:
         self.proposals += 1
         action = node.untried.pop()
         child_edits = self._child_edits(node.edits, action)
-        child = Node(edits=child_edits, executed_len=self._executed_len(child_edits),
-                     untried=self._actions_for(child_edits), parent=node)
+        child = Node(
+            edits=child_edits,
+            executed_len=self._executed_len(child_edits),
+            untried=self._actions_for(child_edits),
+            parent=node,
+        )
         self.rng.shuffle(child.untried)
         node.children[action] = child
         self._all_nodes.append(child)
@@ -581,12 +595,17 @@ class ProgramMCTS:
         # chain can never itself be this degenerate program -- every node
         # already in `chain` passed is_valid() when IT was first proposed, and
         # a node's edits never change afterward.
-        self.trajectory.append({
-            "path": program.to_layer_path() if program is not None else [],
-            "parent_path": (self._build_program(parent.edits).to_layer_path()
-                            if parent is not None else None),
-            "reward": reward,
-        })
+        self.trajectory.append(
+            {
+                "path": program.to_layer_path() if program is not None else [],
+                "parent_path": (
+                    self._build_program(parent.edits).to_layer_path()
+                    if parent is not None
+                    else None
+                ),
+                "reward": reward,
+            }
+        )
         # the paper's literal "V" (_global_ucb / ucb_global_v): one simulation
         # anywhere in the tree, root's bootstrap included. Tracked regardless
         # of mode (cheap; see __init__) -- only global_selection's
@@ -595,8 +614,11 @@ class ProgramMCTS:
 
     def valid_paths(self) -> List[List[int]]:
         """All evaluated programs with reward 1, shortest first (label preference)."""
-        return [list(p) for p, r in sorted(self.evaluated.items(), key=lambda kv: len(kv[0]))
-                if r >= 1.0]
+        return [
+            list(p)
+            for p, r in sorted(self.evaluated.items(), key=lambda kv: len(kv[0]))
+            if r >= 1.0
+        ]
 
     def invalid_paths(self) -> List[List[int]]:
         return [list(p) for p, r in self.evaluated.items() if r < 1.0]

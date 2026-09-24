@@ -22,6 +22,7 @@ instruction+format string is identical either way (`re_polar/mcts/rewards.py`
 Top level is stdlib-only so spawn grading workers re-importing this module
 stay torch-free.
 """
+
 import argparse
 import json
 from pathlib import Path
@@ -39,7 +40,8 @@ def load_dataset(data_root, name, limit=None):
     if not path.exists():
         raise FileNotFoundError(
             f"{path} not found -- expected re_polar/datasets/{name}.py's output "
-            f"(test.json) under --data-root")
+            f"(test.json) under --data-root"
+        )
     data = json.loads(path.read_text())
     return data[:limit] if limit else data
 
@@ -54,18 +56,25 @@ def main(argv=None):
 
     p = argparse.ArgumentParser()
     p.add_argument("--model", default="qwen3_8b")
-    p.add_argument("--dataset", required=True, choices=sorted(DATASETS),
-                   help="which OOD eval set to grade")
-    p.add_argument("--data-root", default="datasets",
-                   help="dir containing <dataset>/test.json (re_polar/datasets/{asdiv,mawps}.py's "
-                        "own output layout)")
+    p.add_argument(
+        "--dataset", required=True, choices=sorted(DATASETS), help="which OOD eval set to grade"
+    )
+    p.add_argument(
+        "--data-root",
+        default="datasets",
+        help="dir containing <dataset>/test.json (re_polar/datasets/{asdiv,mawps}.py's "
+        "own output layout)",
+    )
     p.add_argument("--output", required=True, help="path to write the results JSON")
-    p.add_argument("--prompt-style", default="paper_minimal_fewshot",
-                   help="GenerationReward prompt style (re_polar/mcts/rewards.py "
-                        "PROMPT_STYLES) -- default matches this project's own MCTS-search "
-                        "prompt, for direct comparability with existing DART-Math numbers "
-                        "on the same model. Pass 'raw' for PoLar's literal Appendix D.4 "
-                        "zero-shot protocol instead.")
+    p.add_argument(
+        "--prompt-style",
+        default="paper_minimal_fewshot",
+        help="GenerationReward prompt style (re_polar/mcts/rewards.py "
+        "PROMPT_STYLES) -- default matches this project's own MCTS-search "
+        "prompt, for direct comparability with existing DART-Math numbers "
+        "on the same model. Pass 'raw' for PoLar's literal Appendix D.4 "
+        "zero-shot protocol instead.",
+    )
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--limit", type=int, default=None, help="first N questions (smoke tests)")
     args = p.parse_args(argv)
@@ -77,21 +86,30 @@ def main(argv=None):
     engine = LayerEngine(cfg["model_id"], trust_remote_code=cfg.get("trust_remote_code", True))
     executor = ProgramExecutor(engine)
     D = engine.num_layers
-    reward_fn = GenerationReward(executor, batch_size=args.batch_size,
-                                 prompt_style=args.prompt_style)  # boxed gate + strict grade
+    reward_fn = GenerationReward(
+        executor, batch_size=args.batch_size, prompt_style=args.prompt_style
+    )  # boxed gate + strict grade
     identity = Program.identity(D)
 
     data = load_dataset(args.data_root, args.dataset, args.limit)
     questions = [d["question"] for d in data]
     gt = [d["gt_ans"] for d in data]
-    print(f"[{args.dataset}] grading identity on {len(questions)} questions "
-          f"(prompt_style={args.prompt_style})...", flush=True)
+    print(
+        f"[{args.dataset}] grading identity on {len(questions)} questions "
+        f"(prompt_style={args.prompt_style})...",
+        flush=True,
+    )
     rewards = reward_fn(identity, questions, gt)
     acc = sum(rewards) / len(rewards) if rewards else 0.0
     print(f"[{args.dataset}] identity_acc = {acc:.4f}  (n={len(rewards)})", flush=True)
 
-    out = {"model": args.model, "dataset": args.dataset, "prompt_style": args.prompt_style,
-          "n": len(rewards), "identity_acc": round(acc, 4)}
+    out = {
+        "model": args.model,
+        "dataset": args.dataset,
+        "prompt_style": args.prompt_style,
+        "n": len(rewards),
+        "identity_acc": round(acc, 4),
+    }
     outp = Path(args.output)
     outp.parent.mkdir(parents=True, exist_ok=True)
     outp.write_text(json.dumps(out, indent=2))

@@ -31,6 +31,7 @@ re-deriving or re-running anything already stored.
 
 Top level is stdlib-only so nothing here needs torch until `main()` runs.
 """
+
 import argparse
 import json
 from collections import defaultdict
@@ -83,16 +84,22 @@ def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--model", default="qwen3_8b")
     p.add_argument("--difficulty", action="append", default=None)
-    p.add_argument("--data-dir", required=True, help="DART-Math root (has diff{N}/{train,val,test}.json)")
-    p.add_argument("--mcts-dir", required=True,
-                   help="MCTS output root (has diff{N}/merged_mcts_samples.json)")
+    p.add_argument(
+        "--data-dir", required=True, help="DART-Math root (has diff{N}/{train,val,test}.json)"
+    )
+    p.add_argument(
+        "--mcts-dir", required=True, help="MCTS output root (has diff{N}/merged_mcts_samples.json)"
+    )
     p.add_argument("--k", type=int, default=100)
     p.add_argument("--output", required=True)
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--limit", type=int, default=None, help="cap n_pool questions, smoke-test only")
-    p.add_argument("--fresh", action="store_true",
-                   help="ignore already-known (program, question) labels from --mcts-dir and "
-                        "generate every cell fresh instead of reusing them.")
+    p.add_argument(
+        "--fresh",
+        action="store_true",
+        help="ignore already-known (program, question) labels from --mcts-dir and "
+        "generate every cell fresh instead of reusing them.",
+    )
     args = p.parse_args(argv)
 
     if args.model not in MODEL_REGISTRY:
@@ -115,18 +122,30 @@ def main(argv=None):
             pool_data = pool_data[: args.limit]
         pool_qids = [d["query_id"] for d in pool_data]
         pool_qid_set = set(pool_qids)
-        assert len(pool_qids) == len(pool_qid_set), f"diff{diff}: duplicate query_id across train/val/test"
+        assert len(pool_qids) == len(
+            pool_qid_set
+        ), f"diff{diff}: duplicate query_id across train/val/test"
         gt_by_qid = {d["query_id"]: d["gt_ans"] for d in pool_data}
         q_by_qid = {d["query_id"]: d["question"] for d in pool_data}
         n_pool = len(pool_qids)
-        print(f"[diff {diff}] {n_pool} pool questions (train={len(train_data)}, "
-              f"val={len(val_data)}, test={len(test_data)})", flush=True)
+        print(
+            f"[diff {diff}] {n_pool} pool questions (train={len(train_data)}, "
+            f"val={len(val_data)}, test={len(test_data)})",
+            flush=True,
+        )
 
         mcts_samples = load_samples(
-            Path(args.mcts_dir) / cfg["model_id"] / f"dart-math-diff-{diff}" / "merged_mcts_samples.json")
+            Path(args.mcts_dir)
+            / cfg["model_id"]
+            / f"dart-math-diff-{diff}"
+            / "merged_mcts_samples.json"
+        )
         candidates = build_candidate_pool(mcts_samples, pool_qid_set, args.k)
-        print(f"[diff {diff}] top-{len(candidates)} candidate programs selected "
-              f"(ranked over the full {n_pool}-question pool)", flush=True)
+        print(
+            f"[diff {diff}] top-{len(candidates)} candidate programs selected "
+            f"(ranked over the full {n_pool}-question pool)",
+            flush=True,
+        )
 
         n_reused_total = 0
         n_new_total = 0
@@ -152,10 +171,15 @@ def main(argv=None):
                     provenance[q] = "f"
             rewards_list = [int(row.get(q, 0.0) > 0) for q in pool_qids]
             provenance_str = "".join(provenance.get(q, "?") for q in pool_qids)
-            per_program_rows.append({"path": list(path), "rewards": rewards_list, "provenance": provenance_str})
+            per_program_rows.append(
+                {"path": list(path), "rewards": rewards_list, "provenance": provenance_str}
+            )
             solved_now = sum(rewards_list)
-            print(f"  program {list(path)}: reused {n_pool - len(todo_qids)}, "
-                  f"new {len(todo_qids)}, total solved {solved_now}/{n_pool}", flush=True)
+            print(
+                f"  program {list(path)}: reused {n_pool - len(todo_qids)}, "
+                f"new {len(todo_qids)}, total solved {solved_now}/{n_pool}",
+                flush=True,
+            )
 
         # real top-k coverage curve: in the candidates' rank order (by search-frequency
         # over the full pool), how much of the pool does ANY of the top-1..top-K solve,
@@ -171,22 +195,32 @@ def main(argv=None):
 
         row_out = {
             "difficulty": diff,
-            "n_pool": n_pool, "n_train": len(train_data), "n_val": len(val_data), "n_test": len(test_data),
-            "k_requested": args.k, "k_actual": len(candidates),
-            "n_reused_cells": n_reused_total, "n_new_cells": n_new_total,
+            "n_pool": n_pool,
+            "n_train": len(train_data),
+            "n_val": len(val_data),
+            "n_test": len(test_data),
+            "k_requested": args.k,
+            "k_actual": len(candidates),
+            "n_reused_cells": n_reused_total,
+            "n_new_cells": n_new_total,
             "real_topk_coverage_curve": coverage_curve,
             "final_real_coverage": coverage_curve[-1]["real_coverage"] if coverage_curve else 0.0,
             "qids": pool_qids,  # written ONCE per difficulty; per_program rows are positional against this
-            "provenance_legend": {"v": "known valid from original MCTS search (reused, not re-executed)",
-                                   "i": "known invalid from original MCTS search (reused, not re-executed)",
-                                   "f": "freshly executed this run"},
+            "provenance_legend": {
+                "v": "known valid from original MCTS search (reused, not re-executed)",
+                "i": "known invalid from original MCTS search (reused, not re-executed)",
+                "f": "freshly executed this run",
+            },
             "per_program": per_program_rows,
         }
         results.append(row_out)
-        print(f"[diff {diff}] DONE. real top-{len(candidates)} coverage = "
-              f"{row_out['final_real_coverage']:.4f} "
-              f"({sum(any_solved)}/{n_pool} pool questions), "
-              f"reused {n_reused_total} cells, ran {n_new_total} new evaluations", flush=True)
+        print(
+            f"[diff {diff}] DONE. real top-{len(candidates)} coverage = "
+            f"{row_out['final_real_coverage']:.4f} "
+            f"({sum(any_solved)}/{n_pool} pool questions), "
+            f"reused {n_reused_total} cells, ran {n_new_total} new evaluations",
+            flush=True,
+        )
 
     out = {"model": args.model, "k": args.k, "schema": "menu_coverage", "per_difficulty": results}
     outp = Path(args.output)
@@ -196,8 +230,10 @@ def main(argv=None):
 
     print(f"\n{'diff':>4} {'k':>4} {'real_cov':>9} {'new_evals':>10}")
     for r in results:
-        print(f"{r['difficulty']:>4} {r['k_actual']:>4} {r['final_real_coverage']:>9.4f} "
-              f"{r['n_new_cells']:>10}")
+        print(
+            f"{r['difficulty']:>4} {r['k_actual']:>4} {r['final_real_coverage']:>9.4f} "
+            f"{r['n_new_cells']:>10}"
+        )
     return outp
 
 

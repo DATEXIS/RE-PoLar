@@ -62,21 +62,38 @@ class LLMClient:
             "x-api-key": self.api_key,
         }
 
-    def chat(self, messages: list[dict], model: str = DEFAULT_MODEL,
-             temperature: float = 0.7, max_tokens: int = 4096) -> str:
+    def chat(
+        self,
+        messages: list[dict],
+        model: str = DEFAULT_MODEL,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+    ) -> str:
         """Simple synchronous call, no enforced deadline beyond httpx's own
         (unreliable, see LLMCallTimeout) read timeout -- fine for one-off/
         interactive use, not for an unattended batch run (use achat() there
         instead)."""
-        r = self._client.post(f"{self.base_url}/chat/completions", headers=self._headers(),
-                               json={"model": model, "messages": messages,
-                                     "temperature": temperature, "max_tokens": max_tokens})
+        r = self._client.post(
+            f"{self.base_url}/chat/completions",
+            headers=self._headers(),
+            json={
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+        )
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"]
 
-    async def achat(self, messages: list[dict], model: str = DEFAULT_MODEL,
-                     temperature: float = 0.7, max_tokens: int = 4096,
-                     timeout_s: float | None = None) -> str:
+    async def achat(
+        self,
+        messages: list[dict],
+        model: str = DEFAULT_MODEL,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        timeout_s: float | None = None,
+    ) -> str:
         """Async counterpart with a genuinely enforced wall-clock deadline
         (see LLMCallTimeout's docstring). A fresh, unpooled AsyncClient per
         call -- connection setup overhead is negligible next to a chat
@@ -91,9 +108,16 @@ class LLMClient:
         scoped to 5xx specifically (not all non-2xx) so a genuine 4xx client
         bug still crashes loudly rather than being silently retried."""
         async with httpx.AsyncClient(timeout=HTTPX_TIMEOUT) as client:
-            coro = client.post(f"{self.base_url}/chat/completions", headers=self._headers(),
-                                json={"model": model, "messages": messages,
-                                      "temperature": temperature, "max_tokens": max_tokens})
+            coro = client.post(
+                f"{self.base_url}/chat/completions",
+                headers=self._headers(),
+                json={
+                    "model": model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                },
+            )
             try:
                 r = await asyncio.wait_for(coro, timeout=timeout_s) if timeout_s else await coro
             except (asyncio.TimeoutError, httpx.TimeoutException):

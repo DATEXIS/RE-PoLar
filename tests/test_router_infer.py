@@ -106,11 +106,11 @@ def test_grade_router_one_call_per_distinct_program_and_scatters():
 
     out = grade_router(programs, questions, gts, reward)
 
-    assert out == [1.0, 0.0, 0.0, 1.0, 1.0]          # scattered to original positions
-    assert len(reward.calls) == 2                     # two DISTINCT programs -> two calls
+    assert out == [1.0, 0.0, 0.0, 1.0, 1.0]  # scattered to original positions
+    assert len(reward.calls) == 2  # two DISTINCT programs -> two calls
     keep_call = next(c for c in reward.calls if c[0] == tuple(_p_keep().to_layer_path()))
-    assert keep_call[1] == ["q0", "q2", "q4"]         # only the keep-group questions...
-    assert keep_call[2] == ["g0", "g2", "g4"]         # ...and their gts, in order
+    assert keep_call[1] == ["q0", "q2", "q4"]  # only the keep-group questions...
+    assert keep_call[2] == ["g0", "g2", "g4"]  # ...and their gts, in order
     skip_call = next(c for c in reward.calls if c[0] == tuple(_p_skip().to_layer_path()))
     assert skip_call[1] == ["q1", "q3"]
 
@@ -140,22 +140,25 @@ def test_grade_router_topk_any_solve_and_program_major_batching():
     skip = tuple(_p_skip().to_layer_path())
     rep = tuple(_p_repeat().to_layer_path())
     topk = [
-        [_p_keep(), _p_skip()],    # q0: top-1 keep FAILS, skip SOLVES -> pass@1 0, pass@k 1
-        [_p_keep()],               # q1: keep SOLVES                   -> pass@1 1, pass@k 1
+        [_p_keep(), _p_skip()],  # q0: top-1 keep FAILS, skip SOLVES -> pass@1 0, pass@k 1
+        [_p_keep()],  # q1: keep SOLVES                   -> pass@1 1, pass@k 1
         [_p_repeat(), _p_skip()],  # q2: neither solves                -> pass@1 0, pass@k 0
     ]
     table = {
-        (keep, "q0"): 0.0, (skip, "q0"): 1.0,
+        (keep, "q0"): 0.0,
+        (skip, "q0"): 1.0,
         (keep, "q1"): 1.0,
-        (rep, "q2"): 0.0, (skip, "q2"): 0.0,
+        (rep, "q2"): 0.0,
+        (skip, "q2"): 0.0,
     }
     reward = _PathReward(table)
     rewards_at_k, rewards_at_1, chosen = grade_router_topk(
-        topk, ["q0", "q1", "q2"], ["g0", "g1", "g2"], reward)
+        topk, ["q0", "q1", "q2"], ["g0", "g1", "g2"], reward
+    )
 
     assert rewards_at_k == [1.0, 1.0, 0.0]
     assert rewards_at_1 == [0.0, 1.0, 0.0]
-    assert chosen[0].to_layer_path() == list(skip)   # the solving candidate reported
+    assert chosen[0].to_layer_path() == list(skip)  # the solving candidate reported
     # program-major: each DISTINCT path graded exactly once (skip shared by q0,q2)
     assert len(reward.calls) == 3
     skip_call = next(c for c in reward.calls if c[0] == skip)
@@ -167,7 +170,7 @@ def test_grade_router_topk_any_solve_and_program_major_batching():
 # --------------------------------------------------------------------------- #
 def test_summarize_metrics():
     programs = [_p_keep(), _p_skip(), _p_repeat()]  # exec lens 8, 4, 12
-    rewards = [1.0, 1.0, 0.0]           # router_acc = 2/3
+    rewards = [1.0, 1.0, 0.0]  # router_acc = 2/3
     identity_rewards = [1.0, 0.0, 0.0]  # identity_acc = 1/3
 
     s = summarize(rewards, programs, identity_rewards, D)
@@ -178,7 +181,7 @@ def test_summarize_metrics():
     assert s["delta"] == pytest.approx(1 / 3)
     assert s["mean_executed_len"] == pytest.approx((8 + 4 + 12) / 3)
     assert s["mean_identity_len"] == float(D)
-    assert s["frac_programs_with_skip"] == pytest.approx(1 / 3)   # only _p_skip
+    assert s["frac_programs_with_skip"] == pytest.approx(1 / 3)  # only _p_skip
     assert s["frac_programs_with_repeat"] == pytest.approx(1 / 3)  # only _p_repeat
     assert s["recurrence_rate"] == pytest.approx(1 / 3)
 
@@ -202,8 +205,9 @@ T = 7
 
 def _build_router(num_layers=12):
     torch.manual_seed(0)
-    return PolarRouter(num_layers=num_layers, embed_dim=EMBED, d_model=DM,
-                       nheads=4, n_layer_blocks=2)
+    return PolarRouter(
+        num_layers=num_layers, embed_dim=EMBED, d_model=DM, nheads=4, n_layer_blocks=2
+    )
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2, 3])

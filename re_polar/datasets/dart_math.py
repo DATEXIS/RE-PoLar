@@ -54,8 +54,13 @@ GSM8K_QUERY_INFO_DATASET = "hkust-nlp/dart-math-pool-gsm8k-query-info"
 # 7 subject configs, train/test splits preserved), used for the TEST split
 MATH_MIRROR = "EleutherAI/hendrycks_math"
 SUBJECT_CONFIGS = (
-    "algebra", "counting_and_probability", "geometry", "intermediate_algebra",
-    "number_theory", "prealgebra", "precalculus",
+    "algebra",
+    "counting_and_probability",
+    "geometry",
+    "intermediate_algebra",
+    "number_theory",
+    "prealgebra",
+    "precalculus",
 )
 # The public MATH pool holds 7473 distinct queries, NOT the full 7500 MATH-train
 # (27 filtered upstream; verified directly). MATH-only near-equal bins are
@@ -65,7 +70,7 @@ SUBJECT_CONFIGS = (
 POOL_QUERY_BOUNDS = (7400, 7500)
 GSM8K_QUERY_BOUNDS = (6900, 7600)  # ~7473 GSM8K-train queries; loose guard
 TRAIN_SIZE = 1250
-VAL_SIZE = 250   # v2 (combined pool) caps val at the paper's 250/level
+VAL_SIZE = 250  # v2 (combined pool) caps val at the paper's 250/level
 TEST_SIZE = 500  # per level; pending the MATH-test fail-rate job
 N_BINS = 5
 SEED = 42
@@ -113,21 +118,31 @@ def load_math_records(split: str):
             if gt_ans is None:
                 dropped_ans += 1
                 continue
-            records.append({
-                "question": dp["problem"],
-                "gt_ans": gt_ans,
-                "level": level,
-                "domain": dp["type"].replace(" ", ""),
-                "source_split": split,
-                "source_index": f"{config}/{idx}",
-            })
-    print(f"{MATH_MIRROR}:{split}: {len(records)} records "
-          f"({dropped_level} dropped for 'Level ?', {dropped_ans} for no boxed answer)")
+            records.append(
+                {
+                    "question": dp["problem"],
+                    "gt_ans": gt_ans,
+                    "level": level,
+                    "domain": dp["type"].replace(" ", ""),
+                    "source_split": split,
+                    "source_index": f"{config}/{idx}",
+                }
+            )
+    print(
+        f"{MATH_MIRROR}:{split}: {len(records)} records "
+        f"({dropped_level} dropped for 'Level ?', {dropped_ans} for no boxed answer)"
+    )
     return records
 
 
-def load_pool_queries(pool_dataset=POOL_DATASET, query_info_dataset=QUERY_INFO_DATASET,
-                      *, bounds=POOL_QUERY_BOUNDS, source="math", has_level=True):
+def load_pool_queries(
+    pool_dataset=POOL_DATASET,
+    query_info_dataset=QUERY_INFO_DATASET,
+    *,
+    bounds=POOL_QUERY_BOUNDS,
+    source="math",
+    has_level=True,
+):
     """Per-query records: text/answers from `pool_dataset` + authors' fail rates
     from `query_info_dataset`, joined on query_id. `source` tags the origin
     (math/gsm8k); `has_level` reads MATH's query_metadata['level'] (GSM8K has none)."""
@@ -167,20 +182,30 @@ def load_pool_queries(pool_dataset=POOL_DATASET, query_info_dataset=QUERY_INFO_D
         matched.append(q)
 
     pool_only = len(queries) - len(matched)
-    print(f"[{source}] pool queries={len(queries)}, query-info rows={len(info)}, "
-          f"joined={len(matched)} (pool-only={pool_only}, info-only={info_only})")
+    print(
+        f"[{source}] pool queries={len(queries)}, query-info rows={len(info)}, "
+        f"joined={len(matched)} (pool-only={pool_only}, info-only={info_only})"
+    )
     if not (bounds[0] <= len(matched) <= bounds[1]):
         raise ValueError(f"[{source}] joined {len(matched)} queries, outside {bounds}")
     return matched
 
 
-def build_train_val(out_dir: Path, seed: int = SEED, include_gsm8k: bool = False, full: bool = False):
-    records = load_pool_queries(POOL_DATASET, QUERY_INFO_DATASET,
-                                bounds=POOL_QUERY_BOUNDS, source="math", has_level=True)
+def build_train_val(
+    out_dir: Path, seed: int = SEED, include_gsm8k: bool = False, full: bool = False
+):
+    records = load_pool_queries(
+        POOL_DATASET, QUERY_INFO_DATASET, bounds=POOL_QUERY_BOUNDS, source="math", has_level=True
+    )
     n_math, n_gsm8k = len(records), 0
     if include_gsm8k:
-        gsm = load_pool_queries(GSM8K_POOL_DATASET, GSM8K_QUERY_INFO_DATASET,
-                                bounds=GSM8K_QUERY_BOUNDS, source="gsm8k", has_level=False)
+        gsm = load_pool_queries(
+            GSM8K_POOL_DATASET,
+            GSM8K_QUERY_INFO_DATASET,
+            bounds=GSM8K_QUERY_BOUNDS,
+            source="gsm8k",
+            has_level=False,
+        )
         n_gsm8k = len(gsm)
         records = records + gsm
     # ascending fail rate; query_id tie-break keeps bin edges deterministic
@@ -197,16 +222,18 @@ def build_train_val(out_dir: Path, seed: int = SEED, include_gsm8k: bool = False
         "seed": seed,
         "train_size": TRAIN_SIZE,
         "val_size": (val_size if val_size is not None else "bin size - train size (MATH-only)"),
-        "test_split": (f"{TEST_SIZE}/level held-out from the combined pool (paper D.1)"
-                       if val_size is not None else
-                       f"PENDING: MATH-test fail-rate job, then {TEST_SIZE}/level"),
+        "test_split": (
+            f"{TEST_SIZE}/level held-out from the combined pool (paper D.1)"
+            if val_size is not None
+            else f"PENDING: MATH-test fail-rate job, then {TEST_SIZE}/level"
+        ),
         "levels": {},
     }
     # near-equal bins covering all records (sizes differ by at most 1)
     bounds = [round(i * len(records) / N_BINS) for i in range(N_BINS + 1)]
 
     for level in range(1, N_BINS + 1):
-        binned = records[bounds[level - 1]: bounds[level]]
+        binned = records[bounds[level - 1] : bounds[level]]
         # combined pool -> paper's exact 1250 train / 250 val / 500 test (2000/level = 10k).
         need = (TRAIN_SIZE + val_size + TEST_SIZE) if val_size is not None else (TRAIN_SIZE + 1)
         if len(binned) < need:
@@ -216,9 +243,11 @@ def build_train_val(out_dir: Path, seed: int = SEED, include_gsm8k: bool = False
         rng = random.Random((seed, level).__hash__())
         rng.shuffle(binned)
         if val_size is not None:
-            splits = {"train": binned[:TRAIN_SIZE],
-                      "val": binned[TRAIN_SIZE:TRAIN_SIZE + val_size],
-                      "test": binned[TRAIN_SIZE + val_size:TRAIN_SIZE + val_size + TEST_SIZE]}
+            splits = {
+                "train": binned[:TRAIN_SIZE],
+                "val": binned[TRAIN_SIZE : TRAIN_SIZE + val_size],
+                "test": binned[TRAIN_SIZE + val_size : TRAIN_SIZE + val_size + TEST_SIZE],
+            }
         else:
             splits = {"train": binned[:TRAIN_SIZE], "val": binned[TRAIN_SIZE:]}
 
@@ -234,13 +263,17 @@ def build_train_val(out_dir: Path, seed: int = SEED, include_gsm8k: bool = False
             **{k: len(v) for k, v in splits.items()},
             "bin_total": len(binned),
             "source_mix": src_counts,
-            "fail_rate_range": [min(r["fail_rate"] for r in binned),
-                                max(r["fail_rate"] for r in binned)],
+            "fail_rate_range": [
+                min(r["fail_rate"] for r in binned),
+                max(r["fail_rate"] for r in binned),
+            ],
         }
         fr = manifest["levels"][level]["fail_rate_range"]
-        print(f"diff{level}: train={len(splits['train'])} val={len(splits['val'])} "
-              f"test={len(splits.get('test', []))} mix={src_counts} "
-              f"fail_rate in [{fr[0]:.3f}, {fr[1]:.3f}]")
+        print(
+            f"diff{level}: train={len(splits['train'])} val={len(splits['val'])} "
+            f"test={len(splits.get('test', []))} mix={src_counts} "
+            f"fail_rate in [{fr[0]:.3f}, {fr[1]:.3f}]"
+        )
 
     with open(out_dir / "manifest.json", "w") as f:
         json.dump(manifest, f, indent=1)
@@ -263,7 +296,7 @@ def build_test(out_dir: Path, fail_rates_path: Path, seed: int = SEED):
 
     bounds = [round(i * len(records) / N_BINS) for i in range(N_BINS + 1)]
     for level in range(1, N_BINS + 1):
-        binned = records[bounds[level - 1]: bounds[level]]
+        binned = records[bounds[level - 1] : bounds[level]]
         if len(binned) < TEST_SIZE:
             raise ValueError(f"Test bin {level} has {len(binned)} records < {TEST_SIZE}")
         for r in binned:
@@ -282,19 +315,29 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--seed", type=int, default=SEED)
-    parser.add_argument("--include-gsm8k", action="store_true",
-                        help="combine MATH+GSM8K pools (dart_math_v2 = paper D.1); default MATH-only")
-    parser.add_argument("--full", action="store_true",
-                        help="keep the WHOLE bin (train=1250, val=remainder) instead of capping "
-                             "val at 250 -> writes the full ~15k merge, not the 10k subset")
-    parser.add_argument("--test-fail-rates", default=None,
-                        help="path to test_fail_rates.json -> builds ONLY the test split")
+    parser.add_argument(
+        "--include-gsm8k",
+        action="store_true",
+        help="combine MATH+GSM8K pools (dart_math_v2 = paper D.1); default MATH-only",
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="keep the WHOLE bin (train=1250, val=remainder) instead of capping "
+        "val at 250 -> writes the full ~15k merge, not the 10k subset",
+    )
+    parser.add_argument(
+        "--test-fail-rates",
+        default=None,
+        help="path to test_fail_rates.json -> builds ONLY the test split",
+    )
     args = parser.parse_args()
     if args.test_fail_rates:
         build_test(Path(args.out_dir), Path(args.test_fail_rates), seed=args.seed)
     else:
-        build_train_val(Path(args.out_dir), seed=args.seed,
-                        include_gsm8k=args.include_gsm8k, full=args.full)
+        build_train_val(
+            Path(args.out_dir), seed=args.seed, include_gsm8k=args.include_gsm8k, full=args.full
+        )
 
 
 if __name__ == "__main__":

@@ -52,6 +52,7 @@ model), never part of the main tagging path.
 `analysis/error_analysis/llm/client.py`) in the environment; the
 default (tagging) path needs neither.
 """
+
 import argparse
 import json
 from collections import Counter
@@ -68,6 +69,7 @@ from re_polar.vendor.dart_math.eval import extract_boxed
 # directory to sys.path -- so the plain `from analysis_utils import ...`
 # below needs it added explicitly to work under both load paths.
 import sys
+
 _THIS_DIR = str(Path(__file__).resolve().parent)
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
@@ -172,7 +174,7 @@ def _truncate_after_first_boxed(text: str) -> str:
             depth -= 1
             if depth == 0:
                 break
-    return prefix + "oxed{" + rest[:i + 1]
+    return prefix + "oxed{" + rest[: i + 1]
 
 
 def _log_snippet(text: str | None, n: int = 250) -> str:
@@ -196,9 +198,12 @@ def tag_all(records: list) -> list:
     for i, r in enumerate(records, 1):
         result = tag_one(r)
         tagged.append(result)
-        print(f"tagged {i}/{len(records)}: {result['query_id']} "
-              f"gt={result['gt_ans']!r} ans=[{_log_snippet(result['identity_generated_text'])}] "
-              f"-> {result['error_category']}", flush=True)
+        print(
+            f"tagged {i}/{len(records)}: {result['query_id']} "
+            f"gt={result['gt_ans']!r} ans=[{_log_snippet(result['identity_generated_text'])}] "
+            f"-> {result['error_category']}",
+            flush=True,
+        )
     return tagged
 
 
@@ -206,26 +211,36 @@ def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--input", default="rescue_pairs_pilot.jsonl")
     p.add_argument("--output", default="rescue_tags_pilot.jsonl")
-    p.add_argument("--calibrate", type=int, default=0,
-                   help="if >0, run only on the first N records against the judge LLM "
-                        "with an open-ended prompt and print raw responses -- no output "
-                        "file, no mechanical tagging. The only mode that talks to an LLM.")
+    p.add_argument(
+        "--calibrate",
+        type=int,
+        default=0,
+        help="if >0, run only on the first N records against the judge LLM "
+        "with an open-ended prompt and print raw responses -- no output "
+        "file, no mechanical tagging. The only mode that talks to an LLM.",
+    )
     p.add_argument("--limit", type=int, default=None)
     args = p.parse_args(argv)
 
     with open(args.input) as f:
         records = [json.loads(line) for line in f]
     if args.limit:
-        records = records[:args.limit]
+        records = records[: args.limit]
 
     if args.calibrate:
-        from analysis.error_analysis.llm import LLMClient, strip_think  # only path that needs the network
+        from analysis.error_analysis.llm import (
+            LLMClient,
+            strip_think,
+        )  # only path that needs the network
+
         with LLMClient() as client:
-            for r in records[:args.calibrate]:
+            for r in records[: args.calibrate]:
                 prompt = CALIBRATION_PROMPT.format(
-                    question=r["question"], gt_ans=r["gt_ans"],
+                    question=r["question"],
+                    gt_ans=r["gt_ans"],
                     identity_generated_text=r["identity_generated_text"],
-                    program_generated_text=r["program_generated_text"])
+                    program_generated_text=r["program_generated_text"],
+                )
                 resp = strip_think(client.chat([{"role": "user", "content": prompt}]))
                 print(f"=== {r['query_id']} ===")
                 print(resp)

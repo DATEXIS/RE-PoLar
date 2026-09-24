@@ -33,8 +33,13 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 
-def sample_record(inp: dict, valid_paths: List[List[int]], invalid_paths: List[List[int]],
-                  initial_metric: float, trajectory: Optional[List[dict]] = None) -> dict:
+def sample_record(
+    inp: dict,
+    valid_paths: List[List[int]],
+    invalid_paths: List[List[int]],
+    initial_metric: float,
+    trajectory: Optional[List[dict]] = None,
+) -> dict:
     record = {
         "question": inp["question"],
         "gt_ans": inp["gt_ans"],
@@ -48,8 +53,9 @@ def sample_record(inp: dict, valid_paths: List[List[int]], invalid_paths: List[L
     return record
 
 
-def write_merged_samples(out_root: Path, model_path: str, namespace: str,
-                         samples: List[dict]) -> Path:
+def write_merged_samples(
+    out_root: Path, model_path: str, namespace: str, samples: List[dict]
+) -> Path:
     out = Path(out_root) / model_path / namespace / "merged_mcts_samples.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w") as f:
@@ -63,6 +69,7 @@ def load_samples(path: Path) -> List[dict]:
     path = Path(path)
     if path.suffix == ".gz":
         import gzip
+
         with gzip.open(path, "rt") as f:
             return json.load(f)["samples"]
     with open(path) as f:

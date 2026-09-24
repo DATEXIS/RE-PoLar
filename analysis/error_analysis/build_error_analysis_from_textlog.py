@@ -38,6 +38,7 @@ rebuild -- built by `select_and_generate.py`'s `select_rescue`/
         --answers answers_qwen3_8b_diff1.jsonl \\
         --output error_analysis_qwen3_8b_diff1.jsonl
 """
+
 import argparse
 import hashlib
 import json
@@ -61,8 +62,9 @@ def build_index(answers_path: str) -> dict:
             row = json.loads(line)
             index[(row["q"], tuple(row["path"]))] = (row["reward"], row["text"])
             if n_lines % 2_000_000 == 0:
-                print(f"  ...indexed {n_lines} log lines, {len(index)} unique keys so far",
-                      flush=True)
+                print(
+                    f"  ...indexed {n_lines} log lines, {len(index)} unique keys so far", flush=True
+                )
     print(f"Indexed {n_lines} log lines -> {len(index)} unique (q_hash,path) keys", flush=True)
     return index
 
@@ -73,8 +75,10 @@ def rebuild_one(r: dict, index: dict) -> dict:
 
     id_key = (qh, tuple(r["identity_path"]))
     if id_key not in index:
-        raise KeyError(f"identity path not found in text log for query_id={r['query_id']!r} "
-                        f"(question_hash={qh}, path={r['identity_path']})")
+        raise KeyError(
+            f"identity path not found in text log for query_id={r['query_id']!r} "
+            f"(question_hash={qh}, path={r['identity_path']})"
+        )
     id_reward, id_text = index[id_key]
     out["identity_generated_text"] = id_text
     out["identity_correct"] = bool(id_reward)
@@ -82,15 +86,19 @@ def rebuild_one(r: dict, index: dict) -> dict:
     if r["sample_type"] == "RESCUE":
         prog_key = (qh, tuple(r["program_path"]))
         if prog_key not in index:
-            raise KeyError(f"RESCUE program path not found in text log for "
-                            f"query_id={r['query_id']!r} (question_hash={qh}, "
-                            f"path={r['program_path']})")
+            raise KeyError(
+                f"RESCUE program path not found in text log for "
+                f"query_id={r['query_id']!r} (question_hash={qh}, "
+                f"path={r['program_path']})"
+            )
         prog_reward, prog_text = index[prog_key]
         if prog_reward < 1.0:
-            raise ValueError(f"query_id={r['query_id']!r} is labeled RESCUE but its "
-                              f"program_path's logged reward is {prog_reward}, not 1.0 -- "
-                              f"contradicts final_valid_transitions, investigate before trusting "
-                              f"this combo's data")
+            raise ValueError(
+                f"query_id={r['query_id']!r} is labeled RESCUE but its "
+                f"program_path's logged reward is {prog_reward}, not 1.0 -- "
+                f"contradicts final_valid_transitions, investigate before trusting "
+                f"this combo's data"
+            )
         out["program_generated_text"] = prog_text
         out["program_correct"] = True
     else:
@@ -102,11 +110,17 @@ def rebuild_one(r: dict, index: dict) -> dict:
 
 def main(argv=None):
     p = argparse.ArgumentParser()
-    p.add_argument("--records", required=True,
-                    help="existing records_{model}_diff{N}.jsonl (record list + "
-                         "identity_path/program_path/sample_type, reused as-is)")
-    p.add_argument("--answers", required=True,
-                    help="MCTS text log, answers_{model}_diff{N}.jsonl (re_polar/mcts/textlog.py)")
+    p.add_argument(
+        "--records",
+        required=True,
+        help="existing records_{model}_diff{N}.jsonl (record list + "
+        "identity_path/program_path/sample_type, reused as-is)",
+    )
+    p.add_argument(
+        "--answers",
+        required=True,
+        help="MCTS text log, answers_{model}_diff{N}.jsonl (re_polar/mcts/textlog.py)",
+    )
     p.add_argument("--output", required=True)
     args = p.parse_args(argv)
 
@@ -124,9 +138,11 @@ def main(argv=None):
 
     n_rescue = sum(1 for r in rebuilt if r["sample_type"] == "RESCUE")
     print(f"Wrote {len(rebuilt)} records -> {out_path}", flush=True)
-    print(f"All {len(rebuilt)} identity paths and all {n_rescue} RESCUE program paths "
-          f"found in the log with consistent rewards (else this would have crashed above).",
-          flush=True)
+    print(
+        f"All {len(rebuilt)} identity paths and all {n_rescue} RESCUE program paths "
+        f"found in the log with consistent rewards (else this would have crashed above).",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

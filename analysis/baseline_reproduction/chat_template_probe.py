@@ -23,6 +23,7 @@ load, both conditions, so grading conditions are identical between them.
       --model qwen3_8b --data-dir dart_math_v2 \
       --output chat_template_probe_qwen3_8b.json
 """
+
 import argparse
 import json
 import random
@@ -59,12 +60,15 @@ def main(argv=None):
     p.add_argument("--k", type=int, default=5)
     p.add_argument("--temperatures", default="0.3,0.7,1.0")
     p.add_argument("--batch-size", type=int, default=32)
-    p.add_argument("--chat-prompt-style", default="paper_minimal_fewshot_chat",
-                   help="which PROMPT_STYLES entry to use for the 'chat' condition -- "
-                        "default is the no-system-message variant (faithful to PoLar's "
-                        "own Qwen3 branch); pass 'paper_minimal_fewshot_chat_sys' for "
-                        "the system-message variant (faithful to PoLar's Qwen2.5-Instruct/ "
-                        "Qwen1.5-MoE-Chat branches -- see that prompt's docstring)")
+    p.add_argument(
+        "--chat-prompt-style",
+        default="paper_minimal_fewshot_chat",
+        help="which PROMPT_STYLES entry to use for the 'chat' condition -- "
+        "default is the no-system-message variant (faithful to PoLar's "
+        "own Qwen3 branch); pass 'paper_minimal_fewshot_chat_sys' for "
+        "the system-message variant (faithful to PoLar's Qwen2.5-Instruct/ "
+        "Qwen1.5-MoE-Chat branches -- see that prompt's docstring)",
+    )
     p.add_argument("--output", required=True)
     args = p.parse_args(argv)
 
@@ -76,8 +80,11 @@ def main(argv=None):
     sample = load_pooled_sample(args.data_dir, args.n, args.seed)
     qs = [d["question"] for d in sample]
     gt = [d["gt_ans"] for d in sample]
-    print(f"[data] pooled sample n={len(sample)} (seed={args.seed}), "
-          f"difficulty mix={sorted(set(d['difficulty'] for d in sample))}", flush=True)
+    print(
+        f"[data] pooled sample n={len(sample)} (seed={args.seed}), "
+        f"difficulty mix={sorted(set(d['difficulty'] for d in sample))}",
+        flush=True,
+    )
 
     engine = LayerEngine(cfg["model_id"], trust_remote_code=cfg.get("trust_remote_code", True))
     executor = ProgramExecutor(engine)
@@ -86,12 +93,19 @@ def main(argv=None):
 
     try:
         import torch
+
         gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu"
     except Exception:
         gpu_name = "unknown"
-    run_env = {"gpu_name": gpu_name, "batch_size": args.batch_size, "n": len(sample),
-               "seed": args.seed, "data_dir": str(args.data_dir), "num_layers": D,
-               "chat_prompt_style": args.chat_prompt_style}
+    run_env = {
+        "gpu_name": gpu_name,
+        "batch_size": args.batch_size,
+        "n": len(sample),
+        "seed": args.seed,
+        "data_dir": str(args.data_dir),
+        "num_layers": D,
+        "chat_prompt_style": args.chat_prompt_style,
+    }
     print(f"[env] {run_env}", flush=True)
 
     def mean(xs):
@@ -114,18 +128,32 @@ def main(argv=None):
             "base_greedy_tau0": round(greedy1, 4),
             "base_sampling_pk_best_per_k": {str(k): round(a, 4) for k, a in best_per_k.items()},
         }
-        print(f"  tau=0={greedy1:.4f}  " +
-              " ".join(f"p@{k}={best_per_k[k]:.4f}" for k in range(1, args.k + 1)), flush=True)
+        print(
+            f"  tau=0={greedy1:.4f}  "
+            + " ".join(f"p@{k}={best_per_k[k]:.4f}" for k in range(1, args.k + 1)),
+            flush=True,
+        )
 
     delta = {
-        "tau0": round(conditions["chat"]["base_greedy_tau0"] - conditions["raw"]["base_greedy_tau0"], 4),
-        **{f"p{k}": round(conditions["chat"]["base_sampling_pk_best_per_k"][str(k)]
-                          - conditions["raw"]["base_sampling_pk_best_per_k"][str(k)], 4)
-           for k in range(1, args.k + 1)},
+        "tau0": round(
+            conditions["chat"]["base_greedy_tau0"] - conditions["raw"]["base_greedy_tau0"], 4
+        ),
+        **{
+            f"p{k}": round(
+                conditions["chat"]["base_sampling_pk_best_per_k"][str(k)]
+                - conditions["raw"]["base_sampling_pk_best_per_k"][str(k)],
+                4,
+            )
+            for k in range(1, args.k + 1)
+        },
     }
 
-    out = {"model": args.model, "env": run_env, "conditions": conditions,
-           "delta_chat_minus_raw": delta}
+    out = {
+        "model": args.model,
+        "env": run_env,
+        "conditions": conditions,
+        "delta_chat_minus_raw": delta,
+    }
     outp = Path(args.output)
     outp.parent.mkdir(parents=True, exist_ok=True)
     outp.write_text(json.dumps(out, indent=2))
@@ -135,10 +163,14 @@ def main(argv=None):
     for label in ("raw", "chat"):
         c = conditions[label]
         bk = c["base_sampling_pk_best_per_k"]
-        print(f"{label:>6} {c['base_greedy_tau0']:>7.3f} " +
-              " ".join(f"{bk[str(k)]:>7.3f}" for k in range(1, args.k + 1)))
-    print(f"{'delta':>6} {delta['tau0']:>7.3f} " +
-          " ".join(f"{delta[f'p{k}']:>7.3f}" for k in range(1, args.k + 1)))
+        print(
+            f"{label:>6} {c['base_greedy_tau0']:>7.3f} "
+            + " ".join(f"{bk[str(k)]:>7.3f}" for k in range(1, args.k + 1))
+        )
+    print(
+        f"{'delta':>6} {delta['tau0']:>7.3f} "
+        + " ".join(f"{delta[f'p{k}']:>7.3f}" for k in range(1, args.k + 1))
+    )
     return outp
 
 

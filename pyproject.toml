@@ -1,0 +1,8 @@
+[tool.black]
+line-length = 100
+extend-exclude = '''
+(
+    ^/\.claude/worktrees/
+  | ^/re_polar/vendor/dart_math/
+)
+'''

@@ -61,10 +61,16 @@ def prepare_mmlu_pro_domain_inputs(
         mask = enc["attention_mask"].squeeze(0)
         if device:
             ids, mask = ids.to(device), mask.to(device)
-        prepared.append({
-            "id": s.id, "category": s.category, "answer_index": s.answer_index,
-            "num_choices": len(s.options), "input_ids": ids, "attention_mask": mask,
-        })
+        prepared.append(
+            {
+                "id": s.id,
+                "category": s.category,
+                "answer_index": s.answer_index,
+                "num_choices": len(s.options),
+                "input_ids": ids,
+                "attention_mask": mask,
+            }
+        )
     return prepared
 
 
@@ -139,8 +145,11 @@ def run_mmlu_pro_domains(
 
                 if return_details:
                     entry = {
-                        "id": item["id"], "category": cat,
-                        "expected": item["answer_index"], "predicted": pred, "score": score,
+                        "id": item["id"],
+                        "category": cat,
+                        "expected": item["answer_index"],
+                        "predicted": pred,
+                        "score": score,
                     }
                     if return_probs:
                         entry["probs"] = choice_logits.softmax(dim=-1).tolist()

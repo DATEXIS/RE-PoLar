@@ -75,10 +75,15 @@ class TextLog:
         self.batches = 0
         self.rows = 0
 
-    def write_batch(self, questions: Sequence[str], gt_answers: Sequence[str],
-                    texts: Sequence[str], rewards: Sequence[float],
-                    paths: Sequence[List[int]],
-                    difficulty: Optional[int] = None) -> None:
+    def write_batch(
+        self,
+        questions: Sequence[str],
+        gt_answers: Sequence[str],
+        texts: Sequence[str],
+        rewards: Sequence[float],
+        paths: Sequence[List[int]],
+        difficulty: Optional[int] = None,
+    ) -> None:
         """Record one grading batch. All five sequences are PARALLEL, one entry per
         row, already in the batch's own order, `paths[i]` is row i's executed layer
         path (a single program repeated for the serial `__call__` path, genuinely
@@ -89,8 +94,15 @@ class TextLog:
         lines = []
         for i, (h, p, r, t) in enumerate(zip(hashes, paths, rewards, texts)):
             text = t if len(t) <= _MAX_TEXT_CHARS else t[:_MAX_TEXT_CHARS]
-            row = {"b": batch_id, "i": i, "n": n, "q": h, "path": list(p),
-                   "reward": float(r), "text": text}
+            row = {
+                "b": batch_id,
+                "i": i,
+                "n": n,
+                "q": h,
+                "path": list(p),
+                "reward": float(r),
+                "text": text,
+            }
             if len(text) != len(t):
                 row["truncated"] = len(t)
             if difficulty is not None:
@@ -115,6 +127,8 @@ class TextLog:
             self.rows += n
 
     def summary(self) -> str:
-        return (f"text log: {self.rows} graded rows in {self.batches} batches "
-                f"-> {self.path} (+ {len(self._seen)} distinct questions "
-                f"-> {self.questions_path})")
+        return (
+            f"text log: {self.rows} graded rows in {self.batches} batches "
+            f"-> {self.path} (+ {len(self._seen)} distinct questions "
+            f"-> {self.questions_path})"
+        )

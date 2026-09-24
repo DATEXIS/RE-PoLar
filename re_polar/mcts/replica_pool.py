@@ -12,11 +12,13 @@ non-associativity).
 scheduler and CPU tests never pull them in. `safe_replica_count` is pure
 arithmetic and stays importable everywhere.
 """
+
 from typing import List, Optional, Tuple
 
 
-def safe_replica_count(free_bytes: int, model_bytes: int, activation_bytes: int,
-                       max_replicas: int, safety: float = 0.9) -> int:
+def safe_replica_count(
+    free_bytes: int, model_bytes: int, activation_bytes: int, max_replicas: int, safety: float = 0.9
+) -> int:
     """Largest N with ``N*(model_bytes + activation_bytes) <= safety*free_bytes``,
     clamped to ``[1, max_replicas]``.
 
@@ -42,9 +44,14 @@ def estimate_model_bytes(model) -> int:
     return params + buffers
 
 
-def estimate_activation_bytes(num_layers: int, hidden_size: int, batch_size: int,
-                              seq_len: int, dtype_bytes: int = 2,
-                              fudge: float = 2.0) -> int:
+def estimate_activation_bytes(
+    num_layers: int,
+    hidden_size: int,
+    batch_size: int,
+    seq_len: int,
+    dtype_bytes: int = 2,
+    fudge: float = 2.0,
+) -> int:
     """Conservative worst-case peak activation/KV memory for ONE replica's
     generation batch. The KV cache dominates: ``2 (K+V) * layers * batch * seq *
     hidden * dtype``; ``fudge`` covers attention/temporary activations on top.
@@ -55,8 +62,9 @@ def estimate_activation_bytes(num_layers: int, hidden_size: int, batch_size: int
     return int(kv * fudge)
 
 
-def build_generation_replicas(model_id: str, n: int, *, trust_remote_code: bool = True,
-                              reward_kwargs: Optional[dict] = None) -> List:
+def build_generation_replicas(
+    model_id: str, n: int, *, trust_remote_code: bool = True, reward_kwargs: Optional[dict] = None
+) -> List:
     """Create ``n`` independent `GenerationReward` replicas (one model copy each)
     on the same device. ``reward_kwargs`` pass through to `GenerationReward`
     (``max_new_tokens``, ``batch_size``, ``difficulty``, ``prompt_style``,
@@ -75,10 +83,17 @@ def build_generation_replicas(model_id: str, n: int, *, trust_remote_code: bool 
     return replicas
 
 
-def build_budgeted_replicas(model_id: str, *, max_replicas: int, batch_size: int,
-                            seq_len: int, trust_remote_code: bool = True,
-                            reward_kwargs: Optional[dict] = None, safety: float = 0.9,
-                            activation_fudge: float = 2.0) -> Tuple[List, int, dict]:
+def build_budgeted_replicas(
+    model_id: str,
+    *,
+    max_replicas: int,
+    batch_size: int,
+    seq_len: int,
+    trust_remote_code: bool = True,
+    reward_kwargs: Optional[dict] = None,
+    safety: float = 0.9,
+    activation_fudge: float = 2.0
+) -> Tuple[List, int, dict]:
     """Build one replica, measure its weight footprint and the current free GPU
     memory, compute a safe N with `safe_replica_count`, then build the remaining
     N-1 identical replicas. Returns ``(replicas, n, diag)``; ``diag`` records the
@@ -92,30 +107,40 @@ def build_budgeted_replicas(model_id: str, *, max_replicas: int, batch_size: int
     reward_kwargs = dict(reward_kwargs or {})
     reward_kwargs.setdefault("batch_size", batch_size)
 
-    first = build_generation_replicas(model_id, 1, trust_remote_code=trust_remote_code,
-                                      reward_kwargs=reward_kwargs)[0]
+    first = build_generation_replicas(
+        model_id, 1, trust_remote_code=trust_remote_code, reward_kwargs=reward_kwargs
+    )[0]
     engine = first.executor.engine
     model_bytes = estimate_model_bytes(engine.model)
 
     import torch
+
     if not torch.cuda.is_available():
         diag = {"n": 1, "reason": "no cuda", "model_bytes": model_bytes}
         return [first], 1, diag
 
     free_bytes, total_bytes = torch.cuda.mem_get_info()
     hidden = int(getattr(engine.model.config, "hidden_size", 4096))
-    act = estimate_activation_bytes(engine.num_layers, hidden, batch_size, seq_len,
-                                    fudge=activation_fudge)
+    act = estimate_activation_bytes(
+        engine.num_layers, hidden, batch_size, seq_len, fudge=activation_fudge
+    )
     budget_free = free_bytes + model_bytes  # count the already-built replica's weights
     n = safe_replica_count(budget_free, model_bytes, act, max_replicas, safety)
 
     replicas = [first]
     if n > 1:
-        replicas += build_generation_replicas(model_id, n - 1,
-                                               trust_remote_code=trust_remote_code,
-                                               reward_kwargs=reward_kwargs)
-    diag = {"n": n, "model_bytes": model_bytes, "free_bytes": free_bytes,
-            "total_bytes": total_bytes, "activation_bytes": act,
-            "max_replicas": max_replicas, "safety": safety, "batch_size": batch_size,
-            "seq_len": seq_len}
+        replicas += build_generation_replicas(
+            model_id, n - 1, trust_remote_code=trust_remote_code, reward_kwargs=reward_kwargs
+        )
+    diag = {
+        "n": n,
+        "model_bytes": model_bytes,
+        "free_bytes": free_bytes,
+        "total_bytes": total_bytes,
+        "activation_bytes": act,
+        "max_replicas": max_replicas,
+        "safety": safety,
+        "batch_size": batch_size,
+        "seq_len": seq_len,
+    }
     return replicas, n, diag

@@ -8,6 +8,7 @@ Decoding always goes through ``re_polar.router.train.program_from_layer_path``
 pipeline uses, not a reimplementation) and every decode is asserted to
 round-trip, matches the standing invariant elsewhere in this repo.
 """
+
 import math
 from collections import Counter
 from functools import lru_cache
@@ -96,8 +97,9 @@ def gini(counts: Sequence[int]) -> float:
     return (2 * weighted) / (n * total) - (n + 1) / n
 
 
-def topk_coverage_share(sorted_counts: Sequence[int], total: int,
-                         ks: Sequence[int] = (1, 5, 10, 20, 50)) -> Dict[str, float]:
+def topk_coverage_share(
+    sorted_counts: Sequence[int], total: int, ks: Sequence[int] = (1, 5, 10, 20, 50)
+) -> Dict[str, float]:
     out = {}
     for k in ks:
         out[str(k)] = sum(sorted_counts[:k]) / total if total else 0.0
@@ -135,8 +137,7 @@ def shortest_valid(paths: Sequence[Sequence[int]], num_layers: int) -> Tuple[int
     """Pick THE representative shortest-valid program. Primary: min executed
     length (shorter = better). Tie-break: fewest edits (simplest), then
     lexicographically smallest path (determinism)."""
-    return min((tuple(p) for p in paths),
-               key=lambda p: (len(p), n_edits(p, num_layers), p))
+    return min((tuple(p) for p in paths), key=lambda p: (len(p), n_edits(p, num_layers), p))
 
 
 def layer_freq(paths: Sequence[Sequence[int]], which: str, num_layers: int) -> List[float]:
@@ -144,7 +145,7 @@ def layer_freq(paths: Sequence[Sequence[int]], which: str, num_layers: int) -> L
     freq = [0] * num_layers
     for p in paths:
         sk, rp = program_edits(p, num_layers)
-        for i in (sk if which == "skip" else rp):
+        for i in sk if which == "skip" else rp:
             freq[i] += 1
     return freq
 

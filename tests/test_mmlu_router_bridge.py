@@ -41,8 +41,12 @@ def _mmlu_sample_record(question_text, options, category, gt_ans, valid, invalid
 
 def test_load_mmlu_supervision_flattens_question_and_keeps_struct(tmp_path):
     rec = _mmlu_sample_record(
-        "2+2=?", ["3", "4"], "math", gt_ans=1,
-        valid=[[0, 1, 2]], invalid=[],
+        "2+2=?",
+        ["3", "4"],
+        "math",
+        gt_ans=1,
+        valid=[[0, 1, 2]],
+        invalid=[],
     )
     path = tmp_path / "merged_mcts_samples.json"
     path.write_text(json.dumps({"samples": [rec]}))
@@ -65,12 +69,18 @@ def test_load_mmlu_supervision_rejects_dart_math_shaped_samples(tmp_path):
     # DART-Math's question is a plain string -- load_mmlu_supervision must
     # crash loudly rather than silently mis-flattening it (str has no
     # "question"/"options" keys, so a dict-typed check must reject it upfront).
-    rec = {"question": "solve x", "gt_ans": "42", "final_valid_transitions": [],
-          "final_invalid_transitions": [], "initial_transition_metric": 1.0}
+    rec = {
+        "question": "solve x",
+        "gt_ans": "42",
+        "final_valid_transitions": [],
+        "final_invalid_transitions": [],
+        "initial_transition_metric": 1.0,
+    }
     path = tmp_path / "merged_mcts_samples.json"
     path.write_text(json.dumps({"samples": [rec]}))
 
     import pytest
+
     with pytest.raises(ValueError, match="mmlu question dict"):
         load_mmlu_supervision(path)
 

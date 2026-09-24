@@ -21,13 +21,17 @@ def test_parse_answer_passes_through_no_unit():
 def test_parse_answer_splits_multi_value_before_stripping_units():
     # a naive single regex over the whole string grabs only the LAST "(...)"
     # and mis-parses everything before it as one blob -- must split on ";" first.
-    assert parse_answer("5 (years old); 15 (years old); 20 (years old)") == \
-        ["5", "15", "20"]
+    assert parse_answer("5 (years old); 15 (years old); 20 (years old)") == ["5", "15", "20"]
 
 
 def _row(body, question, solution_type, answer, formula="1+1=2"):
-    return {"body": body, "question": question, "solution_type": solution_type,
-            "answer": answer, "formula": formula}
+    return {
+        "body": body,
+        "question": question,
+        "solution_type": solution_type,
+        "answer": answer,
+        "formula": formula,
+    }
 
 
 def test_build_eval_split_flags_numeric_other_and_multi(tmp_path, monkeypatch):
@@ -56,13 +60,19 @@ def test_build_eval_split_flags_numeric_other_and_multi(tmp_path, monkeypatch):
     assert r0["question"] == "b1 q1"
     assert r0["gt_ans"] == "9" and r0["is_pure_numeric"] is True and r0["is_multi_answer"] is False
 
-    assert r1["gt_ans"] == "Purple" and r1["is_pure_numeric"] is False and r1["is_multi_answer"] is False
+    assert (
+        r1["gt_ans"] == "Purple"
+        and r1["is_pure_numeric"] is False
+        and r1["is_multi_answer"] is False
+    )
 
     assert r2["gt_ans"] == "5, 15" and r2["gt_ans_parts"] == ["5", "15"]
     assert r2["is_multi_answer"] is True and r2["is_pure_numeric"] is False
 
     assert manifest["answer_shape"] == {
-        "single_part_pure_numeric": 1, "single_part_non_numeric": 1, "multi_part": 1,
+        "single_part_pure_numeric": 1,
+        "single_part_non_numeric": 1,
+        "multi_part": 1,
     }
     assert manifest["n_total"] == 3
     # ids are a flat 0..n-1 sequence
@@ -75,6 +85,7 @@ def test_build_eval_split_counts_duplicate_content_keys(tmp_path, monkeypatch):
         _row("b1", "q1", "Addition", "9 (apples)"),  # exact duplicate row
     ]
     import datasets
+
     monkeypatch.setattr(datasets, "load_dataset", lambda *a, **k: rows)
     monkeypatch.setattr("re_polar.datasets.asdiv.EXPECTED_N", 2)
 

@@ -92,8 +92,12 @@ def load_test_records(data_dir: str, domains: Optional[List[str]] = None) -> Lis
 
 
 def per_domain_summaries(
-    categories: List[str], domains: List[str], rewards_at_1: List[float],
-    programs: List, identity_rewards: List[float], num_layers: int,
+    categories: List[str],
+    domains: List[str],
+    rewards_at_1: List[float],
+    programs: List,
+    identity_rewards: List[float],
+    num_layers: int,
 ) -> List[dict]:
     """Per-domain slice of `re_polar.router.infer.summarize`, the mmlu analog of
     infer.py's per-difficulty loop. Domains absent from `categories` are
@@ -106,8 +110,10 @@ def per_domain_summaries(
         if not idxs:
             continue
         d_summary = summarize(
-            [rewards_at_1[i] for i in idxs], [programs[i] for i in idxs],
-            [identity_rewards[i] for i in idxs], num_layers,
+            [rewards_at_1[i] for i in idxs],
+            [programs[i] for i in idxs],
+            [identity_rewards[i] for i in idxs],
+            num_layers,
         )
         d_summary["domain"] = domain
         d_summary["gate1_pass"] = d_summary["router_acc"] >= d_summary["identity_acc"]
@@ -117,29 +123,56 @@ def per_domain_summaries(
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="mmlu_pro_domains router held-out TEST eval.")
-    p.add_argument("--checkpoint", required=True, help="router .pt from sweep_router_mmlu.py / re_polar.router.train")
-    p.add_argument("--model", default="qwen3_8b", choices=sorted(MODEL_REGISTRY),
-                   help="target model in MODEL_REGISTRY (sets router D); default qwen3_8b")
-    p.add_argument("--data-dir", required=True,
-                   help="mmlu_pro_domains split dir (re_polar/datasets/mmlu_pro_domains.py "
-                        "build_train_split output). TEST = <data-dir>/test.json.")
-    p.add_argument("--domains", nargs="+", default=None,
-                   help="subset of domains to evaluate; default = all domains present "
-                        "in <data-dir>/test.json")
+    p.add_argument(
+        "--checkpoint",
+        required=True,
+        help="router .pt from sweep_router_mmlu.py / re_polar.router.train",
+    )
+    p.add_argument(
+        "--model",
+        default="qwen3_8b",
+        choices=sorted(MODEL_REGISTRY),
+        help="target model in MODEL_REGISTRY (sets router D); default qwen3_8b",
+    )
+    p.add_argument(
+        "--data-dir",
+        required=True,
+        help="mmlu_pro_domains split dir (re_polar/datasets/mmlu_pro_domains.py "
+        "build_train_split output). TEST = <data-dir>/test.json.",
+    )
+    p.add_argument(
+        "--domains",
+        nargs="+",
+        default=None,
+        help="subset of domains to evaluate; default = all domains present "
+        "in <data-dir>/test.json",
+    )
     p.add_argument("--output", required=True, help="path to write the results JSON")
-    p.add_argument("--batch-size", type=int, default=64,
-                   help="LogLikReward forward batch (also router forward batch)")
-    p.add_argument("--top-k-paths", type=int, default=1,
-                   help="decode top-k programs per question and score pass@k; default 1 == top-1 pass@1")
+    p.add_argument(
+        "--batch-size",
+        type=int,
+        default=64,
+        help="LogLikReward forward batch (also router forward batch)",
+    )
+    p.add_argument(
+        "--top-k-paths",
+        type=int,
+        default=1,
+        help="decode top-k programs per question and score pass@k; default 1 == top-1 pass@1",
+    )
     p.add_argument("--limit", type=int, default=None, help="first N test questions (smoke)")
     p.add_argument("--device", default=None, help="cpu / cuda / mps for the router (default: auto)")
-    p.add_argument("--random-baseline-seeds", type=int, default=0,
-                   help="add N random-baseline rows: 5 SHARED random valid programs (same "
-                        "grammar as the router's own search space), reused for every TEST "
-                        "question -- what pass@1..5 looks like with zero learned signal. "
-                        "Same reward_fn/protocol/test set as the router eval above. Prints "
-                        "per-seed + mean/std and adds a 'random_baseline' block to the "
-                        "output JSON.")
+    p.add_argument(
+        "--random-baseline-seeds",
+        type=int,
+        default=0,
+        help="add N random-baseline rows: 5 SHARED random valid programs (same "
+        "grammar as the router's own search space), reused for every TEST "
+        "question -- what pass@1..5 looks like with zero learned signal. "
+        "Same reward_fn/protocol/test set as the router eval above. Prints "
+        "per-seed + mean/std and adds a 'random_baseline' block to the "
+        "output JSON.",
+    )
     p.add_argument("--seed", type=int, default=0, help="base seed for --random-baseline-seeds")
     return p
 
@@ -150,8 +183,12 @@ def main(argv: Optional[List[str]] = None) -> Path:
     from re_polar.mcts.rewards import LogLikReward
     from re_polar.core import Program
     from re_polar.router.infer import (
-        assert_roundtrips, grade_router, grade_router_topk, predict_programs,
-        predict_programs_topk, summarize,
+        assert_roundtrips,
+        grade_router,
+        grade_router_topk,
+        predict_programs,
+        predict_programs_topk,
+        summarize,
     )
     from re_polar.router.mmlu_bridge import format_mmlu_question
     from re_polar.router.train import load_checkpoint
@@ -162,10 +199,13 @@ def main(argv: Optional[List[str]] = None) -> Path:
     if args.limit is not None:
         fixture = fixture[: args.limit]
     domains = args.domains or sorted({str(r["category"]) for r in fixture})
-    print(f"Loaded {len(fixture)} TEST questions from {args.data_dir}/test.json (domains={domains}).")
+    print(
+        f"Loaded {len(fixture)} TEST questions from {args.data_dir}/test.json (domains={domains})."
+    )
 
     def _resolve_device(name):
         import torch
+
         if name:
             return torch.device(name)
         if torch.cuda.is_available():
@@ -192,15 +232,19 @@ def main(argv: Optional[List[str]] = None) -> Path:
     router.encode_questions(["warmup"])
     router.to(device)
 
-    question_dicts = [{"question": r["question"], "options": r["options"], "category": r["category"]}
-                      for r in fixture]
+    question_dicts = [
+        {"question": r["question"], "options": r["options"], "category": r["category"]}
+        for r in fixture
+    ]
     question_strs = [format_mmlu_question(q, no_think=no_think) for q in question_dicts]
     gt_answers = [int(r["answer_index"]) for r in fixture]
     categories = [str(r["category"]) for r in fixture]
     identity_program = Program.identity(D)
 
     k = max(1, args.top_k_paths)
-    print(f"Predicting programs{f' (top-{k})' if k > 1 else ''} for {len(question_strs)} questions...")
+    print(
+        f"Predicting programs{f' (top-{k})' if k > 1 else ''} for {len(question_strs)} questions..."
+    )
     identity_rewards = reward_fn(identity_program, question_dicts, gt_answers)
     if k == 1:
         programs = predict_programs(router, question_strs, batch_size=args.batch_size)
@@ -212,25 +256,37 @@ def main(argv: Optional[List[str]] = None) -> Path:
         topk = predict_programs_topk(router, question_strs, k=k, batch_size=args.batch_size)
         programs = [cands[0] for cands in topk]
         assert_roundtrips(programs, D)
-        rewards_at_k, rewards_at_1, _chosen = grade_router_topk(topk, question_dicts, gt_answers, reward_fn)
+        rewards_at_k, rewards_at_1, _chosen = grade_router_topk(
+            topk, question_dicts, gt_answers, reward_fn
+        )
         overall_summary = summarize(rewards_at_1, programs, identity_rewards, D)
         overall_summary["top_k"] = k
-        overall_summary["router_acc_at_k"] = sum(rewards_at_k) / len(rewards_at_k) if rewards_at_k else 0.0
-        overall_summary["delta_at_k"] = overall_summary["router_acc_at_k"] - overall_summary["identity_acc"]
-        overall_summary["gate1_at_k_pass"] = overall_summary["router_acc_at_k"] >= overall_summary["identity_acc"]
+        overall_summary["router_acc_at_k"] = (
+            sum(rewards_at_k) / len(rewards_at_k) if rewards_at_k else 0.0
+        )
+        overall_summary["delta_at_k"] = (
+            overall_summary["router_acc_at_k"] - overall_summary["identity_acc"]
+        )
+        overall_summary["gate1_at_k_pass"] = (
+            overall_summary["router_acc_at_k"] >= overall_summary["identity_acc"]
+        )
         overall_summary["mean_candidates"] = sum(len(c) for c in topk) / len(topk) if topk else 0.0
     overall_summary["gate1_pass"] = overall_summary["router_acc"] >= overall_summary["identity_acc"]
 
     # per-domain breakdown (the mmlu analog of infer.py's per-difficulty loop)
-    per_domain = per_domain_summaries(categories, domains, rewards_at_1, programs, identity_rewards, D)
+    per_domain = per_domain_summaries(
+        categories, domains, rewards_at_1, programs, identity_rewards, D
+    )
 
     random_baseline = None
     if args.random_baseline_seeds > 0:
         import random as _random
         import statistics
 
-        print(f"\nRandom-valid-program baseline ({args.random_baseline_seeds} seed(s), 5 shared "
-              f"random programs per seed, same protocol/test set as the router above)...")
+        print(
+            f"\nRandom-valid-program baseline ({args.random_baseline_seeds} seed(s), 5 shared "
+            f"random programs per seed, same protocol/test set as the router above)..."
+        )
         per_seed = {}
         for i in range(args.random_baseline_seeds):
             rng = _random.Random(args.seed + i)
@@ -248,40 +304,63 @@ def main(argv: Optional[List[str]] = None) -> Path:
                 s = statistics.stdev(vals) if len(vals) > 1 else 0.0
                 mean_std[kk] = {"mean": m, "std": s}
             random_baseline["mean_std"] = mean_std
-            print("  mean +/- std across seeds: " +
-                  " ".join(f"@{kk}={mean_std[kk]['mean']:.4f}+/-{mean_std[kk]['std']:.4f}"
-                           for kk in range(1, 6)))
+            print(
+                "  mean +/- std across seeds: "
+                + " ".join(
+                    f"@{kk}={mean_std[kk]['mean']:.4f}+/-{mean_std[kk]['std']:.4f}"
+                    for kk in range(1, 6)
+                )
+            )
 
     result = {
-        "model": args.model, "checkpoint": str(args.checkpoint), "domains": domains,
-        "data_dir": args.data_dir, "test_source": f"{args.data_dir}/test.json",
-        "overall": overall_summary, "per_domain": per_domain,
+        "model": args.model,
+        "checkpoint": str(args.checkpoint),
+        "domains": domains,
+        "data_dir": args.data_dir,
+        "test_source": f"{args.data_dir}/test.json",
+        "overall": overall_summary,
+        "per_domain": per_domain,
         "random_baseline": random_baseline,
-        "programs": [{"category": cat, "layer_path": p.to_layer_path()}
-                    for cat, p in zip(categories, programs)],
+        "programs": [
+            {"category": cat, "layer_path": p.to_layer_path()}
+            for cat, p in zip(categories, programs)
+        ],
     }
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2))
 
-    print(f"\nRouter inference (mmlu_pro_domains), {args.model} (D={D}), checkpoint {args.checkpoint}")
-    print(f"OVERALL: router_acc={overall_summary['router_acc']:.4f} identity_acc={overall_summary['identity_acc']:.4f} "
-          f"delta={overall_summary['delta']:+.4f}  {'PASS' if overall_summary['gate1_pass'] else 'FAIL'}")
+    print(
+        f"\nRouter inference (mmlu_pro_domains), {args.model} (D={D}), checkpoint {args.checkpoint}"
+    )
+    print(
+        f"OVERALL: router_acc={overall_summary['router_acc']:.4f} identity_acc={overall_summary['identity_acc']:.4f} "
+        f"delta={overall_summary['delta']:+.4f}  {'PASS' if overall_summary['gate1_pass'] else 'FAIL'}"
+    )
     for d in per_domain:
-        print(f"  {d['domain']:>18}: router={d['router_acc']:.4f} identity={d['identity_acc']:.4f} "
-              f"delta={d['delta']:+.4f}  {'PASS' if d['gate1_pass'] else 'FAIL'}")
+        print(
+            f"  {d['domain']:>18}: router={d['router_acc']:.4f} identity={d['identity_acc']:.4f} "
+            f"delta={d['delta']:+.4f}  {'PASS' if d['gate1_pass'] else 'FAIL'}"
+        )
     if random_baseline is not None and "mean_std" in random_baseline:
         ms = random_baseline["mean_std"]
         router_at_k = overall_summary.get("router_acc_at_k")
-        print(f"\nSIGNAL CHECK (identity vs router@{k} vs random-5-programs@{k}, same TEST set/protocol):")
+        print(
+            f"\nSIGNAL CHECK (identity vs router@{k} vs random-5-programs@{k}, same TEST set/protocol):"
+        )
         print(f"  identity_acc  = {overall_summary['identity_acc']:.4f}")
         if router_at_k is not None:
             print(f"  router_acc@{k}  = {router_at_k:.4f}")
-        print(f"  random_acc@{k}  = {ms[k]['mean']:.4f} +/- {ms[k]['std']:.4f}  "
-              f"(n_seeds={args.random_baseline_seeds})")
+        print(
+            f"  random_acc@{k}  = {ms[k]['mean']:.4f} +/- {ms[k]['std']:.4f}  "
+            f"(n_seeds={args.random_baseline_seeds})"
+        )
         if router_at_k is not None:
-            verdict = "ROUTER BEATS RANDOM" if router_at_k > ms[k]['mean'] + ms[k]['std'] else \
-                      "ROUTER <= RANDOM (no clear signal beyond try-5-candidates luck)"
+            verdict = (
+                "ROUTER BEATS RANDOM"
+                if router_at_k > ms[k]["mean"] + ms[k]["std"]
+                else "ROUTER <= RANDOM (no clear signal beyond try-5-candidates luck)"
+            )
             print(f"  -> {verdict}")
     print(f"\nWrote results -> {out_path}")
 

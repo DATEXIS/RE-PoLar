@@ -167,8 +167,10 @@ def test_compute_loss_formula_matches_polar_unweighted():
     ).mean(dim=1)
     # polar/train.py: ce_none(...).view(B,D) masked-summed / count
     ce = torch.nn.functional.cross_entropy(
-        op_logits.reshape(-1, 3), batch["op_labels"].reshape(-1),
-        ignore_index=-100, reduction="none",
+        op_logits.reshape(-1, 3),
+        batch["op_labels"].reshape(-1),
+        ignore_index=-100,
+        reduction="none",
     ).view(2, D)
     mask = (batch["op_labels"] != -100).float()
     expected_op = (ce * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1.0)

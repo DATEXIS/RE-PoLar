@@ -75,8 +75,11 @@ def test_loglik_reward_scores_correct_and_incorrect_in_order():
 
     questions = [
         {"question": "2+2=?", "options": ["1", "4", "3", "5"], "category": "math"},
-        {"question": "capital of France?",
-         "options": ["Berlin", "Madrid", "Paris", "Rome"], "category": "history"},
+        {
+            "question": "capital of France?",
+            "options": ["Berlin", "Madrid", "Paris", "Rome"],
+            "category": "history",
+        },
     ]
     gt_answers = [1, 0]
 
@@ -136,11 +139,18 @@ def test_loglik_reward_default_writes_no_probs_log(tmp_path):
     reward_fn = LogLikReward(exe, batch_size=8)  # no probs_log_path
 
     questions = [
-        {"question": "2+2=?", "options": ["1", "4", "3", "5"], "category": "math",
-         "query_id": "q0"},
-        {"question": "capital of France?",
-         "options": ["Berlin", "Madrid", "Paris", "Rome"], "category": "history",
-         "query_id": "q1"},
+        {
+            "question": "2+2=?",
+            "options": ["1", "4", "3", "5"],
+            "category": "math",
+            "query_id": "q0",
+        },
+        {
+            "question": "capital of France?",
+            "options": ["Berlin", "Madrid", "Paris", "Rome"],
+            "category": "history",
+            "query_id": "q1",
+        },
     ]
     out = reward_fn(Program.identity(D), questions, [1, 0])
 
@@ -156,11 +166,18 @@ def test_loglik_reward_logs_full_probability_distribution_when_requested(tmp_pat
     reward_fn = LogLikReward(exe, batch_size=8, probs_log_path=str(log_path))
 
     questions = [
-        {"question": "2+2=?", "options": ["1", "4", "3", "5"], "category": "math",
-         "query_id": "q0"},
-        {"question": "capital of France?",
-         "options": ["Berlin", "Madrid", "Paris", "Rome"], "category": "history",
-         "query_id": "q1"},
+        {
+            "question": "2+2=?",
+            "options": ["1", "4", "3", "5"],
+            "category": "math",
+            "query_id": "q0",
+        },
+        {
+            "question": "capital of France?",
+            "options": ["Berlin", "Madrid", "Paris", "Rome"],
+            "category": "history",
+            "query_id": "q1",
+        },
     ]
     program = Program.identity(D)
     out = reward_fn(program, questions, [1, 0])

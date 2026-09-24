@@ -33,6 +33,7 @@ pilot sample without needing the text log at all.
 Top level is stdlib-only so this module can be imported (e.g. for tests of
 `select_rescue`) without pulling in torch.
 """
+
 import argparse
 import json
 import random
@@ -61,8 +62,9 @@ def _round_robin_by_source(rows: List[dict], n: int, rng: random.Random) -> List
 def select_rescue(samples: List[dict], n: int, rng: random.Random) -> List[dict]:
     """RESCUE = base wrong (`initial_transition_metric == 0.0`) with >=1 found
     program. Round-robins across `sample_info.source` (math/gsm8k) for balance."""
-    rescue = [s for s in samples
-              if s["initial_transition_metric"] == 0.0 and s["final_valid_transitions"]]
+    rescue = [
+        s for s in samples if s["initial_transition_metric"] == 0.0 and s["final_valid_transitions"]
+    ]
     return _round_robin_by_source(rescue, n, rng)
 
 
@@ -87,9 +89,17 @@ def pick_program(s: dict) -> Tuple[Optional[List[int]], str]:
     return None, "UNRESCUABLE"
 
 
-def generate_all(engine, tokenizer, device, prompt_fn, path: List[int],
-                  questions: List[str], max_new_tokens: int, batch_size: int,
-                  label: str = "") -> List[str]:
+def generate_all(
+    engine,
+    tokenizer,
+    device,
+    prompt_fn,
+    path: List[int],
+    questions: List[str],
+    max_new_tokens: int,
+    batch_size: int,
+    label: str = "",
+) -> List[str]:
     import time
     import torch
 
@@ -99,19 +109,26 @@ def generate_all(engine, tokenizer, device, prompt_fn, path: List[int],
         n_batches = (len(questions) + batch_size - 1) // batch_size
         for bi, i in enumerate(range(0, len(questions), batch_size)):
             t0 = time.monotonic()
-            chunk = questions[i:i + batch_size]
+            chunk = questions[i : i + batch_size]
             prompts = [prompt_fn(tokenizer, q) for q in chunk]
             inputs = tokenizer(prompts, return_tensors="pt", padding=True).to(device)
             with torch.no_grad():
                 out = engine.model.generate(
-                    **inputs, max_new_tokens=max_new_tokens,
-                    do_sample=False, pad_token_id=tokenizer.pad_token_id,
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False,
+                    pad_token_id=tokenizer.pad_token_id,
                 )
-            texts.extend(tokenizer.batch_decode(
-                out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True))
-            print(f"{label} batch {bi + 1}/{n_batches} "
-                  f"({len(texts)}/{len(questions)} samples, {time.monotonic() - t0:.1f}s/batch)",
-                  flush=True)
+            texts.extend(
+                tokenizer.batch_decode(
+                    out[:, inputs["input_ids"].shape[1] :], skip_special_tokens=True
+                )
+            )
+            print(
+                f"{label} batch {bi + 1}/{n_batches} "
+                f"({len(texts)}/{len(questions)} samples, {time.monotonic() - t0:.1f}s/batch)",
+                flush=True,
+            )
         return texts
     finally:
         engine.restore_original()
@@ -127,30 +144,48 @@ def main(argv=None):
     from re_polar.vendor.dart_math.eval import EvaluatorMath
 
     p = argparse.ArgumentParser()
-    p.add_argument("--samples", action="append", required=True,
-                   help="merged_mcts_samples.json path (repeatable, one per "
-                        "--difficulty, same order)")
-    p.add_argument("--difficulty", type=int, action="append", default=None,
-                   help="1-4 (repeatable); default 1-4 (diff5 not included by default)")
+    p.add_argument(
+        "--samples",
+        action="append",
+        required=True,
+        help="merged_mcts_samples.json path (repeatable, one per " "--difficulty, same order)",
+    )
+    p.add_argument(
+        "--difficulty",
+        type=int,
+        action="append",
+        default=None,
+        help="1-4 (repeatable); default 1-4 (diff5 not included by default)",
+    )
     p.add_argument("--n-per-difficulty", type=int, default=10)
     p.add_argument("--model", default="qwen3_8b")
-    p.add_argument("--model-label", default=None,
-                   help="value written to each record's 'model' field; defaults to --model. "
-                        "Lets the error-analysis artifact key records by model.")
-    p.add_argument("--prompt-style", default="paper_minimal_fewshot", choices=list(PROMPT_STYLES),
-                   help="default matches the MCTS search's own canonical choice. Using the "
-                        "wrong prompt here means the regenerated identity/found-program TEXT fed "
-                        "to the LLM error-tagger doesn't match what MCTS search actually used.")
+    p.add_argument(
+        "--model-label",
+        default=None,
+        help="value written to each record's 'model' field; defaults to --model. "
+        "Lets the error-analysis artifact key records by model.",
+    )
+    p.add_argument(
+        "--prompt-style",
+        default="paper_minimal_fewshot",
+        choices=list(PROMPT_STYLES),
+        help="default matches the MCTS search's own canonical choice. Using the "
+        "wrong prompt here means the regenerated identity/found-program TEXT fed "
+        "to the LLM error-tagger doesn't match what MCTS search actually used.",
+    )
     p.add_argument("--max-new-tokens", type=int, default=50)
     p.add_argument("--batch-size", type=int, default=8)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--limit", type=int, default=None, help="debug: cap total selected samples")
     p.add_argument("--output", default="rescue_pairs_pilot.jsonl")
-    p.add_argument("--include-unrescuable", action="store_true",
-                   help="also include base-wrong samples where the search never found a "
-                        "working fix (compares identity against the shortest ATTEMPTED-but-"
-                        "still-failed program instead) -- default is RESCUE-only, matching "
-                        "the original pilot/full-500 runs")
+    p.add_argument(
+        "--include-unrescuable",
+        action="store_true",
+        help="also include base-wrong samples where the search never found a "
+        "working fix (compares identity against the shortest ATTEMPTED-but-"
+        "still-failed program instead) -- default is RESCUE-only, matching "
+        "the original pilot/full-500 runs",
+    )
     args = p.parse_args(argv)
 
     difficulties = args.difficulty or [1, 2, 3, 4]
@@ -167,7 +202,7 @@ def main(argv=None):
         samples = load_samples(Path(args.samples[i]))
         selected.extend(select_fn(samples, args.n_per_difficulty, rng))
     if args.limit:
-        selected = selected[:args.limit]
+        selected = selected[: args.limit]
     kind = "base-wrong (RESCUE + unrescuable)" if args.include_unrescuable else "RESCUE"
     print(f"Selected {len(selected)} {kind} samples across difficulties {difficulties}", flush=True)
     if not selected:
@@ -182,27 +217,48 @@ def main(argv=None):
         tokenizer.padding_side = "left"  # generation needs left padding
     prompt_fn = PROMPT_STYLES[args.prompt_style]
     identity_path = list(range(engine.num_layers))
-    evaluator = EvaluatorMath(strict_extract=True)  # matches re_polar/core/grader.py's real MCTS-time protocol
+    evaluator = EvaluatorMath(
+        strict_extract=True
+    )  # matches re_polar/core/grader.py's real MCTS-time protocol
 
     questions = [s["question"] for s in selected]
     gts = [s["gt_ans"] for s in selected]
 
     print("Generating under IDENTITY...", flush=True)
-    identity_texts = generate_all(engine, tokenizer, engine.device, prompt_fn,
-                                   identity_path, questions, args.max_new_tokens, args.batch_size,
-                                   label="identity")
+    identity_texts = generate_all(
+        engine,
+        tokenizer,
+        engine.device,
+        prompt_fn,
+        identity_path,
+        questions,
+        args.max_new_tokens,
+        args.batch_size,
+        label="identity",
+    )
 
     program_info = [pick_program(s) for s in selected]  # (path_or_None, sample_type) per sample
     rescue_indices = [i for i, (path, _) in enumerate(program_info) if path is not None]
-    print(f"Generating under found RESCUE programs (one apply per sample, "
-          f"{len(rescue_indices)}/{len(selected)} samples -- UNRESCUABLE ones skip this "
-          f"entirely, no attempted-but-failed program is generated for them)...", flush=True)
+    print(
+        f"Generating under found RESCUE programs (one apply per sample, "
+        f"{len(rescue_indices)}/{len(selected)} samples -- UNRESCUABLE ones skip this "
+        f"entirely, no attempted-but-failed program is generated for them)...",
+        flush=True,
+    )
     program_texts = {}  # index -> text, only for rescue_indices
     for j, idx in enumerate(rescue_indices):
         path, _ = program_info[idx]
-        text = generate_all(engine, tokenizer, engine.device, prompt_fn,
-                             path, [selected[idx]["question"]], args.max_new_tokens, batch_size=1,
-                             label=f"program sample {j + 1}/{len(rescue_indices)}")[0]
+        text = generate_all(
+            engine,
+            tokenizer,
+            engine.device,
+            prompt_fn,
+            path,
+            [selected[idx]["question"]],
+            args.max_new_tokens,
+            batch_size=1,
+            label=f"program sample {j + 1}/{len(rescue_indices)}",
+        )[0]
         program_texts[idx] = text
 
     n_identity_mismatch = 0
@@ -249,12 +305,21 @@ def main(argv=None):
 
     n_rescue = len(rescue_indices)
     n_unrescuable = len(selected) - n_rescue
-    print(f"Wrote {len(selected)} records -> {out_path} "
-          f"({n_rescue} RESCUE, {n_unrescuable} UNRESCUABLE)", flush=True)
-    print(f"Sanity check: identity-label mismatches vs. stored initial_transition_metric: "
-          f"{n_identity_mismatch}/{len(selected)}", flush=True)
-    print(f"Sanity check: RESCUE programs that did NOT grade correct (expected correct): "
-          f"{n_rescue_mismatch}/{n_rescue}", flush=True)
+    print(
+        f"Wrote {len(selected)} records -> {out_path} "
+        f"({n_rescue} RESCUE, {n_unrescuable} UNRESCUABLE)",
+        flush=True,
+    )
+    print(
+        f"Sanity check: identity-label mismatches vs. stored initial_transition_metric: "
+        f"{n_identity_mismatch}/{len(selected)}",
+        flush=True,
+    )
+    print(
+        f"Sanity check: RESCUE programs that did NOT grade correct (expected correct): "
+        f"{n_rescue_mismatch}/{n_rescue}",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

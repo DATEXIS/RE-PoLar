@@ -30,8 +30,13 @@ def load_mmlu_pro_full_test(n_samples: int | None = None) -> list[dict[str, Any]
 
     ds = load_dataset("TIGER-Lab/MMLU-Pro", split="test", trust_remote_code=False)
     records = [
-        {"id": i, "question": str(ds[i]["question"]), "options": list(ds[i]["options"]),
-         "answer_index": int(ds[i]["answer_index"]), "category": str(ds[i].get("category", ""))}
+        {
+            "id": i,
+            "question": str(ds[i]["question"]),
+            "options": list(ds[i]["options"]),
+            "answer_index": int(ds[i]["answer_index"]),
+            "category": str(ds[i].get("category", "")),
+        }
         for i in range(len(ds))
     ]
     if n_samples and n_samples > 0:
@@ -72,13 +77,15 @@ def _generate_mmlu_pro_domain_fixture(
                 )
             chosen = rng.sample(pool, n_per_domain)
         for row in chosen:
-            samples.append({
-                "id": len(samples),
-                "question": str(row["question"]),
-                "options": list(row["options"]),
-                "answer_index": int(row["answer_index"]),
-                "category": str(row["category"]),
-            })
+            samples.append(
+                {
+                    "id": len(samples),
+                    "question": str(row["question"]),
+                    "options": list(row["options"]),
+                    "answer_index": int(row["answer_index"]),
+                    "category": str(row["category"]),
+                }
+            )
         print(f"  {domain}: {len(chosen)} samples")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

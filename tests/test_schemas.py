@@ -7,10 +7,16 @@ from re_polar.datasets.schemas import load_samples, sample_record, write_merged_
 
 
 def test_emitted_structure(tmp_path):
-    inp = {"query_id": "MATH/train/algebra/1.json", "question": "1+1?", "gt_ans": "2",
-           "difficulty": 3, "fail_rate": 0.4}
-    rec = sample_record(inp, valid_paths=[[0, 1], [0, 1, 2]], invalid_paths=[[2]],
-                        initial_metric=1.0)
+    inp = {
+        "query_id": "MATH/train/algebra/1.json",
+        "question": "1+1?",
+        "gt_ans": "2",
+        "difficulty": 3,
+        "fail_rate": 0.4,
+    }
+    rec = sample_record(
+        inp, valid_paths=[[0, 1], [0, 1, 2]], invalid_paths=[[2]], initial_metric=1.0
+    )
     out = write_merged_samples(tmp_path, "Qwen/Qwen3-8B", "dart-math-diff-3", [rec])
 
     assert out == tmp_path / "Qwen/Qwen3-8B/dart-math-diff-3/merged_mcts_samples.json"
@@ -26,10 +32,16 @@ def test_emitted_structure(tmp_path):
 
 
 def test_load_samples_round_trips(tmp_path):
-    inp = {"query_id": "MATH/train/algebra/1.json", "question": "1+1?", "gt_ans": "2",
-           "difficulty": 3, "fail_rate": 0.4}
-    rec = sample_record(inp, valid_paths=[[0, 1], [0, 1, 2]], invalid_paths=[[2]],
-                        initial_metric=1.0)
+    inp = {
+        "query_id": "MATH/train/algebra/1.json",
+        "question": "1+1?",
+        "gt_ans": "2",
+        "difficulty": 3,
+        "fail_rate": 0.4,
+    }
+    rec = sample_record(
+        inp, valid_paths=[[0, 1], [0, 1, 2]], invalid_paths=[[2]], initial_metric=1.0
+    )
     out = write_merged_samples(tmp_path, "Qwen/Qwen3-8B", "dart-math-diff-3", [rec])
 
     loaded = load_samples(out)
@@ -48,8 +60,9 @@ def test_trajectory_omitted_when_not_passed():
 def test_trajectory_included_when_passed(tmp_path):
     inp = {"query_id": "q1", "question": "1+1?", "gt_ans": "2"}
     traj = [{"path": [0, 1], "parent_path": None, "reward": 1.0}]
-    rec = sample_record(inp, valid_paths=[[0, 1]], invalid_paths=[], initial_metric=1.0,
-                        trajectory=traj)
+    rec = sample_record(
+        inp, valid_paths=[[0, 1]], invalid_paths=[], initial_metric=1.0, trajectory=traj
+    )
     assert rec["search_trajectory"] == traj
 
     out = write_merged_samples(tmp_path, "Qwen/Qwen3-8B", "dart-math-diff-3", [rec])

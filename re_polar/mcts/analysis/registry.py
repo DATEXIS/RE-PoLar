@@ -11,6 +11,7 @@ Insights register themselves via the `@insight(...)` decorator in
 `re_polar/mcts/analysis/insights.py` at import time, `list_insights()`/`get_insight()`
 below are only meaningful after that module has been imported.
 """
+
 from dataclasses import dataclass
 from typing import Callable, Dict, List
 
@@ -21,7 +22,7 @@ _REGISTRY: Dict[str, "InsightSpec"] = {}
 class InsightSpec:
     id: str
     title: str
-    chart_kind: str   # "heatmap" | "table" | "boxplot" | "line" | "stackedBar" | "hbar"
+    chart_kind: str  # "heatmap" | "table" | "boxplot" | "line" | "stackedBar" | "hbar"
     fn: Callable
     description: str = ""
 
@@ -34,17 +35,24 @@ def insight(id: str, title: str, chart_kind: str, description: str = ""):
 
     def wrap(fn):
         if id in _REGISTRY:
-            raise ValueError(f"duplicate insight id {id!r} (already registered by "
-                              f"{_REGISTRY[id].fn.__module__}.{_REGISTRY[id].fn.__name__})")
-        _REGISTRY[id] = InsightSpec(id=id, title=title, chart_kind=chart_kind, fn=fn,
-                                     description=description)
+            raise ValueError(
+                f"duplicate insight id {id!r} (already registered by "
+                f"{_REGISTRY[id].fn.__module__}.{_REGISTRY[id].fn.__name__})"
+            )
+        _REGISTRY[id] = InsightSpec(
+            id=id, title=title, chart_kind=chart_kind, fn=fn, description=description
+        )
         return fn
+
     return wrap
 
 
 def get_insight(id: str) -> InsightSpec:
     if id not in _REGISTRY:
-        known = ", ".join(sorted(_REGISTRY)) or "(none registered, import re_polar.mcts.analysis.insights first)"
+        known = (
+            ", ".join(sorted(_REGISTRY))
+            or "(none registered, import re_polar.mcts.analysis.insights first)"
+        )
         raise KeyError(f"unknown insight id {id!r}. Known insights: {known}")
     return _REGISTRY[id]
 

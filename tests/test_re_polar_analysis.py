@@ -1,6 +1,7 @@
 """Tests for re_polar/mcts/analysis/ -- the MCTS-supervision-data analysis pipeline.
 Torch-free, local CPU, synthetic fixtures only (no released data needed).
 """
+
 import json
 
 import pytest
@@ -41,8 +42,11 @@ def make_sample(qid, difficulty, base_solved, extra_valid=None, extra_invalid=No
         "final_valid_transitions": valid,
         "final_invalid_transitions": invalid,
         "initial_transition_metric": 1.0 if base_solved else 0.0,
-        "sample_info": {"query_id": qid, "difficulty": difficulty,
-                         "domain": "Algebra" if int(qid[-1]) % 2 == 0 else "Geometry"},
+        "sample_info": {
+            "query_id": qid,
+            "difficulty": difficulty,
+            "domain": "Algebra" if int(qid[-1]) % 2 == 0 else "Geometry",
+        },
     }
 
 
@@ -52,8 +56,9 @@ def synthetic_samples():
     return [
         make_sample("q0", 1, True),
         make_sample("q1", 1, True),
-        make_sample("q2", 1, False, extra_valid=[skip_path([5, 6])],
-                    extra_invalid=[skip_path([1, 2, 3])]),
+        make_sample(
+            "q2", 1, False, extra_valid=[skip_path([5, 6])], extra_invalid=[skip_path([1, 2, 3])]
+        ),
         make_sample("q3", 1, False, extra_valid=[skip_path([5, 6]), repeat_path(10)]),
         make_sample("q4", 1, False),  # unsolved: no valid program at all
     ]
@@ -88,7 +93,7 @@ def test_edit_signature_nonempty_for_skip():
 
 def test_entropy_bits_bounds():
     assert segments.entropy_bits([]) == 0.0
-    assert segments.entropy_bits([5]) == 0.0          # single outcome, no uncertainty
+    assert segments.entropy_bits([5]) == 0.0  # single outcome, no uncertainty
     assert segments.entropy_bits([1, 1, 1, 1]) == 2.0  # 4 equally likely outcomes
 
 
@@ -133,16 +138,24 @@ def test_layer_freq_counts_correct_layers():
 # --------------------------------------------------------------------------- #
 def test_registry_has_all_nine_insights():
     import re_polar.mcts.analysis.insights  # noqa: F401 -- populates the registry
+
     ids = {spec.id for spec in list_insights()}
     assert ids == {
-        "menu_concentration", "op_mix", "segmentation_structure", "rescue_breakdown",
-        "op_class_coverage", "menu_size_distribution", "dismemberment",
-        "layer_ops_heatmap", "shorter_than_identity",
+        "menu_concentration",
+        "op_mix",
+        "segmentation_structure",
+        "rescue_breakdown",
+        "op_class_coverage",
+        "menu_size_distribution",
+        "dismemberment",
+        "layer_ops_heatmap",
+        "shorter_than_identity",
     }
 
 
 def test_registry_unknown_id_raises_with_known_list():
     import re_polar.mcts.analysis.insights  # noqa: F401
+
     with pytest.raises(KeyError, match="unknown insight id"):
         get_insight("does_not_exist")
 
@@ -153,6 +166,7 @@ def test_registry_duplicate_id_raises():
         return {}
 
     with pytest.raises(ValueError, match="duplicate insight id"):
+
         @insight("test_dup_zzz", "t2", "table")
         def _g(groups, num_layers):
             return {}
@@ -160,6 +174,7 @@ def test_registry_duplicate_id_raises():
 
 def test_registry_rejects_unknown_chart_kind():
     with pytest.raises(ValueError, match="unknown chart_kind"):
+
         @insight("test_bad_chart_zzz", "t", "not_a_real_kind")
         def _f(groups, num_layers):
             return {}
@@ -170,6 +185,7 @@ def test_registry_rejects_unknown_chart_kind():
 # --------------------------------------------------------------------------- #
 def test_menu_concentration_shape_and_invariants(groups):
     import re_polar.mcts.analysis.insights  # noqa: F401
+
     result = get_insight("menu_concentration").fn(groups, D)
     row = result["table"]["diff1"]
     assert row["solved"] == 4  # q0,q1,q2,q3 solved; q4 unsolved
@@ -182,6 +198,7 @@ def test_menu_concentration_shape_and_invariants(groups):
 
 def test_rescue_breakdown_counts_sum_to_n(groups):
     import re_polar.mcts.analysis.insights  # noqa: F401
+
     result = get_insight("rescue_breakdown").fn(groups, D)
     row = result["table"]["diff1"]
     assert row["baseline_solved"] + row["rescued"] + row["unsolved"] == row["n"] == 5
@@ -192,6 +209,7 @@ def test_rescue_breakdown_counts_sum_to_n(groups):
 
 def test_op_class_coverage_denominators(groups):
     import re_polar.mcts.analysis.insights  # noqa: F401
+
     result = get_insight("op_class_coverage").fn(groups, D)
     row = result["table"]["diff1"]
     assert row["n_solved"] == 4
@@ -203,6 +221,7 @@ def test_op_class_coverage_denominators(groups):
 
 def test_menu_size_distribution_shape(groups):
     import re_polar.mcts.analysis.insights  # noqa: F401
+
     result = get_insight("menu_size_distribution").fn(groups, D)
     row = result["boxplot"]["diff1"]
     assert row["min"] <= row["q1"] <= row["median"] <= row["q3"] <= row["max"]
@@ -211,6 +230,7 @@ def test_menu_size_distribution_shape(groups):
 
 def test_dismemberment_matrix_dims(groups):
     import re_polar.mcts.analysis.insights  # noqa: F401
+
     result = get_insight("dismemberment").fn(groups, D)
     M = result["diff1"]["shortest_valid"]["skip"]
     assert len(M) == 4
@@ -226,6 +246,7 @@ def test_dismemberment_matrix_dims(groups):
 
 def test_op_mix_and_segmentation_structure_run_clean(groups):
     import re_polar.mcts.analysis.insights  # noqa: F401
+
     op_result = get_insight("op_mix").fn(groups, D)
     assert "diff1" in op_result["op_distribution"]
     seg_result = get_insight("segmentation_structure").fn(groups, D)
@@ -255,12 +276,23 @@ def test_build_groups_by_source_label_when_no_group_by(tmp_path, synthetic_sampl
 # --------------------------------------------------------------------------- #
 def _write_crossexec_file(path, model="qwen3_8b", difficulties=(1,)):
     data = {
-        "model": model, "k": 50,
+        "model": model,
+        "k": 50,
         "per_difficulty": [
-            {"difficulty": d, "n_train": 1250, "k_requested": 50, "k_actual": 50,
-             "n_reused_cells": 0, "n_new_cells": 62500,
-             "real_topk_coverage_curve": [{"k": 1, "real_coverage": 0.3}, {"k": 50, "real_coverage": 0.8}],
-             "final_real_coverage": 0.8, "per_program": []}
+            {
+                "difficulty": d,
+                "n_train": 1250,
+                "k_requested": 50,
+                "k_actual": 50,
+                "n_reused_cells": 0,
+                "n_new_cells": 62500,
+                "real_topk_coverage_curve": [
+                    {"k": 1, "real_coverage": 0.3},
+                    {"k": 50, "real_coverage": 0.8},
+                ],
+                "final_real_coverage": 0.8,
+                "per_program": [],
+            }
             for d in difficulties
         ],
     }
@@ -302,20 +334,39 @@ def test_load_menu_crosschecks_ignores_unparseable_file(tmp_path):
 # "nothing to compute from, leave fields absent" path already.
 # --------------------------------------------------------------------------- #
 def _write_crossexec_file_with_per_program(path, model="qwen3_8b", difficulty=1):
-    identity_path = [0, 1, 2]  # D=3, matches synthetic_samples' D (see make_sample/segments helpers)
+    identity_path = [
+        0,
+        1,
+        2,
+    ]  # D=3, matches synthetic_samples' D (see make_sample/segments helpers)
     programs = [
-        {"path": identity_path, "rewards": [1, 0, 0, 0], "provenance": "identity"},   # rank 0 (dropped)
-        {"path": [0, 2], "rewards": [0, 1, 0, 0], "provenance": "p1"},                # rank 1
-        {"path": [1, 2], "rewards": [0, 0, 1, 1], "provenance": "p2"},                # rank 2
+        {
+            "path": identity_path,
+            "rewards": [1, 0, 0, 0],
+            "provenance": "identity",
+        },  # rank 0 (dropped)
+        {"path": [0, 2], "rewards": [0, 1, 0, 0], "provenance": "p1"},  # rank 1
+        {"path": [1, 2], "rewards": [0, 0, 1, 1], "provenance": "p2"},  # rank 2
     ]
     data = {
-        "model": model, "k": 3,
-        "per_difficulty": [{
-            "difficulty": difficulty, "n_train": 4, "n_pool": 4, "k_requested": 3, "k_actual": 3,
-            "real_topk_coverage_curve": [{"k": 1, "real_coverage": 0.25}, {"k": 2, "real_coverage": 0.5},
-                                          {"k": 3, "real_coverage": 1.0}],
-            "final_real_coverage": 1.0, "per_program": programs,
-        }],
+        "model": model,
+        "k": 3,
+        "per_difficulty": [
+            {
+                "difficulty": difficulty,
+                "n_train": 4,
+                "n_pool": 4,
+                "k_requested": 3,
+                "k_actual": 3,
+                "real_topk_coverage_curve": [
+                    {"k": 1, "real_coverage": 0.25},
+                    {"k": 2, "real_coverage": 0.5},
+                    {"k": 3, "real_coverage": 1.0},
+                ],
+                "final_real_coverage": 1.0,
+                "per_program": programs,
+            }
+        ],
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data))
@@ -326,7 +377,8 @@ def test_load_menu_crosschecks_computes_excl_identity_curve(tmp_path):
     out = load_menu_crosschecks(tmp_path, "qwen3_8b")
     # identity (rank 0) dropped; k=1 -> just p1 (covers qid1, 1/4); k=2 -> p1|p2 (qid1,2,3, 3/4)
     assert out["1"]["real_topk_coverage_curve_excl_identity"] == [
-        {"k": 1, "real_coverage": 0.25}, {"k": 2, "real_coverage": 0.75},
+        {"k": 1, "real_coverage": 0.25},
+        {"k": 2, "real_coverage": 0.75},
     ]
     assert out["1"]["final_real_coverage_excl_identity"] == 0.75
     # identity-included fields untouched by the augmentation
@@ -335,7 +387,8 @@ def test_load_menu_crosschecks_computes_excl_identity_curve(tmp_path):
 
 def test_load_menu_crosschecks_raises_if_rank0_program_is_not_identity(tmp_path):
     entry = {
-        "difficulty": 1, "n_pool": 2,
+        "difficulty": 1,
+        "n_pool": 2,
         "per_program": [
             {"path": [0, 2], "rewards": [1, 0], "provenance": "not_identity_but_ranked_first"},
             {"path": [0, 1, 2], "rewards": [0, 1], "provenance": "identity_but_not_ranked_first"},
@@ -350,10 +403,15 @@ def test_load_menu_crosschecks_raises_if_rank0_program_is_not_identity(tmp_path)
 
 def test_load_config_valid(tmp_path):
     cfg_path = tmp_path / "cfg.json"
-    cfg_path.write_text(json.dumps({
-        "model": "qwen3_8b", "sources": [{"label": "a", "path": "x.json"}],
-        "insights": ["rescue_breakdown"],
-    }))
+    cfg_path.write_text(
+        json.dumps(
+            {
+                "model": "qwen3_8b",
+                "sources": [{"label": "a", "path": "x.json"}],
+                "insights": ["rescue_breakdown"],
+            }
+        )
+    )
     cfg = load_config(cfg_path)
     assert cfg.model == "qwen3_8b"
     assert cfg.title == "Analysis report"  # default
@@ -361,8 +419,11 @@ def test_load_config_valid(tmp_path):
 
 @pytest.mark.parametrize("missing_key", ["model", "sources", "insights"])
 def test_load_config_missing_required_key_raises(tmp_path, missing_key):
-    raw = {"model": "qwen3_8b", "sources": [{"label": "a", "path": "x.json"}],
-           "insights": ["rescue_breakdown"]}
+    raw = {
+        "model": "qwen3_8b",
+        "sources": [{"label": "a", "path": "x.json"}],
+        "insights": ["rescue_breakdown"],
+    }
     del raw[missing_key]
     cfg_path = tmp_path / "cfg.json"
     cfg_path.write_text(json.dumps(raw))
@@ -372,28 +433,45 @@ def test_load_config_missing_required_key_raises(tmp_path, missing_key):
 
 def test_load_config_crosscheck_dir_defaults_to_none(tmp_path):
     cfg_path = tmp_path / "cfg.json"
-    cfg_path.write_text(json.dumps({
-        "model": "qwen3_8b", "sources": [{"label": "a", "path": "x.json"}],
-        "insights": ["rescue_breakdown"],
-    }))
+    cfg_path.write_text(
+        json.dumps(
+            {
+                "model": "qwen3_8b",
+                "sources": [{"label": "a", "path": "x.json"}],
+                "insights": ["rescue_breakdown"],
+            }
+        )
+    )
     assert load_config(cfg_path).crosscheck_dir is None
 
 
 def test_load_config_resolves_crosscheck_dir_relative_to_config_file(tmp_path):
     cfg_path = tmp_path / "sub" / "cfg.json"
     cfg_path.parent.mkdir()
-    cfg_path.write_text(json.dumps({
-        "model": "qwen3_8b", "sources": [{"label": "a", "path": "x.json"}],
-        "insights": ["rescue_breakdown"], "crosscheck_dir": "../crossexec",
-    }))
+    cfg_path.write_text(
+        json.dumps(
+            {
+                "model": "qwen3_8b",
+                "sources": [{"label": "a", "path": "x.json"}],
+                "insights": ["rescue_breakdown"],
+                "crosscheck_dir": "../crossexec",
+            }
+        )
+    )
     cfg = load_config(cfg_path)
     assert cfg.crosscheck_dir == str((tmp_path / "crossexec").resolve())
 
 
 def test_load_config_empty_insights_raises(tmp_path):
     cfg_path = tmp_path / "cfg.json"
-    cfg_path.write_text(json.dumps({
-        "model": "qwen3_8b", "sources": [{"label": "a", "path": "x.json"}], "insights": [],
-    }))
+    cfg_path.write_text(
+        json.dumps(
+            {
+                "model": "qwen3_8b",
+                "sources": [{"label": "a", "path": "x.json"}],
+                "insights": [],
+            }
+        )
+    )
     with pytest.raises(ValueError, match="insights"):
         load_config(cfg_path)

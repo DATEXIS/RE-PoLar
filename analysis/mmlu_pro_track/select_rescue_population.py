@@ -19,6 +19,7 @@ Off by default (RESCUE-only, unchanged behavior).
         --probs-jsonl probs_qwen3_8b_mmlu.jsonl \\
         --output rescue_population_qwen3_8b.jsonl
 """
+
 import argparse
 import importlib.util
 import json
@@ -34,11 +35,16 @@ select_rescue_best_programs = _probe.select_rescue_best_programs
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--probs-jsonl", required=True)
-    parser.add_argument("--include-identity-correct", action="store_true",
-                        help="broaden beyond RESCUE (identity wrong) to any sample with a "
-                             "valid non-identity program, regardless of identity's own score")
+    parser.add_argument(
+        "--include-identity-correct",
+        action="store_true",
+        help="broaden beyond RESCUE (identity wrong) to any sample with a "
+        "valid non-identity program, regardless of identity's own score",
+    )
     parser.add_argument("--output", required=True)
     args = parser.parse_args(argv)
 
@@ -47,22 +53,38 @@ def main(argv=None):
         for line in f:
             r = json.loads(line)
             by_query[r["query_id"]].append(r)
-    print(f"Loaded {sum(len(v) for v in by_query.values())} records across "
-          f"{len(by_query)} distinct query_ids", flush=True)
+    print(
+        f"Loaded {sum(len(v) for v in by_query.values())} records across "
+        f"{len(by_query)} distinct query_ids",
+        flush=True,
+    )
 
-    rescue = select_rescue_best_programs(by_query, require_identity_wrong=not args.include_identity_correct)
+    rescue = select_rescue_best_programs(
+        by_query, require_identity_wrong=not args.include_identity_correct
+    )
     n_identity_correct = sum(1 for info in rescue.values() if info["identity_correct"])
-    print(f"{'Any-valid-program' if args.include_identity_correct else 'RESCUE'} queries: "
-          f"{len(rescue)} ({n_identity_correct} with identity already correct, "
-          f"{len(rescue) - n_identity_correct} identity-wrong/RESCUE)", flush=True)
+    print(
+        f"{'Any-valid-program' if args.include_identity_correct else 'RESCUE'} queries: "
+        f"{len(rescue)} ({n_identity_correct} with identity already correct, "
+        f"{len(rescue) - n_identity_correct} identity-wrong/RESCUE)",
+        flush=True,
+    )
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
         for qid, info in rescue.items():
-            f.write(json.dumps({"query_id": qid, "path": info["path"],
-                                 "num_options": info["num_options"],
-                                 "identity_correct": info["identity_correct"]}) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "query_id": qid,
+                        "path": info["path"],
+                        "num_options": info["num_options"],
+                        "identity_correct": info["identity_correct"],
+                    }
+                )
+                + "\n"
+            )
 
     print(f"Wrote {len(rescue)} records -> {out_path}", flush=True)
 

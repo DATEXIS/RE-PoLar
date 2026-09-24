@@ -61,21 +61,23 @@ def test_tree_finds_solution_and_prefers_shorter():
     # own derived seed to find the target regardless of mode (100 left some
     # trees short purely on seed luck under per-tree-seed).
     fake = FakeReward()
-    runner = MCTSRunner(make_inputs(4), num_layers=D, reward_fn=fake,
-                        budget=500, c=1.414, lam=5.0, seed=0)
+    runner = MCTSRunner(
+        make_inputs(4), num_layers=D, reward_fn=fake, budget=500, c=1.414, lam=5.0, seed=0
+    )
     trees = runner.run(log_every=0)
     solved = [qid for qid, t in trees.items() if t.valid_paths()]
     assert len(solved) == 4, f"only {len(solved)}/4 trees found the target program"
     for t in trees.values():
         paths = t.valid_paths()
-        assert len(paths[0]) < D                        # shortest valid beats identity
-        assert len(paths[0]) <= len(paths[-1])          # shortest-first ordering
+        assert len(paths[0]) < D  # shortest valid beats identity
+        assert len(paths[0]) <= len(paths[-1])  # shortest-first ordering
 
 
 def test_identity_precompute_and_metric():
     fake = FakeReward()
-    runner = MCTSRunner(make_inputs(3), num_layers=D, reward_fn=fake,
-                        budget=5, c=1.414, lam=5.0, seed=0)
+    runner = MCTSRunner(
+        make_inputs(3), num_layers=D, reward_fn=fake, budget=5, c=1.414, lam=5.0, seed=0
+    )
     runner.run(log_every=0)
     # identity executes all 36 layers -> fake reward 0
     assert set(runner.initial_metric.values()) == {0.0}
@@ -88,8 +90,16 @@ def test_program_major_batching_shares_evals_shared_seed_mode():
     for the contrasting mode)."""
     fake = FakeReward()
     n, budget = 8, 30
-    runner = MCTSRunner(make_inputs(n), num_layers=D, reward_fn=fake,
-                        budget=budget, c=1.414, lam=5.0, seed=1, per_tree_seed=False)
+    runner = MCTSRunner(
+        make_inputs(n),
+        num_layers=D,
+        reward_fn=fake,
+        budget=budget,
+        c=1.414,
+        lam=5.0,
+        seed=1,
+        per_tree_seed=False,
+    )
     runner.run(log_every=0)
     # GPU batches (reward-fn calls): shared-seed trees propose in lockstep, so
     # ~one call per round instead of one per (tree, proposal) = n * (budget+1)
@@ -108,11 +118,20 @@ def test_per_tree_seed_breaks_program_major_batching():
     the qualitative direction with a comfortable margin, not the exact count."""
     fake = FakeReward()
     n, budget = 8, 30
-    runner = MCTSRunner(make_inputs(n), num_layers=D, reward_fn=fake,
-                        budget=budget, c=1.414, lam=5.0, seed=1, per_tree_seed=True)
+    runner = MCTSRunner(
+        make_inputs(n),
+        num_layers=D,
+        reward_fn=fake,
+        budget=budget,
+        c=1.414,
+        lam=5.0,
+        seed=1,
+        per_tree_seed=True,
+    )
     runner.run(log_every=0)
-    assert fake.calls > n * (budget + 1) // 2, (
-        f"only {fake.calls} calls -- trees still batching together, per_tree_seed had no effect")
+    assert (
+        fake.calls > n * (budget + 1) // 2
+    ), f"only {fake.calls} calls -- trees still batching together, per_tree_seed had no effect"
 
 
 def test_per_tree_seed_true_is_bit_identical_to_omitting_the_flag():
@@ -121,10 +140,19 @@ def test_per_tree_seed_true_is_bit_identical_to_omitting_the_flag():
     perturb behavior beyond the flag's own documented effect. (Symmetric
     coverage for explicit per_tree_seed=False already exists via
     test_program_major_batching_shares_evals_shared_seed_mode.)"""
+
     def collect(**kwargs):
         fake = FakeReward()
-        runner = MCTSRunner(make_inputs(4), num_layers=D, reward_fn=fake,
-                            budget=30, c=1.414, lam=5.0, seed=9, **kwargs)
+        runner = MCTSRunner(
+            make_inputs(4),
+            num_layers=D,
+            reward_fn=fake,
+            budget=30,
+            c=1.414,
+            lam=5.0,
+            seed=9,
+            **kwargs,
+        )
         trees = runner.run(log_every=0)
         return {qid: sorted(t.evaluated) for qid, t in trees.items()}
 
@@ -134,14 +162,30 @@ def test_per_tree_seed_true_is_bit_identical_to_omitting_the_flag():
 
 def test_per_tree_seed_gives_each_tree_a_distinct_deterministic_seed():
     fake = FakeReward()
-    runner = MCTSRunner(make_inputs(5), num_layers=D, reward_fn=fake,
-                        budget=5, c=1.414, lam=5.0, seed=42, per_tree_seed=True)
+    runner = MCTSRunner(
+        make_inputs(5),
+        num_layers=D,
+        reward_fn=fake,
+        budget=5,
+        c=1.414,
+        lam=5.0,
+        seed=42,
+        per_tree_seed=True,
+    )
     seeds = {qid: tree.seed for qid, tree in runner.trees.items()}
-    assert len(set(seeds.values())) == len(seeds)          # all distinct
+    assert len(set(seeds.values())) == len(seeds)  # all distinct
 
     # deterministic: rebuilding with the same base seed reproduces the same per-tree seeds
-    runner2 = MCTSRunner(make_inputs(5), num_layers=D, reward_fn=FakeReward(),
-                         budget=5, c=1.414, lam=5.0, seed=42, per_tree_seed=True)
+    runner2 = MCTSRunner(
+        make_inputs(5),
+        num_layers=D,
+        reward_fn=FakeReward(),
+        budget=5,
+        c=1.414,
+        lam=5.0,
+        seed=42,
+        per_tree_seed=True,
+    )
     assert {qid: tree.seed for qid, tree in runner2.trees.items()} == seeds
 
 
@@ -181,9 +225,9 @@ class FakeMaskedBatchReward:
     not just that something gets returned."""
 
     def __init__(self):
-        self.calls = 0                 # single-program __call__ (fallback path)
-        self.masked_batch_calls = 0    # cross-program masked_batch_call invocations
-        self.max_batch_programs = 0    # distinct programs seen in one masked_batch_call
+        self.calls = 0  # single-program __call__ (fallback path)
+        self.masked_batch_calls = 0  # cross-program masked_batch_call invocations
+        self.max_batch_programs = 0  # distinct programs seen in one masked_batch_call
 
     def __call__(self, program, questions, gt_answers):
         self.calls += 1
@@ -204,8 +248,14 @@ def _tree_state(trees):
 
 def _run_pool(reward_fns=None, *, per_tree_seed=False, n=8, budget=40, seed=3):
     return MCTSRunner(
-        make_inputs(n), num_layers=D, reward_fn=(reward_fns or [FakeReward()])[0],
-        reward_fns=reward_fns, budget=budget, c=1.414, lam=5.0, seed=seed,
+        make_inputs(n),
+        num_layers=D,
+        reward_fn=(reward_fns or [FakeReward()])[0],
+        reward_fns=reward_fns,
+        budget=budget,
+        c=1.414,
+        lam=5.0,
+        seed=seed,
         per_tree_seed=per_tree_seed,
     ).run(log_every=0)
 
@@ -224,17 +274,28 @@ def test_reward_pool_parallel_matches_serial_per_tree_seed():
     path (pool>1 AND >1 gen job) is heavily exercised, yet results stay identical
     to serial."""
     serial = _tree_state(_run_pool([FakeReward()], per_tree_seed=True))
-    parallel = _tree_state(_run_pool([FakeReward(), FakeReward(), FakeReward()],
-                                     per_tree_seed=True))
+    parallel = _tree_state(
+        _run_pool([FakeReward(), FakeReward(), FakeReward()], per_tree_seed=True)
+    )
     assert parallel == serial
 
 
 def test_reward_fns_none_is_bit_identical_to_single_reward_fn():
     """Omitting reward_fns must not perturb today's single-model behavior."""
+
     def state(**kw):
-        runner = MCTSRunner(make_inputs(4), num_layers=D, reward_fn=FakeReward(),
-                            budget=30, c=1.414, lam=5.0, seed=9, **kw)
+        runner = MCTSRunner(
+            make_inputs(4),
+            num_layers=D,
+            reward_fn=FakeReward(),
+            budget=30,
+            c=1.414,
+            lam=5.0,
+            seed=9,
+            **kw,
+        )
         return _tree_state(runner.run(log_every=0))
+
     assert state() == state(reward_fns=None)
 
 
@@ -244,8 +305,7 @@ def test_reward_pool_replica_exclusivity_and_real_parallelism():
     (proving the dispatch actually parallelizes). per_tree_seed=True guarantees
     many distinct programs per round."""
     k = 3
-    reg = {"lock": threading.Lock(), "live": 0, "max_live": 0,
-           "per": [0] * k, "max_per": [0] * k}
+    reg = {"lock": threading.Lock(), "live": 0, "max_live": 0, "per": [0] * k, "max_per": [0] * k}
     pool = [_CountingReplica(reg, i) for i in range(k)]
     _run_pool(pool, per_tree_seed=True)
     assert max(reg["max_per"]) == 1, "a replica ran two programs at once -> model-state collision"
@@ -255,10 +315,21 @@ def test_reward_pool_replica_exclusivity_and_real_parallelism():
 def test_masked_batch_none_is_bit_identical_to_default():
     """Omitting masked_batch_reward_fn (default None) must not perturb today's
     behavior -- the opt-in must be a true no-op when unused."""
+
     def state(**kw):
-        runner = MCTSRunner(make_inputs(6), num_layers=D, reward_fn=FakeReward(),
-                            budget=30, c=1.414, lam=5.0, seed=5, per_tree_seed=True, **kw)
+        runner = MCTSRunner(
+            make_inputs(6),
+            num_layers=D,
+            reward_fn=FakeReward(),
+            budget=30,
+            c=1.414,
+            lam=5.0,
+            seed=5,
+            per_tree_seed=True,
+            **kw,
+        )
         return _tree_state(runner.run(log_every=0))
+
     assert state() == state(masked_batch_reward_fn=None)
 
 
@@ -267,15 +338,33 @@ def test_masked_batch_dispatch_matches_serial_and_is_exercised():
     identical trees to the plain single-reward path, AND the dispatch must
     actually fire: per_tree_seed=True => many distinct programs/round =>
     masked_batch_call sees >1 distinct program, __call__ never fires."""
-    serial = _tree_state(MCTSRunner(
-        make_inputs(8), num_layers=D, reward_fn=FakeReward(), budget=40,
-        c=1.414, lam=5.0, seed=3, per_tree_seed=True).run(log_every=0))
+    serial = _tree_state(
+        MCTSRunner(
+            make_inputs(8),
+            num_layers=D,
+            reward_fn=FakeReward(),
+            budget=40,
+            c=1.414,
+            lam=5.0,
+            seed=3,
+            per_tree_seed=True,
+        ).run(log_every=0)
+    )
 
     mb = FakeMaskedBatchReward()
-    masked = _tree_state(MCTSRunner(
-        make_inputs(8), num_layers=D, reward_fn=mb, budget=40,
-        c=1.414, lam=5.0, seed=3, per_tree_seed=True,
-        masked_batch_reward_fn=mb).run(log_every=0))
+    masked = _tree_state(
+        MCTSRunner(
+            make_inputs(8),
+            num_layers=D,
+            reward_fn=mb,
+            budget=40,
+            c=1.414,
+            lam=5.0,
+            seed=3,
+            per_tree_seed=True,
+            masked_batch_reward_fn=mb,
+        ).run(log_every=0)
+    )
 
     assert masked == serial
     assert mb.masked_batch_calls > 0, "masked-batch dispatch never fired"
@@ -293,8 +382,16 @@ def test_masked_batch_falls_back_to_call_for_single_distinct_program_round():
     mb = FakeMaskedBatchReward()
     # n=1 tree => every round has exactly one distinct program pending (itself)
     # => masked_batch_call must never fire regardless of per_tree_seed.
-    MCTSRunner(make_inputs(1), num_layers=D, reward_fn=mb, budget=20,
-              c=1.414, lam=5.0, seed=1, masked_batch_reward_fn=mb).run(log_every=0)
+    MCTSRunner(
+        make_inputs(1),
+        num_layers=D,
+        reward_fn=mb,
+        budget=20,
+        c=1.414,
+        lam=5.0,
+        seed=1,
+        masked_batch_reward_fn=mb,
+    ).run(log_every=0)
     assert mb.masked_batch_calls == 0
     assert mb.calls > 0
 
@@ -321,10 +418,12 @@ def test_masked_batch_layer_pass_greedy_largest_group_first():
     calls = []  # (layer_idx, group_size) in call order
 
     def make_layer(idx):
-        def layer(hidden, attention_mask=None, position_ids=None,
-                  position_embeddings=None, use_cache=None):
+        def layer(
+            hidden, attention_mask=None, position_ids=None, position_embeddings=None, use_cache=None
+        ):
             calls.append((idx, hidden.shape[0]))
             return hidden + 1.0
+
         return layer
 
     layers = [make_layer(i) for i in range(4)]
@@ -335,8 +434,9 @@ def test_masked_batch_layer_pass_greedy_largest_group_first():
     cos = torch.zeros(n_rows, 1)
     sin = torch.zeros(n_rows, 1)
 
-    out = _masked_batch_layer_pass(layers, state, paths, position_ids, cos, sin,
-                                   causal_mask=None, device="cpu")
+    out = _masked_batch_layer_pass(
+        layers, state, paths, position_ids, cos, sin, causal_mask=None, device="cpu"
+    )
 
     # correctness: each row's final value = number of layers in ITS path (each
     # layer call adds 1.0), regardless of how rows got grouped together.
@@ -349,7 +449,8 @@ def test_masked_batch_layer_pass_greedy_largest_group_first():
     layer1_groups = [n for (idx, n) in calls if idx == 1]
     assert layer1_groups == [10], (
         f"expected layer 1 handled as one group of 10 (greedy largest-first "
-        f"merging), got separate groups {layer1_groups}")
+        f"merging), got separate groups {layer1_groups}"
+    )
 
 
 def test_masked_batch_layer_pass_max_group_size_caps_peak_batch():
@@ -364,10 +465,12 @@ def test_masked_batch_layer_pass_max_group_size_caps_peak_batch():
     calls = []  # (layer_idx, group_size) in call order
 
     def make_layer(idx):
-        def layer(hidden, attention_mask=None, position_ids=None,
-                  position_embeddings=None, use_cache=None):
+        def layer(
+            hidden, attention_mask=None, position_ids=None, position_embeddings=None, use_cache=None
+        ):
             calls.append((idx, hidden.shape[0]))
             return hidden + 1.0
+
         return layer
 
     layers = [make_layer(i) for i in range(2)]
@@ -378,8 +481,17 @@ def test_masked_batch_layer_pass_max_group_size_caps_peak_batch():
     cos = torch.zeros(n_rows, 1)
     sin = torch.zeros(n_rows, 1)
 
-    out = _masked_batch_layer_pass(layers, state, paths, position_ids, cos, sin,
-                                   causal_mask=None, device="cpu", max_group_size=4)
+    out = _masked_batch_layer_pass(
+        layers,
+        state,
+        paths,
+        position_ids,
+        cos,
+        sin,
+        causal_mask=None,
+        device="cpu",
+        max_group_size=4,
+    )
 
     # correctness unchanged: every row still gets both layers applied exactly once.
     assert torch.allclose(out, torch.full((n_rows, 1), 2.0))
@@ -391,8 +503,16 @@ def test_masked_batch_layer_pass_max_group_size_caps_peak_batch():
     assert sum(n for (idx, n) in calls if idx == 1) == n_rows
     # sanity: without a cap the same setup would produce ONE call of 10 per layer
     calls.clear()
-    _masked_batch_layer_pass(layers, torch.zeros(n_rows, 1), paths, position_ids,
-                             cos, sin, causal_mask=None, device="cpu")
+    _masked_batch_layer_pass(
+        layers,
+        torch.zeros(n_rows, 1),
+        paths,
+        position_ids,
+        cos,
+        sin,
+        causal_mask=None,
+        device="cpu",
+    )
     assert [n for (_idx, n) in calls if _idx == 0] == [10]
 
 
@@ -440,19 +560,21 @@ def test_rmsnorm_slice_before_is_bit_identical_to_slice_after():
     for dtype in (torch.float32, torch.bfloat16):
         state = torch.randn(n_rows, L, hidden).to(dtype)
         with torch.no_grad():
-            old = norm(state)[:, -1, :]      # naive: norm everything, keep last
-            new = norm(state[:, -1, :])      # fix: slice first
+            old = norm(state)[:, -1, :]  # naive: norm everything, keep last
+            new = norm(state[:, -1, :])  # fix: slice first
         assert new.shape == (n_rows, hidden)
         assert torch.equal(old, new), (
             f"slice-before-norm diverged from slice-after in {dtype} -- the fix is "
             f"only safe while RMSNorm stays position-independent; max abs diff "
-            f"{(old.float() - new.float()).abs().max().item()}")
+            f"{(old.float() - new.float()).abs().max().item()}"
+        )
 
 
 # --- Length bucketing -------------------------------------------------------
 # `_bucket_row_indices`/`_dispatch_buckets` are pure Python (no torch, no
 # model) so these are plain unit tests -- CPU-only, no GPU needed, following
 # the same style as the masked-batch tests above.
+
 
 def test_bucket_row_indices_deterministic():
     """Identical `lengths` must produce an identical partition across repeated
@@ -556,8 +678,10 @@ def test_bucketing_textlog_batch_matches_composition(tmp_path):
         if not bucket:
             continue
         log.write_batch(
-            [questions[i] for i in bucket], [gt_answers[i] for i in bucket],
-            [texts[i] for i in bucket], [rewards[i] for i in bucket],
+            [questions[i] for i in bucket],
+            [gt_answers[i] for i in bucket],
+            [texts[i] for i in bucket],
+            [rewards[i] for i in bucket],
             [paths[i] for i in bucket],
         )
 
@@ -570,28 +694,47 @@ def test_bucketing_textlog_batch_matches_composition(tmp_path):
     logged_sets = []
     for rows in by_batch.values():
         rows_sorted = sorted(rows, key=lambda r: r["i"])
-        assert [r["n"] for r in rows_sorted] == [len(rows_sorted)] * len(rows_sorted), (
-            "every row in a written batch must carry the SAME batch size `n`")
-        assert [r["i"] for r in rows_sorted] == list(range(len(rows_sorted))), (
-            "row positions within one batch must be 0..n-1 contiguous")
+        assert [r["n"] for r in rows_sorted] == [len(rows_sorted)] * len(
+            rows_sorted
+        ), "every row in a written batch must carry the SAME batch size `n`"
+        assert [r["i"] for r in rows_sorted] == list(
+            range(len(rows_sorted))
+        ), "row positions within one batch must be 0..n-1 contiguous"
         logged_sets.append(frozenset(r["q"] for r in rows_sorted))
 
     actual_sets = [frozenset(question_hash(questions[i]) for i in b) for b in buckets if b]
-    assert sorted(logged_sets, key=sorted) == sorted(actual_sets, key=sorted), (
-        "logged batch composition does not match the actual bucket partition")
+    assert sorted(logged_sets, key=sorted) == sorted(
+        actual_sets, key=sorted
+    ), "logged batch composition does not match the actual bucket partition"
 
 
 def test_async_scheduler_matches_lockstep_shared_seed():
     """async_scheduler=True must give byte-identical trees to the lockstep
     scheduler: dropping the round barrier changes WHEN/how proposals are
     dispatched, never a tree's own propose->reward->update sequence."""
-    lockstep = _tree_state(MCTSRunner(
-        make_inputs(8), num_layers=D, reward_fn=FakeReward(), budget=40,
-        c=1.414, lam=5.0, seed=3).run(log_every=0))
-    async_ = _tree_state(MCTSRunner(
-        make_inputs(8), num_layers=D, reward_fn=FakeReward(),
-        reward_fns=[FakeReward(), FakeReward(), FakeReward()], budget=40,
-        c=1.414, lam=5.0, seed=3).run(log_every=0, async_scheduler=True))
+    lockstep = _tree_state(
+        MCTSRunner(
+            make_inputs(8),
+            num_layers=D,
+            reward_fn=FakeReward(),
+            budget=40,
+            c=1.414,
+            lam=5.0,
+            seed=3,
+        ).run(log_every=0)
+    )
+    async_ = _tree_state(
+        MCTSRunner(
+            make_inputs(8),
+            num_layers=D,
+            reward_fn=FakeReward(),
+            reward_fns=[FakeReward(), FakeReward(), FakeReward()],
+            budget=40,
+            c=1.414,
+            lam=5.0,
+            seed=3,
+        ).run(log_every=0, async_scheduler=True)
+    )
     assert async_ == lockstep
 
 
@@ -599,26 +742,59 @@ def test_async_scheduler_matches_lockstep_per_tree_seed():
     """per_tree_seed=True => trees diverge fast => the async frontier is
     heavily exercised (many distinct in-flight paths, lots of interleaving),
     yet results stay identical to lockstep."""
-    lockstep = _tree_state(MCTSRunner(
-        make_inputs(8), num_layers=D, reward_fn=FakeReward(), budget=40,
-        c=1.414, lam=5.0, seed=3, per_tree_seed=True).run(log_every=0))
-    async_ = _tree_state(MCTSRunner(
-        make_inputs(8), num_layers=D, reward_fn=FakeReward(),
-        reward_fns=[FakeReward(), FakeReward(), FakeReward()], budget=40,
-        c=1.414, lam=5.0, seed=3, per_tree_seed=True
-    ).run(log_every=0, async_scheduler=True))
+    lockstep = _tree_state(
+        MCTSRunner(
+            make_inputs(8),
+            num_layers=D,
+            reward_fn=FakeReward(),
+            budget=40,
+            c=1.414,
+            lam=5.0,
+            seed=3,
+            per_tree_seed=True,
+        ).run(log_every=0)
+    )
+    async_ = _tree_state(
+        MCTSRunner(
+            make_inputs(8),
+            num_layers=D,
+            reward_fn=FakeReward(),
+            reward_fns=[FakeReward(), FakeReward(), FakeReward()],
+            budget=40,
+            c=1.414,
+            lam=5.0,
+            seed=3,
+            per_tree_seed=True,
+        ).run(log_every=0, async_scheduler=True)
+    )
     assert async_ == lockstep
 
 
 def test_async_scheduler_single_replica_falls_back_to_lockstep():
     """async_scheduler=True with a 1-replica pool (nothing to decouple) must
     fall back to _run_lockstep -- same result, no async machinery exercised."""
-    lockstep = _tree_state(MCTSRunner(
-        make_inputs(6), num_layers=D, reward_fn=FakeReward(), budget=30,
-        c=1.414, lam=5.0, seed=7).run(log_every=0))
-    async_ = _tree_state(MCTSRunner(
-        make_inputs(6), num_layers=D, reward_fn=FakeReward(), budget=30,
-        c=1.414, lam=5.0, seed=7).run(log_every=0, async_scheduler=True))
+    lockstep = _tree_state(
+        MCTSRunner(
+            make_inputs(6),
+            num_layers=D,
+            reward_fn=FakeReward(),
+            budget=30,
+            c=1.414,
+            lam=5.0,
+            seed=7,
+        ).run(log_every=0)
+    )
+    async_ = _tree_state(
+        MCTSRunner(
+            make_inputs(6),
+            num_layers=D,
+            reward_fn=FakeReward(),
+            budget=30,
+            c=1.414,
+            lam=5.0,
+            seed=7,
+        ).run(log_every=0, async_scheduler=True)
+    )
     assert async_ == lockstep
 
 
@@ -626,21 +802,29 @@ def test_async_scheduler_replica_exclusivity_and_real_parallelism():
     """Same guarantees as the lockstep pool's own test: no replica ever runs
     two programs at once, and >=2 replicas genuinely overlap in wall time."""
     k = 3
-    reg = {"lock": threading.Lock(), "live": 0, "max_live": 0,
-           "per": [0] * k, "max_per": [0] * k}
+    reg = {"lock": threading.Lock(), "live": 0, "max_live": 0, "per": [0] * k, "max_per": [0] * k}
     pool = [_CountingReplica(reg, i) for i in range(k)]
-    MCTSRunner(make_inputs(8), num_layers=D, reward_fn=pool[0], reward_fns=pool,
-              budget=40, c=1.414, lam=5.0, seed=3,
-              per_tree_seed=True).run(log_every=0, async_scheduler=True)
+    MCTSRunner(
+        make_inputs(8),
+        num_layers=D,
+        reward_fn=pool[0],
+        reward_fns=pool,
+        budget=40,
+        c=1.414,
+        lam=5.0,
+        seed=3,
+        per_tree_seed=True,
+    ).run(log_every=0, async_scheduler=True)
     assert max(reg["max_per"]) == 1, "a replica ran two programs at once -> model-state collision"
     assert reg["max_live"] >= 2, "no real parallelism observed across replicas"
 
 
 def test_derive_tree_seed_is_deterministic_and_varies_by_query_id():
     from re_polar.mcts.scheduler import derive_tree_seed
-    assert derive_tree_seed(42, "q0") == derive_tree_seed(42, "q0")   # deterministic
-    assert derive_tree_seed(42, "q0") != derive_tree_seed(42, "q1")   # varies by query_id
-    assert derive_tree_seed(42, "q0") != derive_tree_seed(43, "q0")   # varies by base seed
+
+    assert derive_tree_seed(42, "q0") == derive_tree_seed(42, "q0")  # deterministic
+    assert derive_tree_seed(42, "q0") != derive_tree_seed(42, "q1")  # varies by query_id
+    assert derive_tree_seed(42, "q0") != derive_tree_seed(43, "q0")  # varies by base seed
 
 
 def test_cache_roundtrip(tmp_path):
@@ -665,8 +849,9 @@ def test_propose_terminates_at_budget():
 def test_deterministic_given_seed():
     def collect(seed):
         fake = FakeReward()
-        runner = MCTSRunner(make_inputs(2), num_layers=12, reward_fn=fake,
-                            budget=20, c=1.414, lam=5.0, seed=seed)
+        runner = MCTSRunner(
+            make_inputs(2), num_layers=12, reward_fn=fake, budget=20, c=1.414, lam=5.0, seed=seed
+        )
         trees = runner.run(log_every=0)
         return {qid: sorted(t.evaluated) for qid, t in trees.items()}
 
@@ -679,12 +864,13 @@ def test_deep_layer_edit_is_reachable():
     identity-tail search plateaued at a much shallower layer could never
     reach it."""
     reward = DeepRepeatReward()
-    runner = MCTSRunner(make_inputs(1), num_layers=D, reward_fn=reward,
-                        budget=200, c=1.414, lam=5.0, seed=0)
+    runner = MCTSRunner(
+        make_inputs(1), num_layers=D, reward_fn=reward, budget=200, c=1.414, lam=5.0, seed=0
+    )
     trees = runner.run(log_every=0)
     valid = trees["q0"].valid_paths()
     assert valid, "search failed to discover a repeat of layer 30 within budget 200"
-    assert all(p.count(30) >= 2 for p in valid)   # every winner really repeats layer 30
+    assert all(p.count(30) >= 2 for p in valid)  # every winner really repeats layer 30
 
 
 def test_multi_edit_program_is_reachable():
@@ -700,6 +886,7 @@ def test_multi_edit_program_is_reachable():
     an exact single layer is hostage to how many children PW gives the root. The
     band keeps the test about the mechanism under test -- descend and combine two
     edits -- not about drawing one specific root child."""
+
     def reward(prog):
         path = prog.to_layer_path()
         shallow_skip = any(layer not in path for layer in range(0, 8))
@@ -734,10 +921,10 @@ def test_all_proposed_programs_are_valid_contiguous_covers():
         assert is_valid(program)
         cursor = 0
         for seg in program.segments:
-            assert seg.start == cursor                 # contiguous, no gaps/overlaps
+            assert seg.start == cursor  # contiguous, no gaps/overlaps
             assert 1 <= len(seg) <= MAX_SEGMENT_LEN
             cursor = seg.end
-        assert cursor == D                             # covers exactly [0, D)
+        assert cursor == D  # covers exactly [0, D)
         tree.update(chain, 1.0 if 2 not in program.to_layer_path() else 0.0, program=program)
         n += 1
     assert n > 0
@@ -757,8 +944,7 @@ def test_no_permutation_duplicate_nodes():
     legacy-mode-only mechanism (global_selection=True instead builds a single-
     parent tree with no transposition collapsing, see ProgramMCTS's GLOBAL
     SELECTION MODE block comment)."""
-    tree = ProgramMCTS(num_layers=8, budget=300, c=1.414, lam=5.0, seed=3,
-                       global_selection=False)
+    tree = ProgramMCTS(num_layers=8, budget=300, c=1.414, lam=5.0, seed=3, global_selection=False)
     while (prop := tree.propose()) is not None:
         program, chain = prop
         tree.update(chain, 1.0 if 2 not in program.to_layer_path() else 0.0, program=program)
@@ -769,14 +955,14 @@ def test_no_permutation_duplicate_nodes():
 
     def visit(node, seen_on_path):
         starts = [e[0] for e in node.edits]
-        assert starts == sorted(starts)              # node.edits is canonically sorted
+        assert starts == sorted(starts)  # node.edits is canonically sorted
         for (s, length, _, _), (s2, _, _, _) in zip(node.edits, node.edits[1:]):
-            assert s + length <= s2                  # non-overlapping (nesting stays forbidden)
+            assert s + length <= s2  # non-overlapping (nesting stays forbidden)
         key = frozenset(node.edits)
         if key in by_key:
             # same edit set reached again -> must be the SAME object, not a copy
             assert by_key[key] is node, f"duplicate node for edit-set {node.edits}"
-            return                                   # DAG: don't re-walk a shared subtree
+            return  # DAG: don't re-walk a shared subtree
         by_key[key] = node
         depths.append(len(node.edits))
         for act, child in node.children.items():
@@ -793,7 +979,8 @@ def test_no_permutation_duplicate_nodes():
             reached_via_multiple_orders += 1
     assert reached_via_multiple_orders > 0, (
         "no node was reached by two different placement orders -- the transposition "
-        "table is untested by this run")
+        "table is untested by this run"
+    )
 
 
 def test_max_repeat_times_opens_deeper_loops():
@@ -803,13 +990,13 @@ def test_max_repeat_times_opens_deeper_loops():
 
     t2 = ProgramMCTS(num_layers=6, budget=10, seed=0, max_repeat_times=2)
     reps2 = {times for (_s, _l, op, times) in t2._actions_for(()) if op is Op.REPEAT}
-    assert reps2 == {2}                                     # our old default (paper bound is r<=4)
+    assert reps2 == {2}  # our old default (paper bound is r<=4)
 
     t4 = ProgramMCTS(num_layers=6, budget=10, seed=0, max_repeat_times=4)
     reps4 = {times for (_s, _l, op, times) in t4._actions_for(()) if op is Op.REPEAT}
-    assert reps4 == {2, 3, 4}                               # ablation: 2x/3x/4x available
+    assert reps4 == {2, 3, 4}  # ablation: 2x/3x/4x available
 
-    prog = t4._build_program([(1, 2, Op.REPEAT, 3)])        # a 3x loop over layers 1,2
+    prog = t4._build_program([(1, 2, Op.REPEAT, 3)])  # a 3x loop over layers 1,2
     rep_seg = [s for s in prog.segments if s.op is Op.REPEAT][0]
     assert rep_seg.times == 3
     path = prog.to_layer_path()
@@ -834,15 +1021,30 @@ def test_ucb_global_v_default_is_true_and_bit_identical():
     """ucb_global_v defaults to True (matches PoLar's literal UCB formula) ->
     omitting it must be bit-identical to passing it explicitly."""
     fake = FakeReward()
-    runner_default = MCTSRunner(make_inputs(3), num_layers=D, reward_fn=fake,
-                                budget=100, c=1.414, lam=5.0, seed=0,
-                                global_selection=False)
+    runner_default = MCTSRunner(
+        make_inputs(3),
+        num_layers=D,
+        reward_fn=fake,
+        budget=100,
+        c=1.414,
+        lam=5.0,
+        seed=0,
+        global_selection=False,
+    )
     trees_default = runner_default.run(log_every=0)
 
     fake2 = FakeReward()
-    runner_explicit = MCTSRunner(make_inputs(3), num_layers=D, reward_fn=fake2,
-                                 budget=100, c=1.414, lam=5.0, seed=0,
-                                 global_selection=False, ucb_global_v=True)
+    runner_explicit = MCTSRunner(
+        make_inputs(3),
+        num_layers=D,
+        reward_fn=fake2,
+        budget=100,
+        c=1.414,
+        lam=5.0,
+        seed=0,
+        global_selection=False,
+        ucb_global_v=True,
+    )
     trees_explicit = runner_explicit.run(log_every=0)
 
     for qid in trees_default:
@@ -856,8 +1058,9 @@ def test_ucb_global_v_uses_total_simulations_not_parent_visits():
     count -- these differ as soon as any simulation's path did NOT pass
     through a given parent, which is true for any non-root parent in a tree
     with real branching."""
-    tree = ProgramMCTS(num_layers=D, budget=50, c=1.414, lam=5.0, seed=0,
-                       global_selection=False, ucb_global_v=True)
+    tree = ProgramMCTS(
+        num_layers=D, budget=50, c=1.414, lam=5.0, seed=0, global_selection=False, ucb_global_v=True
+    )
     fake = FakeReward()
     n = 0
     while (prop := tree.propose()) is not None and n < 30:
@@ -868,9 +1071,11 @@ def test_ucb_global_v_uses_total_simulations_not_parent_visits():
 
     # find a non-root parent with children and >=1 fewer visits than the
     # tree's global total -- guaranteed for real branching within 30 sims
-    parent = next(node for node in tree._nodes.values()
-                  if node is not tree.root and node.children
-                  and node.visits < tree._global_visits_total)
+    parent = next(
+        node
+        for node in tree._nodes.values()
+        if node is not tree.root and node.children and node.visits < tree._global_visits_total
+    )
     child = next(iter(parent.children.values()))
     assert parent.visits < tree._global_visits_total  # the case this flag is FOR
 
@@ -882,18 +1087,19 @@ def test_ucb_global_v_uses_total_simulations_not_parent_visits():
     # reconstruct explicitly: explore term must equal ln(V)/ln(child.visits) with
     # V = tree._global_visits_total (not parent.visits)
     import math
+
     exploit = child.total_reward / child.visits
     penalty = tree.lam * child.executed_len / tree.num_layers
-    expected_global = exploit + tree.c * math.sqrt(
-        math.log(tree._global_visits_total) / child.visits) - penalty
+    expected_global = (
+        exploit + tree.c * math.sqrt(math.log(tree._global_visits_total) / child.visits) - penalty
+    )
     assert score_global_v == expected_global
 
 
 def test_trajectory_records_every_update_in_order_with_correct_parent_edges():
     """search_trajectory: one entry per update() call, in call order, letting a
     consumer rebuild the actual tree afterward."""
-    tree = ProgramMCTS(num_layers=D, budget=20, c=1.414, lam=5.0, seed=0,
-                       global_selection=False)
+    tree = ProgramMCTS(num_layers=D, budget=20, c=1.414, lam=5.0, seed=0, global_selection=False)
     fake = FakeReward()
     n = 0
     while (prop := tree.propose()) is not None:
@@ -924,8 +1130,7 @@ def test_trajectory_records_degenerate_retries_too():
     """A degenerate all-skip retry (program=None) is still a real tree node
     the search visited -- it must get a trajectory entry (empty path), not be
     silently dropped, so simulation-order stays faithful to what actually ran."""
-    tree = ProgramMCTS(num_layers=4, budget=50, seed=0, global_selection=False,
-                       max_repeat_times=2)
+    tree = ProgramMCTS(num_layers=4, budget=50, seed=0, global_selection=False, max_repeat_times=2)
     n = 0
     while (prop := tree.propose()) is not None:
         program, chain = prop
@@ -944,7 +1149,7 @@ def test_global_selection_bootstrap_is_free():
     tree = ProgramMCTS(num_layers=8, budget=5, seed=0, global_selection=True)
     prog, chain = tree.propose()
     assert chain == [tree.root]
-    assert prog.to_layer_path() == list(range(8))       # unedited identity
+    assert prog.to_layer_path() == list(range(8))  # unedited identity
     assert tree.proposals == 0, "bootstrap must not count against budget"
     tree.update(chain, 1.0, program=prog)
     assert tree.root.visits == 1 and tree.root.total_reward == 1.0
@@ -970,9 +1175,17 @@ def test_global_selection_finds_solution_and_prefers_shorter():
     own convergence, not epsilon's default, so it keeps the value it was
     originally designed/budgeted against."""
     fake = FakeReward()
-    runner = MCTSRunner(make_inputs(4), num_layers=D, reward_fn=fake,
-                        budget=500, c=1.414, lam=5.0, seed=0, global_selection=True,
-                        epsilon=0.1)
+    runner = MCTSRunner(
+        make_inputs(4),
+        num_layers=D,
+        reward_fn=fake,
+        budget=500,
+        c=1.414,
+        lam=5.0,
+        seed=0,
+        global_selection=True,
+        epsilon=0.1,
+    )
     trees = runner.run(log_every=0)
     solved = [qid for qid, t in trees.items() if t.valid_paths()]
     assert len(solved) == 4, f"only {len(solved)}/4 trees found the target program"
@@ -988,16 +1201,17 @@ def test_global_selection_reaches_deep_edit_without_widening():
     doesn't collapse to depth-1 (root only) the way removing widening from the
     default mode naively would."""
     reward = DeepRepeatReward()
-    tree = ProgramMCTS(num_layers=D, budget=200, c=1.414, lam=5.0, seed=0,
-                       global_selection=True)
-    prog, chain = tree.propose()   # bootstrap: identity never repeats layer 30 -> reward 0
+    tree = ProgramMCTS(num_layers=D, budget=200, c=1.414, lam=5.0, seed=0, global_selection=True)
+    prog, chain = tree.propose()  # bootstrap: identity never repeats layer 30 -> reward 0
     tree.update(chain, reward(prog, ["q"], ["42"])[0], program=prog)
     while (p := tree.propose()) is not None:
         program, chain = p
         r = reward(program, ["q"], ["42"])[0]
         tree.update(chain, r, program=program)
     valid = tree.valid_paths()
-    assert valid, "global-selection search failed to discover a repeat of layer 30 within budget 200"
+    assert (
+        valid
+    ), "global-selection search failed to discover a repeat of layer 30 within budget 200"
     assert all(p.count(30) >= 2 for p in valid)
 
 
@@ -1008,16 +1222,16 @@ def test_global_selection_reaches_multi_edit_without_widening():
     widening at all in this mode (the mechanism widening exists for in the
     default mode is replaced here by root's own score decaying via the real,
     global-V UCB formula -- see the module docstring block comment)."""
+
     def reward(prog):
         path = prog.to_layer_path()
         shallow_skip = any(layer not in path for layer in range(0, 8))
         deep_repeat = any(path.count(layer) >= 2 for layer in range(28, 36))
         return 1.0 if (shallow_skip and deep_repeat) else 0.0
 
-    tree = ProgramMCTS(num_layers=D, budget=300, c=1.414, lam=5.0, seed=0,
-                       global_selection=True)
+    tree = ProgramMCTS(num_layers=D, budget=300, c=1.414, lam=5.0, seed=0, global_selection=True)
     winners = []
-    prog, chain = tree.propose()   # bootstrap
+    prog, chain = tree.propose()  # bootstrap
     tree.update(chain, reward(prog), program=prog)
     while (p := tree.propose()) is not None:
         program, chain = p
@@ -1027,7 +1241,9 @@ def test_global_selection_reaches_multi_edit_without_widening():
         tree.update(chain, r, program=program)
 
     valid = tree.valid_paths()
-    assert valid, "global selection failed to combine a shallow skip + a deep repeat within budget 300"
+    assert (
+        valid
+    ), "global selection failed to combine a shallow skip + a deep repeat within budget 300"
     for path in valid:
         assert any(layer not in path for layer in range(0, 8))
         assert any(path.count(layer) >= 2 for layer in range(28, 36))
@@ -1041,8 +1257,7 @@ def test_global_selection_root_visits_track_total_simulations():
     at 1 -- this is what makes root's own exploration bonus decay over time
     instead of giving it permanent priority."""
     fake = FakeReward()
-    tree = ProgramMCTS(num_layers=D, budget=50, c=1.414, lam=5.0, seed=2,
-                       global_selection=True)
+    tree = ProgramMCTS(num_layers=D, budget=50, c=1.414, lam=5.0, seed=2, global_selection=True)
     n = 0
     prog, chain = tree.propose()
     tree.update(chain, fake(prog, ["q"], ["42"])[0], program=prog)
@@ -1063,8 +1278,7 @@ def test_global_selection_builds_a_single_parent_tree():
     collapsing in this mode -- every non-root node has exactly one parent,
     and that parent's `.children` dict really does contain it."""
     fake = FakeReward()
-    tree = ProgramMCTS(num_layers=8, budget=200, c=1.414, lam=5.0, seed=1,
-                       global_selection=True)
+    tree = ProgramMCTS(num_layers=8, budget=200, c=1.414, lam=5.0, seed=1, global_selection=True)
     prog, chain = tree.propose()
     tree.update(chain, fake(prog, ["q"], ["42"])[0], program=prog)
     while (p := tree.propose()) is not None:
@@ -1084,10 +1298,18 @@ def test_global_selection_epsilon_zero_is_deterministic_pure_argmax():
     """epsilon=0 removes the only source of randomness in selection besides
     seed-driven shuffle order, so two runs with the same seed must be
     bit-identical (sanity check on this code path's determinism)."""
+
     def collect(seed):
         fake = FakeReward()
-        tree = ProgramMCTS(num_layers=10, budget=40, c=1.414, lam=5.0,
-                           seed=seed, global_selection=True, epsilon=0.0)
+        tree = ProgramMCTS(
+            num_layers=10,
+            budget=40,
+            c=1.414,
+            lam=5.0,
+            seed=seed,
+            global_selection=True,
+            epsilon=0.0,
+        )
         prog, chain = tree.propose()
         tree.update(chain, fake(prog, ["q"], ["42"])[0], program=prog)
         while (p := tree.propose()) is not None:
@@ -1110,10 +1332,18 @@ def test_global_selection_epsilon_one_diverges_from_pure_argmax():
     (pure argmax) would produce near-identical search traces for a fresh,
     mostly-ungated tree -- exactly the failure mode this test would catch.
     Same seed/reward/budget, only epsilon differs."""
+
     def run(epsilon):
         fake = FakeReward()
-        tree = ProgramMCTS(num_layers=D, budget=30, c=1.414, lam=5.0, seed=7,
-                           global_selection=True, epsilon=epsilon)
+        tree = ProgramMCTS(
+            num_layers=D,
+            budget=30,
+            c=1.414,
+            lam=5.0,
+            seed=7,
+            global_selection=True,
+            epsilon=epsilon,
+        )
         prog, chain = tree.propose()
         tree.update(chain, fake(prog, ["q"], ["42"])[0], program=prog)
         while (p := tree.propose()) is not None:
@@ -1135,8 +1365,9 @@ def test_global_selection_epsilon_one_expands_multiple_distinct_nodes_quickly():
     silently narrowed the way the legacy gate narrows it (root has no children
     to pick among until it's already been expanded once)."""
     fake = FakeReward()
-    tree = ProgramMCTS(num_layers=D, budget=25, c=1.414, lam=5.0, seed=3,
-                       global_selection=True, epsilon=1.0)
+    tree = ProgramMCTS(
+        num_layers=D, budget=25, c=1.414, lam=5.0, seed=3, global_selection=True, epsilon=1.0
+    )
     prog, chain = tree.propose()
     tree.update(chain, fake(prog, ["q"], ["42"])[0], program=prog)
     expanded_from: set = set()
@@ -1148,7 +1379,8 @@ def test_global_selection_epsilon_one_expands_multiple_distinct_nodes_quickly():
         tree.update(chain, fake(program, ["q"], ["42"])[0], program=program)
     assert len(expanded_from) > 1, (
         "epsilon=1.0 only ever expanded from a single node -- candidate pool "
-        "may be silently narrowed, same failure shape as the legacy gate bug")
+        "may be silently narrowed, same failure shape as the legacy gate bug"
+    )
 
 
 def test_legacy_mode_epsilon_cannot_fire_on_first_selection_from_fresh_root():
@@ -1162,9 +1394,10 @@ def test_legacy_mode_epsilon_cannot_fire_on_first_selection_from_fresh_root():
     epsilon -- the very first post-bootstrap proposal ALWAYS goes through the
     plain widening-gated expansion path, never the epsilon branch."""
     fake = FakeReward()
-    tree = ProgramMCTS(num_layers=D, budget=1, c=1.414, lam=5.0, seed=0,
-                       global_selection=False, epsilon=1.0)  # epsilon=1.0: would ALWAYS
-                                                              # explore if the gate let it
+    tree = ProgramMCTS(
+        num_layers=D, budget=1, c=1.414, lam=5.0, seed=0, global_selection=False, epsilon=1.0
+    )  # epsilon=1.0: would ALWAYS
+    # explore if the gate let it
     # the gate is exactly `while not self._can_expand(node) and node.children:`
     # (search.py's propose(), legacy branch) -- `_can_expand(root)` being True
     # here makes `not self._can_expand(node)` False, so the AND is False and
@@ -1187,12 +1420,28 @@ def test_legacy_mode_is_reproducible_with_explicit_global_selection_false():
     same seed, must be bit-identical: confirms the legacy path is
     deterministic."""
     fake = FakeReward()
-    runner_a = MCTSRunner(make_inputs(3), num_layers=D, reward_fn=fake,
-                          budget=60, c=1.414, lam=5.0, seed=5, global_selection=False)
+    runner_a = MCTSRunner(
+        make_inputs(3),
+        num_layers=D,
+        reward_fn=fake,
+        budget=60,
+        c=1.414,
+        lam=5.0,
+        seed=5,
+        global_selection=False,
+    )
     trees_a = runner_a.run(log_every=0)
     fake2 = FakeReward()
-    runner_b = MCTSRunner(make_inputs(3), num_layers=D, reward_fn=fake2,
-                          budget=60, c=1.414, lam=5.0, seed=5, global_selection=False)
+    runner_b = MCTSRunner(
+        make_inputs(3),
+        num_layers=D,
+        reward_fn=fake2,
+        budget=60,
+        c=1.414,
+        lam=5.0,
+        seed=5,
+        global_selection=False,
+    )
     trees_b = runner_b.run(log_every=0)
     for qid in trees_a:
         assert sorted(trees_a[qid].evaluated) == sorted(trees_b[qid].evaluated)
@@ -1201,6 +1450,7 @@ def test_legacy_mode_is_reproducible_with_explicit_global_selection_false():
 def test_safe_grade_survives_garbage_answers():
     from re_polar.mcts.rewards import _safe_grade
     from re_polar.vendor.dart_math.eval import EvaluatorMath
+
     ev = EvaluatorMath()
     # both real crash cases seen in production: 1st: eq() raised on extracted
     # '-'; 2nd: extract_ans() itself raised on collapsed-model babble during
@@ -1219,22 +1469,34 @@ def test_grade_batch_isolates_pathological_answer_and_logs(tmp_path):
     from re_polar.mcts.rewards import GenerationReward
     from re_polar.core import Program
 
-    class _Tok:  padding_side = "left"
-    class _Eng:  tokenizer = _Tok(); device = "cpu"
-    class _Exe:  engine = _Eng()
+    class _Tok:
+        padding_side = "left"
+
+    class _Eng:
+        tokenizer = _Tok()
+        device = "cpu"
+
+    class _Exe:
+        engine = _Eng()
 
     log = tmp_path / "fails.jsonl"
-    r = GenerationReward(_Exe(), fail_log_path=str(log), difficulty=4,
-                         grade_timeout_s=3, grade_mem_bytes=512 * 1024**2, grade_workers=2)
+    r = GenerationReward(
+        _Exe(),
+        fail_log_path=str(log),
+        difficulty=4,
+        grade_timeout_s=3,
+        grade_mem_bytes=512 * 1024**2,
+        grade_workers=2,
+    )
     prog = Program.identity(36)
     refs = ["0.5", "5", "5"]
     texts = ["\\boxed{1/2}", "\\boxed{7}", "\\boxed{99999999!}"]
     qs = ["ok", "wrong", "explode"]
     out = r._grade_batch(refs, texts, qs, prog)
-    assert out[0] == 1.0 and out[1] == 0.0          # normal grading still works
-    assert out[2] == 0.0                            # pathological -> incorrect, no crash
+    assert out[0] == 1.0 and out[1] == 0.0  # normal grading still works
+    assert out[2] == 0.0  # pathological -> incorrect, no crash
     logged = [json.loads(x) for x in log.read_text().splitlines()]
-    assert any(e["question"] == "explode" for e in logged)             # sample captured
+    assert any(e["question"] == "explode" for e in logged)  # sample captured
     assert any(e["generated_answer"] == "\\boxed{99999999!}" for e in logged)
 
 
@@ -1245,16 +1507,23 @@ def test_grade_batch_recovers_from_broken_pool(tmp_path):
     from re_polar.mcts.rewards import GenerationReward
     from re_polar.core import Program
 
-    class _Tok:  padding_side = "left"
-    class _Eng:  tokenizer = _Tok(); device = "cpu"
-    class _Exe:  engine = _Eng()
+    class _Tok:
+        padding_side = "left"
+
+    class _Eng:
+        tokenizer = _Tok()
+        device = "cpu"
+
+    class _Exe:
+        engine = _Eng()
 
     r = GenerationReward(_Exe(), grade_workers=1)
     r._ensure_pool()
     r._pool.stop()  # simulate a broken pool (worker crashed -> pool unusable)
     # every subsequent schedule() on the dead pool raises -> must recover, not crash
-    out = r._grade_batch(["0.5", "5"], ["\\boxed{1/2}", "\\boxed{7}"], ["a", "b"],
-                         Program.identity(36))
+    out = r._grade_batch(
+        ["0.5", "5"], ["\\boxed{1/2}", "\\boxed{7}"], ["a", "b"], Program.identity(36)
+    )
     assert out == [1.0, 0.0]  # correct results despite starting from a dead pool
 
 
@@ -1268,8 +1537,8 @@ def test_boxed_gate_rejects_unboxed_babble_without_sympy():
     ev = EvaluatorMath(strict_extract=True)
     # giant expression as FREE TEXT (no \boxed{}) -> gate 0, sympy untouched
     assert _safe_grade(ev, "4", "the ones digit of $22^{22(11^{11})}$ is 4") is False
-    assert _safe_grade(ev, "0.5", "So the answer is \\boxed{1/2}.") is True   # boxed correct
-    assert _safe_grade(ev, "5", "\\boxed{7}") is False                        # boxed wrong
+    assert _safe_grade(ev, "0.5", "So the answer is \\boxed{1/2}.") is True  # boxed correct
+    assert _safe_grade(ev, "5", "\\boxed{7}") is False  # boxed wrong
 
 
 def test_grade_batch_no_storm_on_boxed_giant(tmp_path):
@@ -1281,22 +1550,36 @@ def test_grade_batch_no_storm_on_boxed_giant(tmp_path):
     from re_polar.mcts.rewards import GenerationReward
     from re_polar.core import Program
 
-    class _Tok:  padding_side = "left"
-    class _Eng:  tokenizer = _Tok(); device = "cpu"
-    class _Exe:  engine = _Eng()
+    class _Tok:
+        padding_side = "left"
+
+    class _Eng:
+        tokenizer = _Tok()
+        device = "cpu"
+
+    class _Exe:
+        engine = _Eng()
 
     log = tmp_path / "fails.jsonl"
-    r = GenerationReward(_Exe(), fail_log_path=str(log), difficulty=3,
-                         grade_timeout_s=3, grade_mem_bytes=512 * 1024**2, grade_workers=2)
+    r = GenerationReward(
+        _Exe(),
+        fail_log_path=str(log),
+        difficulty=3,
+        grade_timeout_s=3,
+        grade_mem_bytes=512 * 1024**2,
+        grade_workers=2,
+    )
     prog = Program.identity(36)
-    refs =  ["0.5",          "5",                  "5",         "4"]
+    refs = ["0.5", "5", "5", "4"]
     texts = ["\\boxed{1/2}", "\\boxed{99999999!}", "\\boxed{7}", "no box, giant 22^{22(11^{11})}"]
     out = r._grade_batch(refs, texts, ["good", "boxed_giant", "wrong", "unboxed"], prog)
     r._reset_pool()
-    assert out[0] == 1.0                          # good answer survives the giant sibling
-    assert out[1] == 0.0                          # boxed giant contained -> 0 (no crash)
-    assert out[2] == 0.0 and out[3] == 0.0        # wrong + unboxed -> 0
-    logged = [json.loads(x)["failure"] for x in log.read_text().splitlines()] if log.exists() else []
+    assert out[0] == 1.0  # good answer survives the giant sibling
+    assert out[1] == 0.0  # boxed giant contained -> 0 (no crash)
+    assert out[2] == 0.0 and out[3] == 0.0  # wrong + unboxed -> 0
+    logged = (
+        [json.loads(x)["failure"] for x in log.read_text().splitlines()] if log.exists() else []
+    )
     assert not any("OSError" in f or "Broken" in f or f == "unresolved" for f in logged)
 
 
@@ -1318,12 +1601,17 @@ def test_truncate_after_first_boxed_cuts_hallucinated_continuation():
     the second span is stripped first."""
     from re_polar.mcts.rewards import truncate_after_first_boxed
 
-    text = (" \\boxed{10}\n\nSolve the following math problem and output ONLY the "
-            "final answer directly, formatted strictly as \\boxed{ANSWER}.\n"
-            "### Problem Start\nA certain school has 480 students...")
+    text = (
+        " \\boxed{10}\n\nSolve the following math problem and output ONLY the "
+        "final answer directly, formatted strictly as \\boxed{ANSWER}.\n"
+        "### Problem Start\nA certain school has 480 students..."
+    )
     assert truncate_after_first_boxed(text) == " \\boxed{10}"
     # brace-depth matched, not naive first "}" -- must not truncate inside a nested brace
-    assert truncate_after_first_boxed("\\boxed{\\frac{1}{2}} \\boxed{ANSWER}") == "\\boxed{\\frac{1}{2}}"
+    assert (
+        truncate_after_first_boxed("\\boxed{\\frac{1}{2}} \\boxed{ANSWER}")
+        == "\\boxed{\\frac{1}{2}}"
+    )
 
 
 def test_grade_batch_grades_truncated_text_but_logs_raw(tmp_path):
@@ -1336,16 +1624,23 @@ def test_grade_batch_grades_truncated_text_but_logs_raw(tmp_path):
     from re_polar.mcts.rewards import GenerationReward
     from re_polar.core import Program
 
-    class _Tok:  padding_side = "left"
-    class _Eng:  tokenizer = _Tok(); device = "cpu"
-    class _Exe:  engine = _Eng()
+    class _Tok:
+        padding_side = "left"
 
-    r = GenerationReward(_Exe(), grade_workers=1,
-                         text_log_path=str(tmp_path / "answers.jsonl"))
+    class _Eng:
+        tokenizer = _Tok()
+        device = "cpu"
+
+    class _Exe:
+        engine = _Eng()
+
+    r = GenerationReward(_Exe(), grade_workers=1, text_log_path=str(tmp_path / "answers.jsonl"))
     prog = Program.identity(36)
-    raw_text = (" \\boxed{10}\n\nSolve the following math problem and output ONLY "
-                "the final answer directly, formatted strictly as \\boxed{ANSWER}.\n"
-                "### Problem Start\nnext hallucinated question...")
+    raw_text = (
+        " \\boxed{10}\n\nSolve the following math problem and output ONLY "
+        "the final answer directly, formatted strictly as \\boxed{ANSWER}.\n"
+        "### Problem Start\nnext hallucinated question..."
+    )
     out = r._grade_batch(["10"], [raw_text], ["q"], prog)
     r._reset_pool()
 
@@ -1424,11 +1719,11 @@ def test_passk_shrinks_generate_batch_to_avoid_oom(tmp_path):
     r._reset_pool()
 
     assert len(out) == 10
-    assert all(v == 1.0 for v in out)          # "\boxed{1}" vs gt "1" -> every sample correct
+    assert all(v == 1.0 for v in out)  # "\boxed{1}" vs gt "1" -> every sample correct
     # batch_size=32 // k=5 == 6 -> every generate() call sees <= 6 prompts, never 32.
     assert model.batch_sizes, "generate() was never called"
     assert max(model.batch_sizes) <= 6
-    assert sum(model.batch_sizes) == 10        # all 10 questions covered exactly once
+    assert sum(model.batch_sizes) == 10  # all 10 questions covered exactly once
 
 
 def test_text_log_records_answers_and_batch_composition(tmp_path):
@@ -1444,10 +1739,14 @@ def test_text_log_records_answers_and_batch_composition(tmp_path):
 
     log = TextLog(tmp_path / "answers.jsonl")
     questions = ["what is 2+2?", "what is 3+3?", "what is 2+2?"]  # note the repeat
-    log.write_batch(questions, ["4", "6", "4"],
-                    ["the answer is 4", "the answer is 7", "4"],
-                    [1.0, 0.0, 1.0],
-                    [[0, 1, 2], [0, 1, 2], [0, 1, 2]], difficulty=3)
+    log.write_batch(
+        questions,
+        ["4", "6", "4"],
+        ["the answer is 4", "the answer is 7", "4"],
+        [1.0, 0.0, 1.0],
+        [[0, 1, 2], [0, 1, 2], [0, 1, 2]],
+        difficulty=3,
+    )
 
     rows = [_json.loads(l) for l in (tmp_path / "answers.jsonl").read_text().splitlines()]
     assert len(rows) == 3

@@ -6,6 +6,7 @@ One config = one report: `{"model": ..., "sources": [{"label", "path"}, ...],
 a plain dataclass (no pydantic dependency), this package should stay
 import-light.
 """
+
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,9 +24,9 @@ AXIS_LABELS = {
 
 @dataclass
 class ReportConfig:
-    model: str                      # key into MODEL_REGISTRY (fixes num_layers)
-    sources: List[dict]             # [{"label": str, "path": str}, ...]
-    insights: List[str]             # registered insight IDs to include, in order
+    model: str  # key into MODEL_REGISTRY (fixes num_layers)
+    sources: List[dict]  # [{"label": str, "path": str}, ...]
+    insights: List[str]  # registered insight IDs to include, in order
     title: str = "Analysis report"
     # One or more sample_info keys to group by, e.g. "difficulty" or
     # ["difficulty", "domain"] -- each axis is rendered as its own parallel
@@ -71,8 +72,14 @@ def load_config(path) -> ReportConfig:
     # through untouched.
     base_dir = path.resolve().parent
     sources = [
-        {**src, "path": str((base_dir / src["path"]).resolve()) if not Path(src["path"]).is_absolute()
-                 else src["path"]}
+        {
+            **src,
+            "path": (
+                str((base_dir / src["path"]).resolve())
+                if not Path(src["path"]).is_absolute()
+                else src["path"]
+            ),
+        }
         for src in raw["sources"]
     ]
 
@@ -88,8 +95,10 @@ def load_config(path) -> ReportConfig:
     elif isinstance(raw_group_by, list) and raw_group_by:
         group_by = raw_group_by
     else:
-        raise ValueError(f"{path}: 'group_by' must be a string, a non-empty list of strings, "
-                          f"or omitted, got {raw_group_by!r}")
+        raise ValueError(
+            f"{path}: 'group_by' must be a string, a non-empty list of strings, "
+            f"or omitted, got {raw_group_by!r}"
+        )
 
     return ReportConfig(
         model=raw["model"],

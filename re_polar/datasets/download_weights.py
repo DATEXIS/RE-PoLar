@@ -29,8 +29,11 @@ IGNORE_PATTERNS = ["*.bin", "*.msgpack", "*.h5", "*.ot", "*.pth", "original/*"]
 def main():
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--model", choices=sorted(MODEL_REGISTRY),
-                       help="resolves repo id via MODEL_REGISTRY[model]['model_id']")
+    group.add_argument(
+        "--model",
+        choices=sorted(MODEL_REGISTRY),
+        help="resolves repo id via MODEL_REGISTRY[model]['model_id']",
+    )
     group.add_argument("--repo-id", help="raw HF repo id, bypassing MODEL_REGISTRY")
     args = parser.parse_args()
 

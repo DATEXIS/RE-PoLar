@@ -78,9 +78,7 @@ class PolarRouter(nn.Module):
         if num_layers < 1:
             raise ValueError(f"num_layers must be >= 1, got {num_layers}")
         if n_ops < len(DEFAULT_OPS):
-            raise ValueError(
-                f"n_ops must be >= {len(DEFAULT_OPS)} (skip/keep/repeat), got {n_ops}"
-            )
+            raise ValueError(f"n_ops must be >= {len(DEFAULT_OPS)} (skip/keep/repeat), got {n_ops}")
         self.num_layers = num_layers
         self.n_ops = n_ops
         self.d_model = d_model
@@ -184,9 +182,7 @@ class PolarRouter(nn.Module):
         batch = torch.arange(last_hidden_states.size(0), device=last_hidden_states.device)
         return last_hidden_states[batch, seq_lengths]
 
-    def encode_questions(
-        self, questions: List[str]
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def encode_questions(self, questions: List[str]) -> Tuple[torch.Tensor, torch.Tensor]:
         """Questions -> (token hidden states (B,T,embed_dim), key_padding_mask (B,T)).
 
         Lazily loads the default encoder if none was supplied at construction.
@@ -242,9 +238,11 @@ class PolarRouter(nn.Module):
         token_hidden_states = token_hidden_states.to(self.q_proj.weight.dtype)
         feats = self.q_proj(token_hidden_states)  # (B,T,d_model)
         batch_size = feats.size(0)
-        layer_ids = torch.arange(
-            self.num_layers, device=self.layer_queries.weight.device
-        ).unsqueeze(0).expand(batch_size, self.num_layers)
+        layer_ids = (
+            torch.arange(self.num_layers, device=self.layer_queries.weight.device)
+            .unsqueeze(0)
+            .expand(batch_size, self.num_layers)
+        )
         layer_q = self.layer_queries(layer_ids)  # (B,D,d_model)
 
         # Cross-attend: Q = layer queries, K/V = question token states.
@@ -369,7 +367,7 @@ def decode(
     top_k = max(1, min(top_k_ops, n_vocab))
     # beam entries: (op_choice tuple, cumulative logprob)
     beams: List[Tuple[Tuple[int, ...], float]] = [((), 0.0)]
-    for (start, _end) in segments:
+    for start, _end in segments:
         lp = op_logp[start]
         ranked = sorted(range(n_vocab), key=lambda o: (-lp[o], o))[:top_k]
         expanded: List[Tuple[Tuple[int, ...], float]] = []
@@ -461,7 +459,7 @@ def decode_topk(
     beam_width = max(4 * k, 16)
     top_kk = max(1, min(top_k_ops, n_vocab))
     beams: List[Tuple[Tuple[int, ...], float]] = [((), 0.0)]
-    for (start, _end) in segments:
+    for start, _end in segments:
         lp = op_logp[start]
         ranked = sorted(range(n_vocab), key=lambda o: (-lp[o], o))[:top_kk]
         expanded: List[Tuple[Tuple[int, ...], float]] = []
@@ -486,6 +484,14 @@ def decode_topk(
             break
 
     if not out:  # beam produced nothing valid -> decode()'s guaranteed-valid fallback
-        out = [decode(seg_logits, op_logits, num_layers=num_layers, ops=ops,
-                       threshold=threshold, top_k_ops=top_k_ops)]
+        out = [
+            decode(
+                seg_logits,
+                op_logits,
+                num_layers=num_layers,
+                ops=ops,
+                threshold=threshold,
+                top_k_ops=top_k_ops,
+            )
+        ]
     return out

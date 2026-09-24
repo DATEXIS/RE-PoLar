@@ -10,6 +10,7 @@ Usage:
     python -m analysis.baseline_reproduction.aggregate_baseline_tables \
         --raw-dir raw --out-dir .
 """
+
 import argparse
 import json
 from pathlib import Path
@@ -101,8 +102,7 @@ def build_dart_math(raw_dir: Path) -> str:
         "DM-1..5), prompt = `paper_minimal_fewshot`. Raw JSONs: "
         "`raw/baseline_passk_*.json`.",
         "",
-        "Paper reference numbers (where a table exists) verified directly "
-        "against the ICML PDF.",
+        "Paper reference numbers (where a table exists) verified directly " "against the ICML PDF.",
         "",
     ]
     for d in rows:
@@ -150,7 +150,9 @@ def build_dart_math(raw_dir: Path) -> str:
                 lines.append(f"| {METRIC_LABELS[mk]} | " + " | ".join(deltas) + " |")
             lines.append("")
         else:
-            lines.append("*No paper table exists for this model (not one of PoLar's 4 published study models).*")
+            lines.append(
+                "*No paper table exists for this model (not one of PoLar's 4 published study models).*"
+            )
             lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -218,7 +220,14 @@ def build_ood(raw_dir: Path) -> str:
 
 
 def _probe_table(rows, title, note):
-    lines = [f"## {title}", "", note, "", "| model | raw τ=0 | chat/faithful τ=0 | Δ(chat−raw) τ=0 (pp) |", "|---|---|---|---|"]
+    lines = [
+        f"## {title}",
+        "",
+        note,
+        "",
+        "| model | raw τ=0 | chat/faithful τ=0 | Δ(chat−raw) τ=0 (pp) |",
+        "|---|---|---|---|",
+    ]
     for d in sorted(rows, key=lambda d: model_sort_key(d["model"])):
         model = d["model"]
         c = d.get("conditions", {})
@@ -232,7 +241,9 @@ def _probe_table(rows, title, note):
 
 
 def build_chat_template_probe(raw_dir: Path) -> str:
-    generic_files = [f for f in load(raw_dir, "chat_template_probe_*.json") if "polarfaithful" not in f.name]
+    generic_files = [
+        f for f in load(raw_dir, "chat_template_probe_*.json") if "polarfaithful" not in f.name
+    ]
     faithful_files = load(raw_dir, "chat_template_probe_polarfaithful_*.json")
     generic = [json.loads(f.read_text()) for f in generic_files]
     faithful = [json.loads(f.read_text()) for f in faithful_files]
@@ -241,18 +252,20 @@ def build_chat_template_probe(raw_dir: Path) -> str:
         "# Chat-template mechanism probe: raw vs. chat, content held fixed",
         "",
         "Source: `chat_template_probe.py`, 200-question pooled sample (seed 42), "
-        "`dart_math_v2`. \"chat\" = chat template applied, no system message "
+        '`dart_math_v2`. "chat" = chat template applied, no system message '
         "(generic probe) or + system message (PoLar-faithful probe). Raw "
         "JSONs: `raw/chat_template_probe*.json`.",
         "",
     ]
     lines += _probe_table(
-        generic, "Generic (raw vs. chat, no system message)",
+        generic,
+        "Generic (raw vs. chat, no system message)",
         "Mechanism-only ablation across all 6 models, content is `paper_minimal_fewshot` on both sides.",
     )
     lines += _probe_table(
-        faithful, "PoLar-faithful (raw vs. chat + system message)",
-        "Same ablation, but the \"chat\" condition adds PoLar's real system message "
+        faithful,
+        "PoLar-faithful (raw vs. chat + system message)",
+        'Same ablation, but the "chat" condition adds PoLar\'s real system message '
         "for the models whose PoLar mechanism includes one. qwen25_3b's run here "
         "was superseded by the fuller PoLar-literal reproduction track (see "
         "literal_repro.md) but is kept for provenance.",

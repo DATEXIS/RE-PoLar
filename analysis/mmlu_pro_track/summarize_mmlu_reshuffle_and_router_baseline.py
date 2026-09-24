@@ -18,6 +18,7 @@ for the exact expected filename.
     python -m analysis.mmlu_pro_track.summarize_mmlu_reshuffle_and_router_baseline \\
         --data-dir mmlu_router_figures
 """
+
 import argparse
 import json
 import statistics
@@ -35,12 +36,30 @@ def load_reshuffle_strata(data_dir: Path):
     broad = json.loads((data_dir / "broad.json").read_text())["by_identity_orig_correct"]
 
     return [
-        ("Identity control (whole dataset)", identity["n"], identity["original_acc"], identity["shuffled_acc"]),
-        ("Any program, identity correct", broad["identity_orig_correct"]["n"],
-         broad["identity_orig_correct"]["program_orig_acc"], broad["identity_orig_correct"]["program_shuffled_acc"]),
-        ("Any program, identity wrong (RESCUE)", broad["identity_orig_wrong"]["n"],
-         broad["identity_orig_wrong"]["program_orig_acc"], broad["identity_orig_wrong"]["program_shuffled_acc"]),
-        ("RESCUE only (dedicated)", rescue["n"], rescue["program_orig_acc"], rescue["program_shuffled_acc"]),
+        (
+            "Identity control (whole dataset)",
+            identity["n"],
+            identity["original_acc"],
+            identity["shuffled_acc"],
+        ),
+        (
+            "Any program, identity correct",
+            broad["identity_orig_correct"]["n"],
+            broad["identity_orig_correct"]["program_orig_acc"],
+            broad["identity_orig_correct"]["program_shuffled_acc"],
+        ),
+        (
+            "Any program, identity wrong (RESCUE)",
+            broad["identity_orig_wrong"]["n"],
+            broad["identity_orig_wrong"]["program_orig_acc"],
+            broad["identity_orig_wrong"]["program_shuffled_acc"],
+        ),
+        (
+            "RESCUE only (dedicated)",
+            rescue["n"],
+            rescue["program_orig_acc"],
+            rescue["program_shuffled_acc"],
+        ),
     ]
 
 
@@ -72,7 +91,9 @@ def load_router_vs_random(data_dir: Path):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--data-dir", required=True, help="dir with the input result JSON files")
     args = ap.parse_args()
 

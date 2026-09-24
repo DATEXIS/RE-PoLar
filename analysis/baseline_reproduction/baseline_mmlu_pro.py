@@ -22,6 +22,7 @@ no need to re-derive it by grouping per-sample scores ourselves.
       --model qwen3_8b --data-dir mmlu_pro_official \
       --output baseline_mmlu_pro_qwen3_8b.json
 """
+
 import argparse
 import json
 from pathlib import Path
@@ -37,12 +38,21 @@ def main(argv=None):
 
     p = argparse.ArgumentParser()
     p.add_argument("--model", default="qwen3_8b")
-    p.add_argument("--data-dir", required=True, help="dir with test.json from mmlu_pro_official_test")
-    p.add_argument("--domains", default=None,
-                   help="comma-separated category filter; default = all categories present in the data")
-    p.add_argument("--batch-size", type=int, default=128,
-                   help="logits_to_keep=1 for this scorer -> memory dominated by weights, "
-                        "not logits, so a larger batch than a generation task is fine")
+    p.add_argument(
+        "--data-dir", required=True, help="dir with test.json from mmlu_pro_official_test"
+    )
+    p.add_argument(
+        "--domains",
+        default=None,
+        help="comma-separated category filter; default = all categories present in the data",
+    )
+    p.add_argument(
+        "--batch-size",
+        type=int,
+        default=128,
+        help="logits_to_keep=1 for this scorer -> memory dominated by weights, "
+        "not logits, so a larger batch than a generation task is fine",
+    )
     p.add_argument("--output", required=True)
     args = p.parse_args(argv)
 
@@ -55,11 +65,21 @@ def main(argv=None):
     if args.domains:
         wanted = {d.strip() for d in args.domains.split(",")}
         records = [r for r in records if r["category"] in wanted]
-    samples = [MMLUProSample(id=i, question=str(r["question"]), options=tuple(r["options"]),
-                              answer_index=int(r["answer_index"]), category=str(r["category"]))
-               for i, r in enumerate(records)]
-    print(f"[data] {len(samples)} questions, {len(set(s.category for s in samples))} categories, "
-          f"batch_size={args.batch_size}, no_think={no_think}", flush=True)
+    samples = [
+        MMLUProSample(
+            id=i,
+            question=str(r["question"]),
+            options=tuple(r["options"]),
+            answer_index=int(r["answer_index"]),
+            category=str(r["category"]),
+        )
+        for i, r in enumerate(records)
+    ]
+    print(
+        f"[data] {len(samples)} questions, {len(set(s.category for s in samples))} categories, "
+        f"batch_size={args.batch_size}, no_think={no_think}",
+        flush=True,
+    )
 
     engine = LayerEngine(cfg["model_id"], trust_remote_code=cfg.get("trust_remote_code", True))
     executor = ProgramExecutor(engine)
@@ -68,22 +88,39 @@ def main(argv=None):
 
     try:
         import torch
+
         gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu"
     except Exception:
         gpu_name = "unknown"
-    run_env = {"gpu_name": gpu_name, "batch_size": args.batch_size, "no_think": no_think,
-               "data_dir": str(args.data_dir), "num_layers": D, "n": len(samples)}
+    run_env = {
+        "gpu_name": gpu_name,
+        "batch_size": args.batch_size,
+        "no_think": no_think,
+        "data_dir": str(args.data_dir),
+        "num_layers": D,
+        "n": len(samples),
+    }
     print(f"[env] {run_env}", flush=True)
 
     with executor.apply(identity) as model:
-        result = run_mmlu_pro_domains(model, engine.tokenizer, samples=samples,
-                                      batch_size=args.batch_size, no_think=no_think,
-                                      return_details=False)
+        result = run_mmlu_pro_domains(
+            model,
+            engine.tokenizer,
+            samples=samples,
+            batch_size=args.batch_size,
+            no_think=no_think,
+            return_details=False,
+        )
 
-    out = {"model": args.model, "env": run_env,
-           "base_greedy_average": round(result["average"], 4),
-           "per_domain": {d: {"average": round(v["average"], 4), "n": v["n"]}
-                          for d, v in sorted(result["per_domain"].items())}}
+    out = {
+        "model": args.model,
+        "env": run_env,
+        "base_greedy_average": round(result["average"], 4),
+        "per_domain": {
+            d: {"average": round(v["average"], 4), "n": v["n"]}
+            for d, v in sorted(result["per_domain"].items())
+        },
+    }
     outp = Path(args.output)
     outp.parent.mkdir(parents=True, exist_ok=True)
     outp.write_text(json.dumps(out, indent=2))

@@ -260,7 +260,7 @@ def predict_programs(router, questions: Sequence[str], *, batch_size: int = 64) 
     router.eval()
     with torch.no_grad():
         for start in range(0, len(questions), batch_size):
-            chunk = list(questions[start:start + batch_size])
+            chunk = list(questions[start : start + batch_size])
             seg_logits, op_logits = router(questions=chunk)
             programs.extend(decode_programs(router, seg_logits, op_logits))
     return programs
@@ -281,7 +281,7 @@ def predict_programs_topk(
     router.eval()
     with torch.no_grad():
         for start in range(0, len(questions), batch_size):
-            chunk = list(questions[start:start + batch_size])
+            chunk = list(questions[start : start + batch_size])
             seg_logits, op_logits = router(questions=chunk)
             for i in range(seg_logits.shape[0]):
                 out.append(router.decode_topk(seg_logits[i], op_logits[i], k=k))
@@ -294,28 +294,48 @@ def predict_programs_topk(
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Router inference + evaluation on TEST.")
     p.add_argument("--checkpoint", required=True, help="router .pt from re_polar.router.train")
-    p.add_argument("--model", default="qwen3_8b", choices=sorted(MODEL_REGISTRY),
-                   help="target model in MODEL_REGISTRY (sets router D); default qwen3_8b")
+    p.add_argument(
+        "--model",
+        default="qwen3_8b",
+        choices=sorted(MODEL_REGISTRY),
+        help="target model in MODEL_REGISTRY (sets router D); default qwen3_8b",
+    )
     p.add_argument("--data-dir", required=True, help="dir containing diff{N}/test.json")
-    p.add_argument("--difficulty", action="append", default=None,
-                   help="difficulty split: int (repeatable) or 'all' (default: all 1..5)")
+    p.add_argument(
+        "--difficulty",
+        action="append",
+        default=None,
+        help="difficulty split: int (repeatable) or 'all' (default: all 1..5)",
+    )
     p.add_argument("--output", required=True, help="path to write the results JSON")
-    p.add_argument("--batch-size", type=int, default=64,
-                   help="generation batch for GenerationReward (also router forward batch)")
-    p.add_argument("--top-k-paths", type=int, default=1,
-                   help="decode top-k programs per question and score pass@k (paper's "
-                        "top-k beam eval); default 1 == top-1 pass@1 (unchanged behaviour)")
-    p.add_argument("--limit", type=int, default=None,
-                   help="first N test questions per difficulty (smoke)")
+    p.add_argument(
+        "--batch-size",
+        type=int,
+        default=64,
+        help="generation batch for GenerationReward (also router forward batch)",
+    )
+    p.add_argument(
+        "--top-k-paths",
+        type=int,
+        default=1,
+        help="decode top-k programs per question and score pass@k (paper's "
+        "top-k beam eval); default 1 == top-1 pass@1 (unchanged behaviour)",
+    )
+    p.add_argument(
+        "--limit", type=int, default=None, help="first N test questions per difficulty (smoke)"
+    )
     p.add_argument("--device", default=None, help="cpu / cuda / mps for the router (default: auto)")
-    p.add_argument("--prompt-style", default="paper_minimal_fewshot",
-                   help="passed through to GenerationReward -- default matches the MCTS "
-                        "search's own canonical choice. "
-                        "This CLI previously silently defaulted to GenerationReward's OWN "
-                        "class default ('raw', no fewshot demo) with no way to override -- "
-                        "fixed to make it explicit. Note: grade_router_topk/predict_programs_topk "
-                        "themselves take an externally-built reward_fn, so any caller that builds "
-                        "its OWN GenerationReward directly is unaffected by this CLI's default.")
+    p.add_argument(
+        "--prompt-style",
+        default="paper_minimal_fewshot",
+        help="passed through to GenerationReward -- default matches the MCTS "
+        "search's own canonical choice. "
+        "This CLI previously silently defaulted to GenerationReward's OWN "
+        "class default ('raw', no fewshot demo) with no way to override -- "
+        "fixed to make it explicit. Note: grade_router_topk/predict_programs_topk "
+        "themselves take an externally-built reward_fn, so any caller that builds "
+        "its OWN GenerationReward directly is unaffected by this CLI's default.",
+    )
     return p
 
 
@@ -349,7 +369,9 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
     executor = ProgramExecutor(engine)
     D = engine.num_layers
     # Reuse the MCTS reward verbatim: apply-program + batched greedy gen + capped grading.
-    reward_fn = GenerationReward(executor, batch_size=args.batch_size, prompt_style=args.prompt_style)
+    reward_fn = GenerationReward(
+        executor, batch_size=args.batch_size, prompt_style=args.prompt_style
+    )
 
     router = load_checkpoint(args.checkpoint)  # offline rebuild (embed_dim path, no download yet)
     if router.num_layers != D:
@@ -373,8 +395,10 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
         questions = [d["question"] for d in data]
         gt_answers = [d["gt_ans"] for d in data]
         k = max(1, args.top_k_paths)
-        print(f"[diff {diff}] {len(questions)} test questions, predicting programs"
-              f"{f' (top-{k})' if k > 1 else ''}...")
+        print(
+            f"[diff {diff}] {len(questions)} test questions, predicting programs"
+            f"{f' (top-{k})' if k > 1 else ''}..."
+        )
 
         identity_rewards = reward_fn(identity_program, questions, gt_answers)
         if k == 1:
@@ -389,7 +413,8 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
             programs = [cands[0] for cands in topk]  # top-1 == predict_programs
             assert_roundtrips(programs, D)
             rewards_at_k, rewards_at_1, _chosen = grade_router_topk(
-                topk, questions, gt_answers, reward_fn)
+                topk, questions, gt_answers, reward_fn
+            )
             summary = summarize(rewards_at_1, programs, identity_rewards, D)
             summary["top_k"] = k
             summary["router_acc_at_k"] = _mean(rewards_at_k)
@@ -410,10 +435,12 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
         "gate1_pass": all(s["gate1_pass"] for s in per_difficulty),
     }
     if any("router_acc_at_k" in s for s in per_difficulty):
-        overall["router_acc_at_k"] = _mean([s.get("router_acc_at_k", s["router_acc"])
-                                            for s in per_difficulty])
-        overall["gate1_at_k_pass"] = all(s.get("gate1_at_k_pass", s["gate1_pass"])
-                                         for s in per_difficulty)
+        overall["router_acc_at_k"] = _mean(
+            [s.get("router_acc_at_k", s["router_acc"]) for s in per_difficulty]
+        )
+        overall["gate1_at_k_pass"] = all(
+            s.get("gate1_at_k_pass", s["gate1_pass"]) for s in per_difficulty
+        )
 
     result = {
         "model": args.model,
@@ -432,30 +459,44 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
     return out_path
 
 
-def _print_report(model: str, D: int, checkpoint, per_difficulty: List[dict], overall: dict) -> None:
+def _print_report(
+    model: str, D: int, checkpoint, per_difficulty: List[dict], overall: dict
+) -> None:
     print(f"\nRouter inference, {model} (D={D}), checkpoint {checkpoint}")
-    header = (f"{'diff':>4} {'n':>6} {'router':>8} {'ident':>8} {'delta':>8} "
-              f"{'execlen':>8} {'skip%':>6} {'rep%':>6}  gate1")
+    header = (
+        f"{'diff':>4} {'n':>6} {'router':>8} {'ident':>8} {'delta':>8} "
+        f"{'execlen':>8} {'skip%':>6} {'rep%':>6}  gate1"
+    )
     print(header)
     has_k = any("router_acc_at_k" in s for s in per_difficulty)
     for s in per_difficulty:
-        line = (f"{s['difficulty']:>4} {s['n']:>6} {s['router_acc']:>8.4f} {s['identity_acc']:>8.4f} "
-                f"{s['delta']:>+8.4f} {s['mean_executed_len']:>8.2f} "
-                f"{s['frac_programs_with_skip'] * 100:>5.1f}% {s['frac_programs_with_repeat'] * 100:>5.1f}%  "
-                f"{'PASS' if s['gate1_pass'] else 'FAIL'}")
+        line = (
+            f"{s['difficulty']:>4} {s['n']:>6} {s['router_acc']:>8.4f} {s['identity_acc']:>8.4f} "
+            f"{s['delta']:>+8.4f} {s['mean_executed_len']:>8.2f} "
+            f"{s['frac_programs_with_skip'] * 100:>5.1f}% {s['frac_programs_with_repeat'] * 100:>5.1f}%  "
+            f"{'PASS' if s['gate1_pass'] else 'FAIL'}"
+        )
         if has_k and "router_acc_at_k" in s:
-            line += (f"   pass@{s['top_k']} {s['router_acc_at_k']:>8.4f} "
-                     f"({s['delta_at_k']:>+.4f} {'PASS' if s['gate1_at_k_pass'] else 'FAIL'})")
+            line += (
+                f"   pass@{s['top_k']} {s['router_acc_at_k']:>8.4f} "
+                f"({s['delta_at_k']:>+.4f} {'PASS' if s['gate1_at_k_pass'] else 'FAIL'})"
+            )
         print(line)
     for s in per_difficulty:
-        print(f"GATE 1 (router_acc >= identity_acc) diff {s['difficulty']}: "
-              f"{'PASS' if s['gate1_pass'] else 'FAIL'} "
-              f"({s['router_acc']:.4f} vs {s['identity_acc']:.4f})")
-    print(f"\nOVERALL GATE 1: {'PASS' if overall['gate1_pass'] else 'FAIL'} "
-          f"(mean router {overall['router_acc']:.4f} vs identity {overall['identity_acc']:.4f})")
+        print(
+            f"GATE 1 (router_acc >= identity_acc) diff {s['difficulty']}: "
+            f"{'PASS' if s['gate1_pass'] else 'FAIL'} "
+            f"({s['router_acc']:.4f} vs {s['identity_acc']:.4f})"
+        )
+    print(
+        f"\nOVERALL GATE 1: {'PASS' if overall['gate1_pass'] else 'FAIL'} "
+        f"(mean router {overall['router_acc']:.4f} vs identity {overall['identity_acc']:.4f})"
+    )
     if "router_acc_at_k" in overall:
-        print(f"OVERALL pass@k: {'PASS' if overall['gate1_at_k_pass'] else 'FAIL'} "
-              f"(mean router_acc_at_k {overall['router_acc_at_k']:.4f} vs identity {overall['identity_acc']:.4f})")
+        print(
+            f"OVERALL pass@k: {'PASS' if overall['gate1_at_k_pass'] else 'FAIL'} "
+            f"(mean router_acc_at_k {overall['router_acc_at_k']:.4f} vs identity {overall['identity_acc']:.4f})"
+        )
 
 
 if __name__ == "__main__":
