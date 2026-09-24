@@ -1,6 +1,6 @@
 """Menu coverage via real cross-execution: for a model/difficulty, rank
-non-identity programs by how many questions they solved DURING the original
-MCTS search, then actually EXECUTE the top-K of those programs against every
+programs -- identity included -- by how many questions they solved DURING
+the original MCTS search, then actually EXECUTE the top-K of those programs against every
 question in the full train+val+test pool (not just the ones the search
 happened to already try each program on). This is what produces the paper's
 Finding 5 menu-coverage numbers (coverage vs. menu size K): ranking alone
@@ -48,10 +48,13 @@ def resolve_difficulties(vals):
 
 
 def build_candidate_pool(mcts_samples, pool_qids, k):
-    """Rank non-identity programs by how many pool questions they were
-    recorded valid for during the original search ("most found" first), and
-    return the top-k along with the full set of (qid -> known reward) pairs
-    already on record for each -- reused for free, never re-generated."""
+    """Rank programs -- identity included -- by how many pool questions they
+    were recorded valid for during the original search ("most found" first),
+    and return the top-k along with the full set of (qid -> known reward)
+    pairs already on record for each -- reused for free, never re-generated.
+    Identity is deliberately not excluded: it's "valid" for every question
+    the model's standard pass already answers correctly, so it typically
+    ranks #1 -- the paper's menu-coverage curve is meant to include it."""
     valid_qids = defaultdict(set)
     known = defaultdict(dict)  # path tuple -> {qid: reward}
     for sample in mcts_samples:

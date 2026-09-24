@@ -13,5 +13,12 @@ checkpoints/
 *.ckpt
 *.pt
 
+# the released dataset (~5.6GB, LFS-tracked) -- never bake this into the
+# image either: it inflates every build/push for no reason since the real
+# cluster workflow always mounts data/ from a PVC at runtime (see the k8s
+# Job template). If you run this image WITHOUT mounting data/ some other
+# way, it will be empty -- that's expected, not a bug.
+data/
+
 .pytest_cache/
 .ipynb_checkpoints/

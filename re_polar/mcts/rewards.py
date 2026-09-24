@@ -797,9 +797,16 @@ class GenerationReward:
     ) -> List[float]:
         prompts = [self._prompt_fn(self.tokenizer, q) for q in questions]
         rewards: List[float] = []
+        n_batches = max(1, (len(prompts) + self.batch_size - 1) // self.batch_size)
         with self.executor.apply(program) as model:
             for i in range(0, len(prompts), self.batch_size):
                 chunk = prompts[i : i + self.batch_size]
+                print(
+                    f"[GenerationReward] batch {i // self.batch_size + 1}/{n_batches} "
+                    f"({min(i + self.batch_size, len(prompts))}/{len(prompts)} questions, "
+                    f"program len={len(program.to_layer_path())})",
+                    flush=True,
+                )
                 inputs = self.tokenizer(chunk, return_tensors="pt", padding=True).to(self.device)
                 with torch.no_grad():
                     out = model.generate(
@@ -1200,7 +1207,12 @@ class LogLikReward:
         order. No text log here (LogLikReward has no generated text to log --
         `--log-probs` is per-row already, no batch-composition claim to keep
         honest the way `re_polar/mcts/textlog.py` does for GenerationReward)."""
-        from re_polar.core.mmlu_pro_scoring import MMLUProSample, _build_prompt, _choice_token_ids, _left_pad
+        from re_polar.core.mmlu_pro_scoring import (
+            MMLUProSample,
+            _build_prompt,
+            _choice_token_ids,
+            _left_pad,
+        )
         from re_polar.core.layer_engine import get_layers
         from transformers.masking_utils import create_causal_mask
 

@@ -17,37 +17,34 @@ and the cross-round (query_id, path) cache removes all repeat evaluations.
 The identity program is precomputed for every input first: it yields
 initial_transition_metric for the output schema and seeds the cache.
 
-PER-TREE SEED (added off by default; later flipped to on by default): all
-trees sharing one seed is what makes program-major batching
-effective (see test_program_major_batching_shares_evals_shared_seed_mode),
-but it also means every tree's root-action shuffle is IDENTICAL, so early
-rounds propose the same program for every input before rewards have any
-chance to diverge them. This was a hypothesis at first; a per-seed pilot
-CONFIRMED it as a real confound, not just a possible one: on
-diff1, shared-seed's top program covers 51% of inputs vs. per-tree-seed's 4%
-(top-10 coverage 78% vs 29%, 77% singletons under per-tree-seed), the shared
-seed was MANUFACTURING an artificial "menu" of common programs rather than
-reflecting genuine per-input diversity. `MCTSRunner(..., per_tree_seed=True)`
-derives a distinct, deterministic seed per query_id (`derive_tree_seed`,
-sha256-based, NOT Python's built-in hash(), which is randomized per-process
-unless PYTHONHASHSEED is fixed) instead of reusing the shared base seed, at
-the direct cost of collapsing program-major batching (see
-test_per_tree_seed_breaks_program_major_batching): empirically ~4.7x more
-reward_fn calls than shared-seed for the same budget. Given the confound is
-confirmed, not
-hypothetical, **default is now True**, pass
-`per_tree_seed=False` explicitly for the old shared-seed behavior (still
-fully supported, still what `test_program_major_batching_shares_evals_
-shared_seed_mode` exercises). The REWARD-FN REPLICA POOL below exists
-specifically to recoup the batching loss this causes; our own cluster
-benchmarks across GPU architectures (each defaulting
-to per_tree_seed=True for exactly this reason) show NO real speedup from
-more replicas (N=2: ~1.0x on one architecture; on another, N=2: 0.96x,
-N=4: 0.70x, degrading, not
-improving), so switching this default on is a real, currently-uncompensated
-cost increase for any full-scale run, not a free correctness fix. Measured
-directly before assuming the
-pool will absorb this.
+PER-TREE SEED (on by default): every tree gets its own deterministic seed
+derived from query_id (`derive_tree_seed`, sha256-based, NOT Python's
+built-in hash(), which is randomized per-process unless PYTHONHASHSEED is
+fixed). Pass `per_tree_seed=False` to instead have all trees share one
+seed (still fully supported; see
+test_program_major_batching_shares_evals_shared_seed_mode).
+
+Why the default is per-tree, not shared: sharing one seed across all trees
+is what makes program-major batching effective (identical root-action
+shuffles collide into big batches), but it also means every tree's shuffle
+is IDENTICAL, so early rounds propose the same program for every input
+before rewards have any chance to diverge them. A per-seed pilot confirmed
+this is a real confound, not just a theoretical one: on diff1, shared-seed's
+top program covered 51% of inputs vs. per-tree-seed's 4% (top-10 coverage
+78% vs 29%, 77% singletons under per-tree-seed) -- the shared seed was
+manufacturing an artificial "menu" of common programs rather than reflecting
+genuine per-input diversity.
+
+Cost of the per-tree default: it collapses program-major batching (see
+test_per_tree_seed_breaks_program_major_batching), empirically ~4.7x more
+reward_fn calls than shared-seed for the same budget. The REWARD-FN REPLICA
+POOL below exists specifically to recoup this batching loss; our own
+cluster benchmarks across GPU architectures show NO real speedup from more
+replicas (N=2: ~1.0x on one architecture; on another, N=2: 0.96x, N=4:
+0.70x, degrading, not improving), so per-tree seeding is a real,
+currently-uncompensated cost increase for any full-scale run, not a free
+correctness fix -- measure directly before assuming the pool will absorb
+this.
 
 REWARD-FN REPLICA POOL (off by default): the CoLa authors note on
 the HF paper page that per-sample searches are independent and "can be
