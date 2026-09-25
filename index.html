@@ -147,24 +147,12 @@
             <p class="tree-viz-intro">Every program our diagnostic MCTS discovered for 15 example questions
                 (Qwen3-8B, difficulties 1&ndash;4): an interactive tree of <em class="kw-skip">skip</em>,
                 <em class="kw-keep">keep</em>, and <em class="kw-repeat">repeat</em> edits, colored by
-                correctness, with a full search-trajectory replay. Runs entirely in your browser once
-                loaded &mdash; nothing is sent anywhere. Best viewed on desktop.</p>
+                correctness, with a full search-trajectory replay. Runs entirely in your browser
+                &mdash; nothing is sent anywhere. Best viewed on desktop.</p>
         </div>
         <div class="tree-viz-frame-wrap">
-            <div class="tree-viz-frame" id="tree-viz-frame">
-                <div class="tree-viz-preview" aria-hidden="true">
-                    <picture>
-                        <source media="(max-width: 480px)" srcset="media/tree_viz_preview_mobile.png">
-                        <img src="media/tree_viz_preview.png" alt="" class="tree-viz-preview-img">
-                    </picture>
-                </div>
-                <button class="tree-viz-load-btn" id="tree-viz-load-btn" type="button">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                        fill="currentColor">
-                        <path d="M8 5v14l11-7z"></path>
-                    </svg>
-                    Load interactive visualizer <span class="tree-viz-size">(1.7&nbsp;MB)</span>
-                </button>
+            <div class="tree-viz-frame">
+                <iframe src="media/tree_viz.html" title="MCTS program-tree visualizer" loading="lazy"></iframe>
             </div>
         </div>
     </section>
