@@ -1,0 +1,1019 @@
+<meta charset="utf-8">
+<title>MCTS program trees</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:      #f9f9f7;
+    --surface:   #fcfcfb;
+    --ink:       #0b0b0b;
+    --ink-2:     #52514e;
+    --muted:     #898781;
+    --grid:      #e1e0d9;
+    --border:    rgba(11,11,11,0.10);
+    --border-2:  rgba(11,11,11,0.16);
+    --accent:    #2a78d6;
+    --accent-wash: rgba(42,120,214,0.10);
+    --good:      #0ca30c;
+    --good-wash: rgba(12,163,12,0.14);
+    --critical:  #d03b3b;
+    --critical-wash: rgba(208,59,59,0.12);
+    --op-skip:   #52514e;
+    --op-skip-wash: rgba(82,81,78,0.14);
+    --op-repeat: #16a34a;
+    --op-repeat-wash: rgba(22,163,74,0.16);
+    --tooltip-bg: #1a1a19;
+    --tooltip-ink: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7;
+      --muted: #898781; --grid: #2c2c2a;
+      --border: rgba(255,255,255,0.10); --border-2: rgba(255,255,255,0.16);
+      --accent: #3987e5; --accent-wash: rgba(57,135,229,0.14);
+      --good: #0ca30c; --good-wash: rgba(12,163,12,0.18);
+      --critical: #e66767; --critical-wash: rgba(230,103,103,0.16);
+      --op-skip: #c3c2b7; --op-skip-wash: rgba(195,194,183,0.20);
+      --op-repeat: #16a34a; --op-repeat-wash: rgba(22,163,74,0.20);
+      --tooltip-bg: #fcfcfb; --tooltip-ink: #0b0b0b;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7;
+    --muted: #898781; --grid: #2c2c2a;
+    --border: rgba(255,255,255,0.10); --border-2: rgba(255,255,255,0.16);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.14);
+    --good: #0ca30c; --good-wash: rgba(12,163,12,0.18);
+    --critical: #e66767; --critical-wash: rgba(230,103,103,0.16);
+    --op-skip: #c3c2b7; --op-skip-wash: rgba(195,194,183,0.20);
+    --op-repeat: #16a34a; --op-repeat-wash: rgba(22,163,74,0.20);
+    --tooltip-bg: #fcfcfb; --tooltip-ink: #0b0b0b;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e;
+    --muted: #898781; --grid: #e1e0d9;
+    --border: rgba(11,11,11,0.10); --border-2: rgba(11,11,11,0.16);
+    --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10);
+    --good: #0ca30c; --good-wash: rgba(12,163,12,0.14); --critical: #d03b3b;
+    --critical-wash: rgba(208,59,59,0.12);
+    --op-skip: #52514e; --op-skip-wash: rgba(82,81,78,0.14);
+    --op-repeat: #16a34a; --op-repeat-wash: rgba(22,163,74,0.16);
+    --tooltip-bg: #1a1a19; --tooltip-ink: #ffffff;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", "Cascadia Code", monospace; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  .app {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas: "header header" "describe describe" "sidebar canvas";
+    height: 100vh; min-height: 700px;
+  }
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: auto auto auto 62vh;
+      grid-template-areas: "header" "describe" "sidebar" "canvas"; height: auto; min-height: 100vh; }
+  }
+
+  header.top { grid-area: header; padding: 14px 22px 10px; border-bottom: 1px solid var(--border); }
+  header.top h1 { margin: 0 0 4px; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
+  header.top .sub { margin: 0; color: var(--ink-2); font-size: 12px; max-width: 108ch; }
+  header.top details { margin-top: 6px; }
+  header.top summary { font-size: 11.5px; color: var(--accent); cursor: pointer; font-weight: 600; }
+  header.top .more { margin: 7px 0 0; padding: 0 0 0 16px; color: var(--ink-2); font-size: 12px; max-width: 100ch; }
+  header.top .more li { list-style: disc; margin-bottom: 4px; }
+  header.top .more b { color: var(--ink); font-weight: 600; }
+
+  .describe {
+    grid-area: describe; border-bottom: 1px solid var(--border); background: var(--surface);
+    padding: 12px 22px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px 26px;
+  }
+  @media (max-width: 900px) { .describe { grid-template-columns: 1fr; } }
+  .describe .col { min-width: 0; }
+  .describe .eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 4px;
+  }
+  .describe .question { font-size: 14px; line-height: 1.5; color: var(--ink); }
+  .describe .gt { margin-top: 6px; font-size: 12px; color: var(--ink-2); }
+  .describe .gt b { color: var(--ink); font-family: ui-monospace, monospace; font-weight: 600; }
+  .gen-card {
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px;
+    background: var(--page); font-size: 12px; color: var(--ink-2); position: relative;
+  }
+  .gen-card .tag {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700;
+    padding: 1px 7px 1px 6px; border-radius: 999px; margin-bottom: 6px;
+  }
+  .gen-card .tag.good { color: var(--good); background: var(--good-wash); }
+  .gen-card .tag.critical { color: var(--critical); background: var(--critical-wash); }
+  .gen-card .txt {
+    font-family: ui-monospace, monospace; font-size: 11.3px; line-height: 1.55; color: var(--ink);
+    max-height: 4.8em; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+  }
+
+  .sidebar {
+    grid-area: sidebar; border-right: 1px solid var(--border); background: var(--surface);
+    overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 16px;
+  }
+  .block { display: flex; flex-direction: column; gap: 8px; }
+  .block h2 { margin: 0; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+  .model-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+  .model-btn {
+    border: 1px solid var(--border); background: var(--page); border-radius: 999px;
+    padding: 5px 12px; cursor: pointer; color: var(--ink); font-size: 12px; font-weight: 650;
+    transition: border-color .12s ease, background .12s ease, color .12s ease;
+  }
+  .model-btn:hover { border-color: var(--border-2); }
+  .model-btn.active { border-color: var(--accent); background: var(--accent-wash); color: var(--accent); }
+
+  .tree-picker {
+    display: flex; flex-direction: column; gap: 6px;
+    max-height: 230px; overflow-y: auto; padding-right: 4px;
+  }
+  .tree-btn {
+    text-align: left; border: 1px solid var(--border); background: var(--page); border-radius: 8px;
+    padding: 8px 10px; cursor: pointer; color: var(--ink); display: flex; flex-direction: column; gap: 3px;
+    transition: border-color .12s ease, background .12s ease;
+  }
+  .tree-btn:hover { border-color: var(--border-2); }
+  .tree-btn.active { border-color: var(--accent); background: var(--accent-wash); }
+  .tree-btn .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .tree-btn .label { font-weight: 650; font-size: 12.5px; }
+  .tree-btn .note { font-size: 11px; color: var(--ink-2); }
+  .tree-btn .chips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
+  .chip {
+    font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+    border: 1px solid var(--border-2); color: var(--ink-2); white-space: nowrap;
+  }
+  .chip.good { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+  .chip.critical { color: var(--critical); border-color: color-mix(in srgb, var(--critical) 45%, transparent); }
+
+  .legend { display: flex; flex-direction: column; gap: 7px; font-size: 12px; }
+  .legend .item { display: flex; align-items: flex-start; gap: 8px; }
+  .legend .swatch.dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 3px; flex: none; }
+  .legend .label { color: var(--ink-2); }
+  .legend .label b { color: var(--ink); font-weight: 600; }
+
+  .levels { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; }
+  .levels .lv { display: flex; justify-content: space-between; padding: 3px 7px; border-radius: 5px; }
+  .levels .lv.hi { background: var(--accent-wash); }
+  .levels .lv .k { color: var(--ink-2); }
+  .levels .lv .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .stats { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 11px; background: var(--page); }
+  .stats .row { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; }
+  .stats .row .k { color: var(--muted); }
+  .stats .row .v { color: var(--ink); font-weight: 600; text-align: right; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 6px; }
+  button.ctrl {
+    font: inherit; font-size: 11.5px; font-weight: 600; border: 1px solid var(--border-2);
+    background: var(--page); color: var(--ink); border-radius: 6px; padding: 5px 9px; cursor: pointer;
+  }
+  button.ctrl:hover { border-color: var(--accent); color: var(--accent); }
+  button.ctrl:focus-visible, .tree-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .canvas-wrap { grid-area: canvas; position: relative; overflow: hidden; background: var(--page); }
+  svg#tree-svg { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+  svg#tree-svg.grabbing { cursor: grabbing; }
+
+  .levelband { fill: var(--surface); }
+  .levellabel { font-size: 11px; font-weight: 700; fill: var(--muted); font-family: ui-monospace, monospace; }
+  .levelrule { stroke: var(--grid); }
+
+  .l1box { fill: var(--grid); stroke: var(--border-2); stroke-width: 1px; rx: 1.5px; }
+  .l1box.tick { stroke: var(--muted); stroke-width: 1.3px; }
+  .l1box.untouched { fill: color-mix(in srgb, var(--grid) 40%, var(--page)); stroke: var(--border); }
+  text.l1-ticklabel { font-size: 9px; fill: var(--ink-2); font-weight: 600; font-family: ui-monospace, monospace; pointer-events: none; }
+
+  .seg { fill: none; stroke-linecap: round; stroke-width: 1.4px; }
+  .seg.good { stroke: color-mix(in srgb, var(--good) 55%, transparent); }
+  .seg.critical { stroke: color-mix(in srgb, var(--critical) 55%, transparent); }
+  .seg.fallback { stroke-dasharray: 1 4; stroke: var(--muted); opacity: .8; }
+  .seg.samelevel { stroke-dasharray: 4 2; stroke: var(--op-repeat); opacity: .85; }
+
+  circle.node { cursor: pointer; stroke-width: 1.4px; transition: opacity .25s ease; }
+  circle.node-hit { fill: transparent; cursor: pointer; }
+  circle.node.good { fill: var(--good-wash); stroke: var(--good); }
+  circle.node.critical { fill: var(--critical-wash); stroke: var(--critical); }
+  circle.node.selected { stroke: var(--accent) !important; stroke-width: 2.6px; }
+  circle.node.root { fill: var(--ink); stroke: var(--ink); }
+
+  /* search-trajectory replay: dims not-yet-visited nodes/edges, spotlights the
+     live root->current-node path, only active while .canvas-wrap.animating */
+  .canvas-wrap.animating circle.node.pending { opacity: 0.1; }
+  .canvas-wrap.animating path.seg.pending { opacity: 0.06; }
+  circle.node.current-step {
+    stroke: var(--accent) !important; stroke-width: 3px !important;
+    filter: drop-shadow(0 0 5px var(--accent-wash)) drop-shadow(0 0 2px var(--accent));
+  }
+  path.seg.live { stroke: var(--accent) !important; stroke-width: 2.4px; opacity: 1 !important; }
+
+  text.node-label { font-size: 8.5px; fill: var(--ink-2); font-family: ui-monospace, monospace; pointer-events: none; }
+  text.root-label { font-size: 10px; font-weight: 700; fill: var(--ink); font-family: ui-monospace, monospace; }
+
+  /* per-node program strip: one box per model layer, colored by what
+     happens to it in that node's program (keep / skip / repeat xN) */
+  .prog-strip { display: flex; flex-direction: column; gap: 5px; }
+  .prog-strip .bar { display: flex; gap: 1px; }
+  .prog-strip .lbox { flex: 1 1 0; height: 16px; border-radius: 1.5px; }
+  .prog-strip .lbox.keep { background: var(--border-2); }
+  .prog-strip .lbox.skip { background: var(--op-skip); }
+  .prog-strip .lbox.repeat { background: var(--op-repeat); }
+  .prog-strip .prog-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 10.5px; color: var(--ink-2); }
+  .prog-strip .prog-legend span.sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
+  .zoom-toolbar { position: absolute; top: 10px; right: 12px; display: flex; gap: 6px; z-index: 3; }
+  .zoom-toolbar button {
+    width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border-2);
+    background: var(--surface); color: var(--ink); font-size: 14px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .zoom-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .hint {
+    position: absolute; bottom: 10px; left: 12px; font-size: 11px; color: var(--muted);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; z-index: 3;
+  }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 20; background: var(--tooltip-bg); color: var(--tooltip-ink);
+    border-radius: 7px; padding: 8px 10px; font-size: 11.5px; line-height: 1.5; max-width: 340px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.22); opacity: 0; transform: translateY(2px); transition: opacity .08s ease;
+  }
+  #tooltip.show { opacity: 1; }
+  #tooltip .t-title { font-weight: 700; margin-bottom: 4px; }
+  #tooltip ul.t-list { margin: 0; padding: 0 0 0 14px; display: flex; flex-direction: column; gap: 2px; }
+  #tooltip ul.t-list li { list-style: disc; }
+  #tooltip .t-prog { font-family: ui-monospace, monospace; }
+  #tooltip .t-ans { font-family: ui-monospace, monospace; opacity: .95; }
+
+  #inspector {
+    position: absolute; right: 12px; bottom: 12px; width: 360px; max-height: min(64vh, 520px);
+    background: var(--surface); border: 1px solid var(--border-2); border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.18); z-index: 15; display: none; flex-direction: column;
+    overflow: hidden;
+  }
+  #inspector.show { display: flex; }
+  #inspector .ins-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  #inspector .ins-title { font-size: 12.5px; font-weight: 700; }
+  #inspector .ins-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  #inspector .ins-close { border: none; background: none; color: var(--muted); font-size: 15px; cursor: pointer; line-height: 1; padding: 2px 4px; }
+  #inspector .ins-close:hover { color: var(--ink); }
+  #inspector .ins-body { padding: 10px 12px; overflow-y: auto; font-size: 12px; display: flex; flex-direction: column; gap: 8px; }
+  #inspector .ins-row { display: flex; justify-content: space-between; gap: 10px; }
+  #inspector .ins-row .k { color: var(--muted); }
+  #inspector .ins-row .v { font-weight: 600; }
+  #inspector .ins-txt {
+    font-family: ui-monospace, monospace; font-size: 11.3px; line-height: 1.55; color: var(--ink);
+    background: var(--page); border: 1px solid var(--border); border-radius: 7px; padding: 8px 9px;
+    white-space: pre-wrap; word-break: break-word;
+  }
+</style>
+
+<div class="app">
+  <header class="top"></header>
+
+  <div class="describe" id="describe"></div>
+
+  <div class="sidebar">
+    <div class="block" id="model-block" style="display:none">
+      <h2>Model</h2>
+      <div class="model-picker" id="model-picker"></div>
+    </div>
+
+    <div class="block">
+      <h2>Sample</h2>
+      <div class="tree-picker" id="tree-picker"></div>
+    </div>
+
+    <div class="block">
+      <h2>Programs per level</h2>
+      <div class="levels" id="levels"></div>
+    </div>
+
+    <div class="block">
+      <h2>Selected query</h2>
+      <div class="stats" id="stats"></div>
+    </div>
+
+    <div class="block">
+      <h2>View</h2>
+      <div class="controls">
+        <button class="ctrl" id="btn-fit">Fit to view</button>
+      </div>
+    </div>
+
+    <div class="block" id="traj-block" style="display:none">
+      <h2>Search trajectory replay</h2>
+      <div class="controls">
+        <button class="ctrl" id="btn-traj-play">&#9654; Play</button>
+        <button class="ctrl" id="btn-traj-pause" style="display:none">&#9208; Pause</button>
+        <button class="ctrl" id="btn-traj-reset">&#8634; Reset</button>
+        <select class="ctrl" id="traj-speed" title="playback speed">
+          <option value="0.5">0.5&times;</option>
+          <option value="1" selected>1&times;</option>
+          <option value="2">2&times;</option>
+          <option value="4">4&times;</option>
+        </select>
+      </div>
+      <input type="range" id="traj-scrub" min="0" max="0" value="0" style="width:100%">
+      <div class="stats" id="traj-readout"></div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap" id="canvas-wrap">
+    <svg id="tree-svg" xmlns="http://www.w3.org/2000/svg">
+      <g id="level-lines"></g>
+      <g id="viewport"></g>
+      <g id="level-layer"></g>
+    </svg>
+    <div class="zoom-toolbar">
+      <button id="zoom-in" title="Zoom in">+</button>
+      <button id="zoom-out" title="Zoom out">&minus;</button>
+      <button id="zoom-reset" title="Reset">&#8634;</button>
+    </div>
+    <div class="hint">drag to pan &middot; scroll/pinch to zoom &middot; click a node to read its edits + answer</div>
+    <div id="inspector">
+      <div class="ins-head">
+        <div>
+          <div class="ins-title" id="ins-title">&mdash;</div>
+          <div class="ins-sub" id="ins-sub">&mdash;</div>
+        </div>
+        <button class="ins-close" id="ins-close">&#10005;</button>
+      </div>
+      <div class="ins-body" id="ins-body"></div>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script type="application/json" id="tree-data">__DATA_JSON__</script>
+<script>
+(function () {
+  // Backward-compatible: data is either the old flat {base_depth, trees}
+  // shape (single model), or a new {models: [{key, label, base_depth,
+  // trees}, ...]} wrapper (model toggle). Normalize to a MODELS array either
+  // way so the rest of the script only ever deals with "the current model".
+  const RAW = JSON.parse(document.getElementById('tree-data').textContent);
+  const MODELS = RAW.models || [{ key: 'default', label: RAW.model_label || 'model',
+                                    base_depth: RAW.base_depth, trees: RAW.trees }];
+  let modelIdx = 0;
+  let DATA = MODELS[modelIdx];
+  let trees = DATA.trees;
+
+  const svg = document.getElementById('tree-svg');
+  const viewport = document.getElementById('viewport');
+  const levelLines = document.getElementById('level-lines');
+  const levelLayer = document.getElementById('level-layer');
+  const wrap = document.getElementById('canvas-wrap');
+  const tooltip = document.getElementById('tooltip');
+  const inspector = document.getElementById('inspector');
+  const NS = 'http://www.w3.org/2000/svg';
+
+  const ROW_H = 78;    // px per edit-count level (vertical) -- compact
+  const COL_W = 9;     // px per leaf column (horizontal) -- compact
+  const MARGIN_T = 26;
+  const STRIP_H = 22;      // background layer-segment band drawn behind every row
+  const LAYER_BOX_MIN = 13;   // min px per layer segment in that band
+  const NODE_GAP = 11;     // min px between two same-row node centers
+
+  let current = 0;
+  let transform = { x: 40, y: 34, k: 1 };
+  let layoutCache = null;
+  let selectedId = null;
+  let anim = { step: -1, playing: false, timer: null, speed: 1 };
+
+  function el(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function status(node) { return node.is_valid ? 'good' : 'critical'; }
+  // Mirrors re_polar/mcts/rewards.py's truncate_after_first_boxed + re_polar/vendor/
+  // dart_math/eval.py's extract_boxed (brace-depth matching, same escape rule):
+  // the REAL grader is fed text truncated right after the FIRST complete
+  // \boxed{...} span closes, so THAT span is what actually determined
+  // is_valid/reward -- not whatever \boxed{} happens to appear LAST in the raw
+  // generation. paper_minimal_fewshot's prompt puts an earlier, unfilled
+  // \boxed{ANSWER} placeholder in front of the model's own completion, and a
+  // model that rambles past its real answer can re-emit that placeholder or
+  // start a new block; grabbing the LAST \boxed{} showed a different string
+  // than what the node was actually scored on (correct-labeled nodes whose
+  // displayed "answer" didn't match gt_ans). Fixed 2026-08-20, viz-only --
+  // is_valid/reward themselves were always correct, only this display was wrong.
+  function firstBoxedSpan(text) {
+    const KEY = 'oxed{';
+    const idx = text.indexOf(KEY);
+    if (idx === -1) return null;
+    const rest = text.slice(idx + KEY.length);
+    let depth = 1, out = '';
+    for (let i = 0; i < rest.length; i++) {
+      const c = rest[i];
+      const prev = i === 0 ? '{' : rest[i - 1];
+      if (prev === '\\') { out += c; continue; }  // escaped brace, e.g. \{ -- not a depth change
+      if (c === '{') { depth++; out += c; }
+      else if (c === '}') { depth--; if (depth === 0) break; out += c; }
+      else out += c;
+    }
+    return out.trim();
+  }
+
+  function shortAnswer(text) {
+    if (!text) return null;
+    const boxed = firstBoxedSpan(text);
+    if (boxed !== null) return boxed.slice(0, 70);
+    const t = text.trim().replace(/\s+/g, ' ');
+    return t.slice(0, 90) + (t.length > 90 ? '…' : '');
+  }
+
+  // an edit is [start, length, op, times]; key it for set membership checks
+  function editKey(e) { return e.join(','); }
+
+  // what actually changed going from a parent's cumulative edits to a
+  // child's: normally exactly one added edit (clean case). When a >4-layer
+  // run had to be re-split to find its parent (rare), added/removed can
+  // each hold a piece — fall back to the full changed span in that case.
+  function diffSpan(childEdits, parentEdits) {
+    const pKeys = new Set(parentEdits.map(editKey));
+    const cKeys = new Set(childEdits.map(editKey));
+    const added = childEdits.filter(e => !pKeys.has(editKey(e)));
+    const removed = parentEdits.filter(e => !cKeys.has(editKey(e)));
+    if (added.length === 1 && removed.length === 0) {
+      const [s, l] = added[0];
+      return { s, e: s + l };
+    }
+    const all = added.concat(removed);
+    if (all.length === 0) {
+      if (childEdits.length === 0) return { s: 0, e: DATA.base_depth };
+      return { s: Math.min(...childEdits.map(e => e[0])), e: Math.max(...childEdits.map(e => e[0] + e[1])) };
+    }
+    return { s: Math.min(...all.map(e => e[0])), e: Math.max(...all.map(e => e[0] + e[1])) };
+  }
+
+  // ---------- layout: Y = edit_count (fixed rows), X = layer position of the newest edit ----------
+  function computeLayout(tree) {
+    const nodes = tree.nodes;
+    let leafCounter = 0;
+    const laidOut = [];
+    const byId = new Map();
+
+    function visit(id, parentId) {
+      const n = nodes[id] ?? nodes[String(id)];
+      const y = MARGIN_T + n.edit_count * ROW_H;
+      let x;
+      if (n.children.length === 0) {
+        x = leafCounter * COL_W;
+        leafCounter++;
+      } else {
+        const kids = n.children.map(cid => visit(cid, id));
+        x = kids.reduce((a, k) => a + k, 0) / kids.length;
+      }
+      const rec = { id, n, x, y, parentId };
+      laidOut.push(rec);
+      byId.set(id, rec);
+      return x;
+    }
+    visit(tree.root_id, null);
+
+    const D = DATA.base_depth;
+    const structWidth = Math.max(leafCounter * COL_W, D * LAYER_BOX_MIN);
+
+    // Row 1 only: re-anchor each node's x from its plain mean-of-children
+    // position to where its one edit actually sits along the model's layer
+    // stack. A background segment band is drawn behind this row; rows 2+
+    // keep the ordinary tidy-tree layout (child stays under its parent).
+    const level1 = laidOut.filter(r => r.n.edit_count === 1);
+    const anchors = level1.map(rec => {
+      const span = diffSpan(rec.n.edits, []);
+      rec._span = span;
+      return { rec, ax: ((span.s + span.e) / 2 / D) * structWidth };
+    }).sort((a, b) => a.ax - b.ax);
+    for (let i = 1; i < anchors.length; i++) {
+      const prev = anchors[i - 1], cur = anchors[i];
+      if (cur.ax - prev.ax < NODE_GAP) cur.ax = prev.ax + NODE_GAP;
+    }
+    // deeper descendants already have an overlap-free layout relative to
+    // their level-1 ancestor from the structural pass above — translate the
+    // whole subtree by however far that ancestor just moved.
+    function shiftSubtree(id, dx) {
+      const rec = byId.get(id);
+      rec.x += dx;
+      for (const cid of rec.n.children) shiftSubtree(cid, dx);
+    }
+    for (const { rec, ax } of anchors) shiftSubtree(rec.id, ax - rec.x);
+
+    const touched = new Set();
+    for (const rec of level1) for (let i = rec._span.s; i < rec._span.e; i++) touched.add(i);
+    const touchedByLevel = new Map([[1, touched]]);
+
+    for (const rec of laidOut) {
+      const p = rec.parentId !== null ? byId.get(rec.parentId) : null;
+      rec.parentX = p ? p.x : rec.x;
+      rec.parentY = p ? p.y : rec.y;
+    }
+    return { laidOut, byId, leafCount: leafCounter, structWidth, touchedByLevel };
+  }
+
+  function render() {
+    const tree = trees[current];
+    const layout = computeLayout(tree);
+    layoutCache = layout;
+
+    while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
+
+    drawLayerBand(MARGIN_T + 1 * ROW_H, layout.touchedByLevel.get(1) || new Set(), layout.structWidth, true);
+
+    layout.nodeEls = new Map();
+    layout.edgeEls = new Map();
+
+    // edges first (under nodes)
+    for (const rec of layout.laidOut) {
+      if (rec.parentId === null) continue;
+      const d = `M ${rec.parentX} ${rec.parentY} C ${rec.parentX} ${(rec.parentY + rec.y) / 2}, ${rec.x} ${(rec.parentY + rec.y) / 2}, ${rec.x} ${rec.y}`;
+      const segCls = `seg ${status(rec.n)}` + (rec.n.parent_fallback ? ' fallback' : '')
+        + (rec.n.parent_same_level ? ' samelevel' : '');
+      const p = el('path', { class: segCls, d });
+      viewport.appendChild(p);
+      layout.edgeEls.set(rec.id, p);
+    }
+
+    for (const rec of layout.laidOut) {
+      const isRoot = rec.parentId === null;
+      const r = isRoot ? 5 : (rec.n.edit_count === 1 ? 4 : 3.2);
+      const cls = isRoot ? 'node root' : `node ${status(rec.n)}` + (selectedId === rec.id ? ' selected' : '');
+      const c = el('circle', { class: cls, cx: rec.x, cy: rec.y, r });
+      c.style.pointerEvents = 'none'; // purely visual -- the larger hit circle below owns clicks/hover
+      viewport.appendChild(c);
+      // r is only 3.2-5 SVG units, and with 100+ nodes in a row at default zoom that's just a
+      // few real screen pixels -- too small to click precisely. A separate, larger, invisible
+      // hit target (same center, min 9px radius) makes clicking reliable without changing how
+      // the tree looks.
+      const hit = el('circle', { class: 'node-hit', cx: rec.x, cy: rec.y, r: Math.max(r + 5, 9) });
+      hit.addEventListener('click', (ev) => { ev.stopPropagation(); selectNode(rec); });
+      viewport.appendChild(hit);
+      attachHover(hit, rec);
+      layout.nodeEls.set(rec.id, c);
+
+      if (isRoot) {
+        const t = el('text', { class: 'root-label', x: rec.x + 8, y: rec.y + 3 });
+        t.textContent = 'identity';
+        viewport.appendChild(t);
+      }
+      // row-1 nodes sit directly on the layer-segment band below (drawLevel1Band) —
+      // no text label; hover/click reads the edit instead of cluttering the row.
+    }
+
+    renderStats(tree);
+    renderLevels(tree);
+    applyTransform();
+    applyAnimFrame(anim.step);
+  }
+
+  function attachHover(elm, rec) {
+    elm.addEventListener('mousemove', (ev) => showTooltip(ev, rec));
+    elm.addEventListener('mouseleave', hideTooltip);
+  }
+
+  // ---------- background layer-segment band behind a row ----------
+  function drawLayerBand(y, touched, structWidth, showTicks) {
+    const D = DATA.base_depth;
+    const boxW = structWidth / D;
+    const y0 = y - STRIP_H / 2;
+
+    const g = el('g', { class: 'l1-band' });
+    viewport.appendChild(g);
+
+    for (let i = 0; i < D; i++) {
+      const cls = 'l1box' + (i % 6 === 0 ? ' tick' : '') + (touched.has(i) ? '' : ' untouched');
+      g.appendChild(el('rect', {
+        class: cls, x: i * boxW, y: y0, width: Math.max(boxW - 0.5, 0.5), height: STRIP_H,
+      }));
+    }
+    if (showTicks) {
+      for (let i = 0; i <= D; i += 6) {
+        const li = Math.min(i, D - 1);
+        const t = el('text', { class: 'l1-ticklabel', x: li * boxW + boxW / 2, y: y0 + STRIP_H + 10, 'text-anchor': 'middle' });
+        t.textContent = 'L' + li;
+        g.appendChild(t);
+      }
+    }
+  }
+
+  function showTooltip(ev, rec) {
+    const n = rec.n;
+    const isRoot = rec.parentId === null;
+    const title = isRoot ? 'Identity (0 edits)' : (n.is_valid ? '✓ Correct program' : '✗ Incorrect program');
+    const ans = shortAnswer(n.text);
+    const items = [
+      `<li>edits: <span class="t-prog">${escapeHtml(n.edits_label)}</span></li>`,
+      `<li>reward: ${n.reward !== null && n.reward !== undefined ? n.reward : '—'}</li>`,
+      `<li>answer: <span class="t-ans">${ans ? escapeHtml(ans) : '(not recovered)'}</span></li>`,
+    ];
+    if (n.parent_fallback) items.push(`<li style="opacity:.85"><b>dashed edge:</b> no ancestor of this exact program was itself saved, even checking every valid re-split (see legend)</li>`);
+    else if (n.parent_same_level) items.push(`<li style="opacity:.85"><b>dash-dot edge:</b> its real MCTS parent has the SAME edit count — the search grew an existing skip/repeat run by one layer at a boundary, rather than adding a new edit (see legend)</li>`);
+    else if (n.parent_ambiguous) items.push(`<li style="opacity:.75">edits commute — its edits were independently saved as more than one valid parent; any of them gives this same program</li>`);
+    if (!isRoot) items.push(`<li style="opacity:.65">click for full generated text</li>`);
+    tooltip.innerHTML = `<div class="t-title">${title}</div><ul class="t-list">${items.join('')}</ul>`;
+    tooltip.classList.add('show');
+    positionTooltip(ev);
+  }
+  function positionTooltip(ev) {
+    const pad = 14;
+    let x = ev.clientX + pad, y = ev.clientY + pad;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    if (x + 360 > vw) x = ev.clientX - 360 - pad;
+    if (y + 200 > vh) y = ev.clientY - 200 - pad;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+  function hideTooltip() { tooltip.classList.remove('show'); }
+
+  // ---------- per-node program strip: one box per model layer ----------
+  // repeats get the same hue at every count, but stronger opacity the more
+  // times a layer runs (×2 lightest ... ×4 solid), so count is visible at a
+  // glance without needing a different color per value.
+  function repeatOpacity(t) { return Math.max(0.35, Math.min(1, 0.25 + 0.2 * t)); }
+
+  function programStripHtml(n) {
+    const D = DATA.base_depth;
+    const state = new Array(D).fill(null).map(() => ({ op: 'keep', times: 1 }));
+    for (const [s, l, op, t] of n.edits) {
+      for (let i = s; i < s + l && i < D; i++) state[i] = { op, times: t };
+    }
+    const usedOps = new Set(state.map(s => s.op));
+    const bar = state.map(s => {
+      const style = s.op === 'repeat' ? ` style="opacity:${repeatOpacity(s.times)}"` : '';
+      return `<div class="lbox ${s.op}" title="${s.op}${s.op === 'repeat' ? ' ×' + s.times : ''}"${style}></div>`;
+    }).join('');
+    const legendParts = [`<span><span class="sw" style="background:var(--border-2)"></span>keep</span>`];
+    if (usedOps.has('skip')) legendParts.push(`<span><span class="sw" style="background:var(--op-skip)"></span>skip</span>`);
+    if (usedOps.has('repeat')) {
+      const times = [...new Set(state.filter(s => s.op === 'repeat').map(s => s.times))].sort((a, b) => a - b);
+      for (const t of times) {
+        legendParts.push(`<span><span class="sw" style="background:var(--op-repeat);opacity:${repeatOpacity(t)}"></span>repeat &times;${t}</span>`);
+      }
+    }
+    return `
+      <div class="prog-strip">
+        <div class="bar">${bar}</div>
+        <div class="prog-legend">${legendParts.join('')}<span style="color:var(--muted)">L0&rarr;L${D - 1}</span></div>
+      </div>`;
+  }
+
+  function selectNode(rec) {
+    selectedId = rec.id;
+    render();
+    const n = rec.n;
+    const isRoot = rec.parentId === null;
+    document.getElementById('ins-title').textContent = isRoot ? 'Identity (0 edits)' : (n.is_valid ? '✓ Correct program' : '✗ Incorrect program');
+    document.getElementById('ins-sub').textContent = `edit count ${n.edit_count} · ${n.children.length} child program${n.children.length === 1 ? '' : 's'} extend this one`;
+    const body = document.getElementById('ins-body');
+    const rewardTxt = (n.reward !== null && n.reward !== undefined) ? n.reward : '—';
+    const ans = shortAnswer(n.text);
+    body.innerHTML = `
+      <div class="ins-row"><span class="k">reward</span><span class="v">${rewardTxt}</span></div>
+      <div class="ins-row"><span class="k">answer</span><span class="v" style="font-family:ui-monospace,monospace">${ans ? escapeHtml(ans) : '—'}</span></div>
+      <div>
+        <div style="font-size:10.5px;color:var(--muted);margin-bottom:3px;">program (layer L0&rarr;L${DATA.base_depth - 1})</div>
+        ${programStripHtml(n)}
+      </div>
+      <div>
+        <div style="font-size:10.5px;color:var(--muted);margin-bottom:3px;">edits vs. identity</div>
+        <div class="ins-txt">${escapeHtml(n.edits_label)}</div>
+      </div>
+      <div>
+        <div style="font-size:10.5px;color:var(--muted);margin-bottom:3px;">generated text (truncated)</div>
+        <div class="ins-txt">${n.text ? escapeHtml(n.text) : '(not recovered from the answer cache)'}</div>
+      </div>
+      ${n.parent_fallback ? '<div style="font-size:10.5px;color:var(--muted);">dashed edge: no ancestor of this program was independently saved in this run, even after checking every valid way to re-split its edits. See the header disclosure.</div>' : ''}
+      ${n.parent_same_level ? '<div style="font-size:10.5px;color:var(--muted);">dash-dot edge: its real MCTS-search parent (from search_trajectory, not a guess) has the SAME edit count as this program — the search grew an existing skip/repeat run by one layer at a boundary rather than adding a new edit, so depth here doesn\'t advance by exactly one edit. See the header disclosure.</div>' : ''}
+      ${n.parent_ambiguous ? '<div style="font-size:10.5px;color:var(--muted);">edits commute (order doesn’t matter to MCTS) — more than one saved program is a valid parent of this one; any of them produces this exact same program.</div>' : ''}
+    `;
+    inspector.classList.add('show');
+  }
+  document.getElementById('ins-close').addEventListener('click', () => {
+    inspector.classList.remove('show');
+    selectedId = null;
+    render();
+  });
+
+  function renderStats(tree) {
+    const box = document.getElementById('stats');
+    const pct = tree.n_valid + tree.n_invalid > 0 ? Math.round(100 * tree.n_valid / (tree.n_valid + tree.n_invalid)) : 0;
+    box.innerHTML = `
+      <div class="row"><span class="k">ground truth</span><span class="v mono">${escapeHtml(String(tree.gt_ans))}</span></div>
+      <div class="row"><span class="k">domain</span><span class="v">${escapeHtml(tree.domain || '—')} · L${tree.math_level ?? '?'}</span></div>
+      <div class="row"><span class="k">valid : invalid</span><span class="v">${tree.n_valid} : ${tree.n_invalid} <span style="color:var(--muted);font-weight:500">(${pct}%)</span></span></div>
+      <div class="row"><span class="k">deepest program</span><span class="v">${tree.max_edit_count} edits</span></div>
+      <div class="row"><span class="k">distinct programs</span><span class="v">${Object.keys(tree.nodes).length}</span></div>
+    `;
+  }
+
+  function renderLevels(tree) {
+    const box = document.getElementById('levels');
+    const entries = Object.entries(tree.counts_by_level).sort((a, b) => +a[0] - +b[0]);
+    box.innerHTML = entries.map(([lvl, n]) => `
+      <div class="lv${lvl === '0' ? ' hi' : ''}"><span class="k">${lvl} edit${lvl === '1' ? '' : 's'}${lvl === '0' ? ' (identity)' : ''}</span><span class="v">${n}</span></div>
+    `).join('');
+  }
+
+  function renderDescribe(tree) {
+    const box = document.getElementById('describe');
+    const root = tree.nodes[tree.root_id] ?? tree.nodes[String(tree.root_id)];
+    const idGood = root.is_valid;
+    const baseTag = root.text
+      ? `<span class="tag ${idGood ? 'good' : 'critical'}">${idGood ? '✓ correct' : '✗ incorrect'} · reward ${root.reward}</span>`
+      : '';
+    box.innerHTML = `
+      <div class="col">
+        <div class="eyebrow">Question</div>
+        <div class="question">${escapeHtml(tree.question)}</div>
+        <div class="gt">ground truth &rarr; <b>${escapeHtml(String(tree.gt_ans))}</b> &middot; ${escapeHtml(tree.domain || '')}, level ${tree.math_level ?? '?'} &middot; <span class="mono">${escapeHtml(tree.query_id)}</span></div>
+      </div>
+      <div class="col">
+        <div class="eyebrow">What the unedited model generates (identity)</div>
+        <div class="gen-card">
+          ${baseTag}
+          <div class="txt">${root.text ? escapeHtml(root.text) : 'not recovered from the answer cache'}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // ---------- level bands / row labels (screen space, recomputed on pan/zoom) ----------
+  function renderAxis() {
+    while (levelLines.firstChild) levelLines.removeChild(levelLines.firstChild);
+    while (levelLayer.firstChild) levelLayer.removeChild(levelLayer.firstChild);
+    const rect = wrap.getBoundingClientRect();
+    const w = rect.width;
+    const tree = trees[current];
+    for (let lvl = 0; lvl <= tree.max_edit_count; lvl++) {
+      const y = transform.y + (MARGIN_T + lvl * ROW_H) * transform.k;
+      if (y < -20 || y > rect.height + 20) continue;
+      levelLines.appendChild(el('line', { class: 'levelrule', x1: 0, x2: w, y1: y, y2: y }));
+      const label = lvl === 0 ? '0 edits — identity' : `${lvl} edit${lvl === 1 ? '' : 's'}`;
+      levelLayer.appendChild(el('rect', { class: 'levelband', x: 0, y: y - 13, width: 14 + label.length * 6.2, height: 16 }));
+      const t = el('text', { class: 'levellabel', x: 4, y: y + -1 });
+      t.textContent = label;
+      levelLayer.appendChild(t);
+    }
+  }
+
+  function applyTransform() {
+    viewport.setAttribute('transform', `translate(${transform.x},${transform.y}) scale(${transform.k})`);
+    renderAxis();
+  }
+
+  function fitToView() {
+    if (!layoutCache) return;
+    const rect = wrap.getBoundingClientRect();
+    const tree = trees[current];
+    const xs = layoutCache.laidOut.map(r => r.x);
+    const maxX = Math.max(...xs, layoutCache.structWidth, 1);
+    const maxY = MARGIN_T + tree.max_edit_count * ROW_H;
+    const kx = (rect.width - 70) / maxX;
+    const ky = (rect.height - 60) / maxY;
+    const k = Math.max(0.05, Math.min(kx, ky, 2.2));
+    transform = { x: (rect.width - maxX * k) / 2, y: 30, k };
+    applyTransform();
+  }
+
+  // ---------- pan/zoom ----------
+  let dragging = false, dragStart = null;
+  svg.addEventListener('pointerdown', (ev) => {
+    if (ev.target.closest('circle.node, circle.node-hit')) return;
+    dragging = true;
+    svg.classList.add('grabbing');
+    dragStart = { x: ev.clientX - transform.x, y: ev.clientY - transform.y };
+    svg.setPointerCapture(ev.pointerId);
+  });
+  svg.addEventListener('pointermove', (ev) => {
+    if (!dragging) return;
+    transform.x = ev.clientX - dragStart.x;
+    transform.y = ev.clientY - dragStart.y;
+    applyTransform();
+  });
+  svg.addEventListener('pointerup', () => { dragging = false; svg.classList.remove('grabbing'); });
+  svg.addEventListener('pointercancel', () => { dragging = false; svg.classList.remove('grabbing'); });
+
+  svg.addEventListener('wheel', (ev) => {
+    ev.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+    const factor = Math.exp(-ev.deltaY * 0.0016);
+    zoomAt(mx, my, factor);
+  }, { passive: false });
+
+  function zoomAt(mx, my, factor) {
+    const newK = Math.max(0.05, Math.min(6, transform.k * factor));
+    const wx = (mx - transform.x) / transform.k;
+    const wy = (my - transform.y) / transform.k;
+    transform.k = newK;
+    transform.x = mx - wx * newK;
+    transform.y = my - wy * newK;
+    applyTransform();
+  }
+
+  document.getElementById('zoom-in').addEventListener('click', () => { const r = wrap.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.3); });
+  document.getElementById('zoom-out').addEventListener('click', () => { const r = wrap.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1 / 1.3); });
+  document.getElementById('zoom-reset').addEventListener('click', fitToView);
+  document.getElementById('btn-fit').addEventListener('click', fitToView);
+
+  window.addEventListener('resize', () => { renderAxis(); });
+
+  // ---------- search-trajectory replay ----------
+  // trees[i].trajectory (from extract.py, optional — absent for older data) is the
+  // ordered list of MCTS simulations: [{node_id, reward}, ...], node_id indexing
+  // into the SAME tree.nodes/layoutCache.byId used for the static tree above (null
+  // = a step that didn't map to any saved program, e.g. a degenerate retry).
+  function ancestorChain(id) {
+    const chain = [];
+    let cur = id;
+    while (cur !== null && cur !== undefined) {
+      chain.push(cur);
+      const rec = layoutCache.byId.get(cur);
+      cur = (rec && rec.parentId !== null) ? rec.parentId : null;
+    }
+    return chain;
+  }
+
+  function applyAnimFrame(step) {
+    if (!layoutCache) return;
+    const tree = trees[current];
+    const traj = tree.trajectory;
+    if (!traj || step < 0) { wrap.classList.remove('animating'); return; }
+    wrap.classList.add('animating');
+
+    const revealed = new Set([tree.root_id]);
+    for (let i = 0; i <= step; i++) {
+      const nid = traj[i].node_id;
+      if (nid === null || nid === undefined) continue;
+      for (const a of ancestorChain(nid)) revealed.add(a);
+    }
+    const curId = traj[step] ? traj[step].node_id : null;
+    const live = (curId !== null && curId !== undefined) ? new Set(ancestorChain(curId)) : new Set();
+
+    for (const [id, c] of layoutCache.nodeEls) {
+      c.classList.toggle('pending', !revealed.has(id));
+      c.classList.toggle('current-step', id === curId);
+    }
+    for (const [id, p] of layoutCache.edgeEls) {
+      p.classList.toggle('pending', !revealed.has(id));
+      p.classList.toggle('live', live.has(id));
+    }
+    document.getElementById('traj-scrub').value = step;
+    renderTrajReadout(traj[step], step, traj.length);
+  }
+
+  function renderTrajReadout(entry, step, total) {
+    const box = document.getElementById('traj-readout');
+    if (!entry) { box.innerHTML = `<div class="row"><span class="k">round</span><span class="v">&mdash;</span></div>`; return; }
+    const tree = trees[current];
+    const n = (entry.node_id !== null && entry.node_id !== undefined)
+      ? (tree.nodes[entry.node_id] ?? tree.nodes[String(entry.node_id)]) : null;
+    const rewardTxt = (entry.reward !== null && entry.reward !== undefined) ? entry.reward : '—';
+    box.innerHTML = `
+      <div class="row"><span class="k">round</span><span class="v">${step + 1} / ${total}</span></div>
+      <div class="row"><span class="k">reward</span><span class="v">${rewardTxt}</span></div>
+      <div class="row"><span class="k">visited</span><span class="v" style="text-align:right;font-size:10.5px;font-weight:500">${n ? escapeHtml(n.edits_label) : '(unmatched step)'}</span></div>
+    `;
+  }
+
+  function stopAnim() {
+    anim.playing = false;
+    if (anim.timer) clearInterval(anim.timer);
+    anim.timer = null;
+    document.getElementById('btn-traj-play').style.display = '';
+    document.getElementById('btn-traj-pause').style.display = 'none';
+  }
+
+  function playAnim() {
+    const traj = trees[current].trajectory;
+    if (!traj || !traj.length) return;
+    anim.playing = true;
+    document.getElementById('btn-traj-play').style.display = 'none';
+    document.getElementById('btn-traj-pause').style.display = '';
+    if (anim.step >= traj.length - 1) anim.step = -1;
+    if (anim.timer) clearInterval(anim.timer);
+    anim.timer = setInterval(() => {
+      anim.step++;
+      if (anim.step >= traj.length) { stopAnim(); return; }
+      applyAnimFrame(anim.step);
+    }, Math.max(16, 110 / anim.speed));
+  }
+
+  function setupTrajectoryUI() {
+    stopAnim();
+    const tree = trees[current];
+    const traj = tree.trajectory;
+    const block = document.getElementById('traj-block');
+    anim.step = -1;
+    wrap.classList.remove('animating');
+    if (!traj || !traj.length) { block.style.display = 'none'; return; }
+    block.style.display = 'flex';
+    const scrub = document.getElementById('traj-scrub');
+    scrub.max = String(traj.length - 1);
+    scrub.value = '0';
+    renderTrajReadout(null);
+  }
+
+  document.getElementById('btn-traj-play').addEventListener('click', playAnim);
+  document.getElementById('btn-traj-pause').addEventListener('click', stopAnim);
+  document.getElementById('btn-traj-reset').addEventListener('click', () => {
+    stopAnim(); anim.step = -1; applyAnimFrame(-1);
+  });
+  document.getElementById('traj-speed').addEventListener('change', (ev) => {
+    anim.speed = +ev.target.value;
+    if (anim.playing) playAnim();
+  });
+  document.getElementById('traj-scrub').addEventListener('input', (ev) => {
+    stopAnim();
+    anim.step = +ev.target.value;
+    applyAnimFrame(anim.step);
+  });
+
+  // ---------- picker ----------
+  function renderPicker() {
+    const box = document.getElementById('tree-picker');
+    box.innerHTML = '';
+    trees.forEach((t, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'tree-btn' + (i === current ? ' active' : '');
+      const pct = t.n_valid + t.n_invalid > 0 ? Math.round(100 * t.n_valid / (t.n_valid + t.n_invalid)) : 0;
+      btn.innerHTML = `
+        <div class="row1"><span class="label">${escapeHtml(t.label)}</span><span class="chip">${t.max_edit_count} edits deep</span></div>
+        <div class="note">${escapeHtml(t.note)}</div>
+        <div class="chips">
+          <span class="chip good">${t.n_valid} correct</span>
+          <span class="chip critical">${t.n_invalid} wrong</span>
+          <span class="chip">${pct}% rescued</span>
+        </div>`;
+      btn.addEventListener('click', () => {
+        current = i; selectedId = null;
+        inspector.classList.remove('show');
+        renderPicker(); renderDescribe(trees[current]); setupTrajectoryUI(); render(); fitToView();
+      });
+      box.appendChild(btn);
+    });
+  }
+
+  // ---------- model toggle ----------
+  function switchModel(i) {
+    modelIdx = i;
+    DATA = MODELS[modelIdx];
+    trees = DATA.trees;
+    current = 0;
+    selectedId = null;
+    inspector.classList.remove('show');
+    stopAnim(); anim.step = -1;
+    renderModelPicker();
+    renderPicker();
+    renderDescribe(trees[current]);
+    setupTrajectoryUI();
+    render();
+    fitToView();
+  }
+
+  function renderModelPicker() {
+    const block = document.getElementById('model-block');
+    const box = document.getElementById('model-picker');
+    if (MODELS.length <= 1) { block.style.display = 'none'; return; }
+    block.style.display = '';
+    box.innerHTML = '';
+    MODELS.forEach((m, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'model-btn' + (i === modelIdx ? ' active' : '');
+      btn.textContent = m.label || m.key;
+      btn.title = `${m.trees.length} sample${m.trees.length === 1 ? '' : 's'}, ${m.base_depth} layers`;
+      btn.addEventListener('click', () => { if (i !== modelIdx) switchModel(i); });
+      box.appendChild(btn);
+    });
+  }
+
+  renderModelPicker();
+  renderPicker();
+  renderDescribe(trees[current]);
+  setupTrajectoryUI();
+  render();
+  requestAnimationFrame(fitToView);
+})();
+</script>

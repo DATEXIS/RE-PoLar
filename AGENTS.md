@@ -42,6 +42,12 @@ Everything lives under the single `re_polar/` package.
   release (MCTS-discovered programs, generated text, menu cross-execution,
   router checkpoints), plus `DATA.md` describing its schema.
 - `analysis/`: regenerates every paper table/figure number from code.
+- `analysis/tree_viz/`: `extract.py` turns `data/mcts_results_full/` +
+  `data/generated_answers/` into the tree-data JSON `template.html` renders
+  as a self-contained, offline interactive viewer of MCTS-discovered
+  programs (`python -m analysis.tree_viz.extract --help`); `build.py`
+  merges the two into one standalone HTML file. The project page embeds a
+  built copy.
 - `prestudy/`: regenerates the paper's motivation-section figures.
 - `tests/`: unit tests, runnable on CPU.
 
