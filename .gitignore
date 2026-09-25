@@ -10,3 +10,8 @@ __pycache__/
 # Read-only third-party reference material, never committed (see CLAUDE.md).
 external_resources/
 docs/
+
+# main branch's re_polar data -- gitignored there too, so it never gets
+# committed on that side either; this repo shares one working directory
+# across branches, so switching from main leaves it untracked here otherwise.
+/data/

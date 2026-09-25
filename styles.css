@@ -228,6 +228,7 @@ hr.section-divider {
 /* Narrow these sections' containers to match the 800px-wide text columns
    inside them, so the left-aligned section heading lines up with the text. */
 .abstract .container,
+.tree-viz .container,
 .citation .container,
 .acknowledgement .container,
 footer .container {
@@ -281,6 +282,136 @@ footer .container {
 
 .abstract-rest p:first-of-type {
     margin-top: 1.5rem;
+}
+
+/* Tree Visualizer Section */
+.tree-viz {
+    padding: 50px 0;
+    background-color: var(--background);
+}
+
+.tree-viz-intro {
+    max-width: 800px;
+    text-align: left;
+}
+
+.tree-viz-frame-wrap {
+    width: 90%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.tree-viz-frame {
+    position: relative;
+    height: 92vh;
+    min-height: 560px;
+    max-height: 1050px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--box-shadow);
+    background-color: var(--background-alt);
+    border: 1px solid var(--border);
+}
+
+.tree-viz-frame iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.tree-viz-preview {
+    position: absolute;
+    inset: 0;
+    background-color: #0d0d0d;
+}
+
+.tree-viz-preview-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center top;
+}
+
+.tree-viz-load-btn {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 24px;
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    transition: background-color 0.3s ease, transform 0.15s ease;
+}
+
+.tree-viz-load-btn:hover {
+    background-color: var(--primary-dark);
+    transform: translate(-50%, -50%) scale(1.03);
+}
+
+.tree-viz-size {
+    font-weight: 400;
+    opacity: 0.85;
+    font-size: 0.85em;
+}
+
+.tree-viz-frame.is-loading .tree-viz-preview,
+.tree-viz-frame.is-loaded .tree-viz-preview {
+    filter: blur(2px) grayscale(0.3);
+}
+
+.tree-viz-frame.is-loading .tree-viz-load-btn,
+.tree-viz-frame.is-loaded .tree-viz-load-btn {
+    display: none;
+}
+
+.tree-viz-frame.is-loaded .tree-viz-preview,
+.tree-viz-frame.is-loaded .tree-viz-loading {
+    display: none;
+}
+
+.tree-viz-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background-color: var(--background-alt);
+}
+
+.tree-viz-spinner {
+    width: 34px;
+    height: 34px;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: tree-viz-spin 0.8s linear infinite;
+}
+
+@keyframes tree-viz-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.tree-viz-loading p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-light);
 }
 
 /* Citation Section */
@@ -449,5 +580,22 @@ footer p {
     .button {
         padding: 9px 14px;
         font-size: 0.9rem;
+    }
+
+    .tree-viz-load-btn {
+        padding: 11px 16px;
+        font-size: 0.9rem;
+    }
+
+    .tree-viz-frame {
+        height: 70vh;
+    }
+
+    /* Mobile gets its own portrait screenshot (real mobile-layout capture,
+       558x1116) instead of the desktop one -- match its own shape here so it
+       displays full-size, not cropped/tiny. Loading still expands to 70vh. */
+    .tree-viz-frame:not(.is-loading):not(.is-loaded) {
+        height: auto;
+        aspect-ratio: 558 / 1116;
     }
 }
