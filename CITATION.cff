@@ -12,7 +12,7 @@ authors:
     affiliation: "Berliner Hochschule für Technik (BHT), Berlin, Germany"
 license: MIT
 preferred-citation:
-  type: unpublished
+  type: article
   title: "Programs-of-Layers in LLMs through the Lens of Cortical Areas"
   authors:
     - family-names: Olbrich
@@ -31,4 +31,6 @@ preferred-citation:
       given-names: Felix
       affiliation: "Berliner Hochschule für Technik (BHT), Berlin, Germany"
   year: 2026
+  journal: "arXiv preprint arXiv:2609.31360"
+  url: "https://arxiv.org/abs/2609.31360"
   notes: "Under review at TMLR (Transactions on Machine Learning Research)."

@@ -2,7 +2,7 @@
 
 <p align="center">Code and data for <em>"Programs-of-Layers in LLMs through the Lens of Cortical Areas"</em> — a reproduction and extension of <a href="https://arxiv.org/abs/2606.06574">PoLar</a> (Li et al.).</p>
 
-<p align="center">[<a href="https://datexis.github.io/RE-PoLar/">Project Page</a>] [<a href="https://arxiv.org">Paper (soon)</a>]</p>
+<p align="center">[<a href="https://datexis.github.io/RE-PoLar/">Project Page</a>] [<a href="https://arxiv.org/abs/2609.31360">Paper</a>]</p>
 
 <p align="center"><img src="figures/method_overview.png" width="720" alt="A router reads the prompt and picks a per-layer skip/keep/repeat program before the frozen transformer runs, echoing a thalamo-cortical routing analogy."></p>
 
@@ -217,15 +217,12 @@ it builds cleanly on a real Linux host (verified on cluster).
 
 ## Citation
 
-*(Preprint under review — citation details below are placeholders until the paper is public.)*
-
 ```bibtex
 @article{westerhoff2026repolar,
       title={Programs-of-Layers in LLMs through the Lens of Cortical Areas},
       author={Westerhoff, Justus and Olbrich, Stephan and Oraby, Hatem and Larkum, Matthew Evan and Gers, Felix},
-      journal={arXiv preprint arXiv:TODO},
-      year={2026},
-      note={Preprint / under review }
+      journal={arXiv preprint arXiv:2609.31360},
+      year={2026}
 }
 ```
 
