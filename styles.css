@@ -141,6 +141,13 @@ a:hover {
     flex-wrap: wrap;
 }
 
+.poster-note {
+    margin: 0.6rem 0 0;
+    font-size: 0.85rem;
+    color: var(--text-light);
+    text-align: center;
+}
+
 /* TL;DR box -- same translucent-card treatment as hufe.info/dyslexify's
    TL;DR (rgba(255,255,255,0.4) over its purple hero, subtle tinted border),
    just swapped to this page's red accent. */
