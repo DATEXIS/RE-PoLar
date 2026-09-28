@@ -220,7 +220,7 @@ it builds cleanly on a real Linux host (verified on cluster).
 ```bibtex
 @article{westerhoff2026repolar,
       title={Programs-of-Layers in LLMs through the Lens of Cortical Areas},
-      author={Westerhoff, Justus and Olbrich, Stephan and Oraby, Hatem and Larkum, Matthew Evan and Gers, Felix Alexander},
+      author={Westerhoff, Justus and Olbrich, Stephan and Oraby, Hatem and Senn, Walter and Larkum, Matthew Evan and Gers, Felix Alexander},
       journal={arXiv preprint arXiv:2609.31360},
       year={2026}
 }
