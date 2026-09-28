@@ -272,6 +272,26 @@ footer .container {
     content: "\25BE show less";
 }
 
+/* When open, the "show less" control moves to the end of the abstract
+   instead of staying at the top next to the preview text. */
+.abstract-details[open] summary .toggle-arrow {
+    display: none;
+}
+
+.abstract-collapse {
+    display: none;
+    text-align: center;
+    margin-top: 1.5rem !important;
+}
+
+.abstract-details[open] .abstract-collapse {
+    display: block;
+}
+
+.toggle-arrow-collapse {
+    font-size: 0.85em;
+}
+
 .abstract-rest p {
     max-width: 800px;
     margin-left: auto;
