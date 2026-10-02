@@ -31,6 +31,7 @@ from re_polar.router.train import (
     program_to_targets,
     save_checkpoint,
     split_samples_train_val,
+    positional_train_val,
     targets_from_path,
     train,
 )
@@ -583,6 +584,13 @@ def test_split_samples_train_val_holds_out_last_fraction():
     # val_frac 0 -> everything trains
     tr0, va0 = split_samples_train_val(samples, val_frac=0.0)
     assert len(tr0) == 10 and va0 == []
+
+
+def test_positional_train_val_takes_train_then_val_window():
+    samples = [{"question": f"q{i}"} for i in range(10)]
+    tr, va = positional_train_val(samples, 5, 2)
+    assert [s["question"] for s in tr] == ["q0", "q1", "q2", "q3", "q4"]
+    assert [s["question"] for s in va] == ["q5", "q6"]  # q7..q9 are left out
 
 
 # --------------------------------------------------------------------------- #

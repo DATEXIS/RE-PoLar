@@ -85,6 +85,7 @@ def main(argv=None) -> None:
         train,
         save_checkpoint,
         _resolve_device,
+        positional_train_val,
     )
 
     if args.model not in MODEL_REGISTRY:
@@ -164,7 +165,7 @@ def main(argv=None) -> None:
 
     # ---- Phase 2: train one router on the new data ------------------------------
     print(f"\n=== Phase 2: train router on crop-verified data ===", flush=True)
-    val_samples = samples[args.train_per_diff :]
+    _, val_samples = positional_train_val(samples, args.train_per_diff, 250)
     build_kwargs = dict(
         max_paths_per_sample=50,
         reweight_original_path=True,

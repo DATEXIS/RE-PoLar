@@ -55,6 +55,7 @@ def main(argv=None):
         build_examples,
         encode_examples,
         load_supervision,
+        positional_train_val,
         save_checkpoint,
         split_samples_train_val,
         train,
@@ -107,7 +108,14 @@ def main(argv=None):
         "--train-per-diff",
         type=int,
         default=1250,
-        help="PoLar positional split: first N samples/diff = train, rest = val (250)",
+        help="PoLar positional split: first N samples/diff = train, next --val-per-diff = val",
+    )
+    p.add_argument(
+        "--val-per-diff",
+        type=int,
+        default=250,
+        help="val = samples[train_per_diff : train_per_diff + N] (PoLar: 250). Samples after "
+        "train+val are ignored: on --split all files those are the 500 test questions.",
     )
     p.add_argument(
         "--val-eval-limit",
@@ -353,12 +361,14 @@ def main(argv=None):
         print(f"GROUP {gname}  ({len(files)} file(s))", flush=True)
 
         # split train/val POSITIONALLY like PoLar (trainer slices [0:1250]=train,
-        # [1250:]=val on the trainval-ordered merged file), NOT a random 90/10 holdout.
+        # [1250:1500]=val on the trainval-ordered merged file), NOT a random 90/10 holdout.
         train_samples, val_samples = [], []
         for path in files:
-            s = load_supervision(path)
-            train_samples.extend(s[: args.train_per_diff])
-            val_samples.extend(s[args.train_per_diff :])
+            tr, va = positional_train_val(
+                load_supervision(path), args.train_per_diff, args.val_per_diff
+            )
+            train_samples.extend(tr)
+            val_samples.extend(va)
 
         # val questions for the WINNER measurement (subsample for cost) -- fixed
         # across every original_path_weight value below (only the TRAINING

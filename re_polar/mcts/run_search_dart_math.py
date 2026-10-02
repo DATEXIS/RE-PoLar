@@ -278,18 +278,13 @@ def main():
     per_tree_seed = not args.shared_seed
 
     ddir = Path(args.data_dir) / f"diff{args.difficulty}"
-    if args.split == "trainval":
-        inputs = json.load(open(ddir / "train.json")) + json.load(open(ddir / "val.json"))
-    elif args.split == "traintest":
-        inputs = json.load(open(ddir / "train.json")) + json.load(open(ddir / "test.json"))
-    elif args.split == "all":
-        inputs = (
-            json.load(open(ddir / "train.json"))
-            + json.load(open(ddir / "val.json"))
-            + json.load(open(ddir / "test.json"))
-        )
-    else:
-        inputs = json.load(open(ddir / f"{args.split}.json"))
+    parts = {
+        "trainval": ["train", "val"],
+        "traintest": ["train", "test"],
+        "all": ["train", "val", "test"],
+    }.get(args.split, [args.split])
+    # each input carries its split -> sample_info["split"] in the merged output
+    inputs = [dict(r, split=name) for name in parts for r in json.load(open(ddir / f"{name}.json"))]
     if args.n_inputs:
         inputs = inputs[: args.n_inputs]
 

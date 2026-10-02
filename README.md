@@ -170,8 +170,12 @@ python -m re_polar.datasets.attach_mcts_questions \
 
 python -m re_polar.router.train \
     --samples data/mcts_results_full/qwen3_8b/dart-math-diff-1/merged_mcts_samples.json \
-    --model qwen3_8b --out ./results/router_qwen3_8b.pt
+    --model qwen3_8b --train-per-diff 1250 --out ./results/router_qwen3_8b.pt
 ```
+
+The released MCTS files hold all 2000 questions of a tier in the order
+train (1250), val (250), test (500). `--train-per-diff 1250` trains on the
+first 1250, validates on the next 250 and leaves the test questions out.
 
 Evaluate a trained router against the identity-program baseline:
 

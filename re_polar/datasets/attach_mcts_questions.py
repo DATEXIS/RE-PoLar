@@ -18,10 +18,10 @@ from typing import Dict, Tuple
 from re_polar.datasets.schemas import load_samples, write_merged_samples
 
 
-def build_question_lookup(dart_math_dir: Path) -> Dict[str, Tuple[str, str]]:
-    """query_id -> (question, gt_ans), from every diff{N}/{train,val,test}.json
+def build_question_lookup(dart_math_dir: Path) -> Dict[str, Tuple[str, str, str]]:
+    """query_id -> (question, gt_ans, split), from every diff{N}/{train,val,test}.json
     under dart_math_dir (re_polar.datasets.dart_math's own output layout)."""
-    lookup: Dict[str, Tuple[str, str]] = {}
+    lookup: Dict[str, Tuple[str, str, str]] = {}
     files = sorted(dart_math_dir.glob("diff*/*.json"))
     if not files:
         raise FileNotFoundError(
@@ -33,11 +33,11 @@ def build_question_lookup(dart_math_dir: Path) -> Dict[str, Tuple[str, str]]:
             continue
         print(f"[lookup {i}/{len(files)}] {f}", flush=True)
         for rec in json.loads(f.read_text(encoding="utf-8")):
-            lookup[rec["query_id"]] = (rec["question"], rec["gt_ans"])
+            lookup[rec["query_id"]] = (rec["question"], rec["gt_ans"], f.stem)
     return lookup
 
 
-def attach(mcts_dir: Path, out_dir: Path, lookup: Dict[str, Tuple[str, str]]) -> None:
+def attach(mcts_dir: Path, out_dir: Path, lookup: Dict[str, Tuple[str, str, str]]) -> None:
     files = sorted(mcts_dir.glob("*/dart-math-diff-*/merged_mcts_samples.json")) + sorted(
         mcts_dir.glob("*/dart-math-diff-*/merged_mcts_samples.json.gz")
     )
@@ -57,8 +57,11 @@ def attach(mcts_dir: Path, out_dir: Path, lookup: Dict[str, Tuple[str, str]]) ->
             if qid not in lookup:
                 missing.append(qid)
                 continue
-            question, gt_ans = lookup[qid]
-            full_samples.append({"question": question, "gt_ans": gt_ans, **s})
+            question, gt_ans, split = lookup[qid]
+            sample_info = {**s["sample_info"], "split": split}
+            full_samples.append(
+                {"question": question, "gt_ans": gt_ans, **s, "sample_info": sample_info}
+            )
         if missing:
             raise KeyError(
                 f"{f}: {len(missing)} query_id(s) not found in the reconstructed dart-math data "

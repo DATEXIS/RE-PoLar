@@ -77,6 +77,7 @@ __all__ = [
     "path_to_polar_targets",
     "load_supervision",
     "load_supervision_many",
+    "positional_train_val",
     "split_samples_train_val",
     "Example",
     "build_examples",
@@ -347,6 +348,28 @@ def load_supervision_many(samples_paths) -> List[dict]:
     return combined
 
 
+def positional_train_val(
+    samples: Sequence[dict], n_train: int, n_val: int
+) -> Tuple[List[dict], List[dict]]:
+    """train = samples[:n_train], val = samples[n_train:n_train+n_val] (PoLar's positional
+    split). Anything after train+val is ignored: MCTS files run with --split all (the
+    released data/mcts_results files) are ordered train/val/test, so that is the test
+    questions."""
+    samples = list(samples)
+    return _train_val_only(samples[:n_train]), _train_val_only(samples[n_train : n_train + n_val])
+
+
+def _train_val_only(samples: List[dict]) -> List[dict]:
+    """Router supervision is train/val questions only (``sample_info["split"]``)."""
+    n_test = sum((s.get("sample_info") or {}).get("split") == "test" for s in samples)
+    if n_test:
+        raise ValueError(
+            f"{n_test} test-split samples in the router's train/val data; for a file that "
+            f"also holds the test questions pass --train-per-diff / use positional_train_val"
+        )
+    return samples
+
+
 def split_samples_train_val(
     samples: Sequence[dict], val_frac: float = 0.1
 ) -> Tuple[List[dict], List[dict]]:
@@ -358,7 +381,7 @@ def split_samples_train_val(
     our full search run has ~1250 samples/difficulty (PoLar assumed 1500).
     ``val_frac <= 0`` -> no holdout.
     """
-    samples = list(samples)
+    samples = _train_val_only(list(samples))
     n = len(samples)
     n_val = int(round(n * val_frac)) if val_frac > 0.0 else 0
     n_val = max(0, min(n_val, n))
@@ -1174,6 +1197,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="per-difficulty holdout fraction for val-loss best-checkpoint",
     )
     p.add_argument(
+        "--train-per-diff",
+        type=int,
+        default=None,
+        help="positional split instead of --val-frac: train = first N samples of each "
+        "file, val = the next --val-per-diff, the rest is ignored. For files "
+        "that also hold the test questions (the released data: 1250).",
+    )
+    p.add_argument("--val-per-diff", type=int, default=250)
+    p.add_argument(
         "--no-validation",
         action="store_true",
         help="train on all samples and save the LAST epoch (no holdout)",
@@ -1358,8 +1390,12 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
         s = load_supervision(path)
         if args.limit is not None:
             s = s[: args.limit]
-        if args.no_validation:
-            train_samples.extend(s)
+        if args.train_per_diff is not None:
+            tr, va = positional_train_val(s, args.train_per_diff, args.val_per_diff)
+            train_samples.extend(tr)
+            val_samples.extend(va)
+        elif args.no_validation:
+            train_samples.extend(_train_val_only(s))
         else:
             tr, va = split_samples_train_val(s, args.val_frac)
             train_samples.extend(tr)
