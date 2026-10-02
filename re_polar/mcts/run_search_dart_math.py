@@ -184,7 +184,8 @@ def main():
         "distinct pending programs share ONE forward pass instead of one "
         "reward-fn call each. Off by default. Measured tradeoff, NOT "
         "result-preserving -- ~8.6-8.8%% verdict-flip-rate cost vs. the "
-        "cached serial path on real search-derived programs. Incompatible "
+        "cached serial path on real search-derived programs with the default "
+        "uncached decode (see --masked-batch-kv for the cached one). Incompatible "
         "with --replicas != 1 (masked-batch takes priority in "
         "_evaluate_jobs whenever both would apply; pass --replicas 1 "
         "explicitly to avoid confusion).",
@@ -216,6 +217,15 @@ def main():
         "equal-count buckets isolate the outliers from the bulk without "
         "excessive per-bucket setup overhead multiplication. 1 = no "
         "bucketing (old behavior). No effect without --masked-batch.",
+    )
+    parser.add_argument(
+        "--masked-batch-kv",
+        action="store_true",
+        help="KV-cached --masked-batch decode (re_polar/mcts/rewards.py): prefill "
+        "once, then decode one token per step against a per-(row, "
+        "path-position) KV cache -- the same algorithm as the cached serial "
+        "path -- instead of the default use_cache=False full-prefix "
+        "recompute at every step. No effect without --masked-batch.",
     )
     parser.add_argument(
         "--global-selection",
@@ -261,6 +271,8 @@ def main():
         "pool (--replicas) does not fully recoup this, so budget for it.",
     )
     args = parser.parse_args()
+    if args.masked_batch_kv and not args.masked_batch:
+        raise SystemExit("--masked-batch-kv only changes how --masked-batch decodes; pass both")
     if args.log_answers and not args.cache_dir:
         raise SystemExit("--log-answers requires --cache-dir (that's where the answer log goes)")
     per_tree_seed = not args.shared_seed
@@ -335,6 +347,7 @@ def main():
             fail_log_path=fail_log,
             masked_batch_max_group_size=args.masked_batch_max_group_size,
             masked_batch_buckets=args.masked_batch_buckets,
+            masked_batch_kv=args.masked_batch_kv,
             text_log_path=answer_log,
             prompt_style=args.prompt_style,
         )

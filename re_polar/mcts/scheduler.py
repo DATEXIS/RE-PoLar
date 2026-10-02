@@ -131,12 +131,14 @@ regardless of how many distinct programs need it, not once per program.
 Validated standalone for correctness (bit-identical to an uncached control)
 and benchmarked separately: speedup scales with round batch width (0.79x @
 N=4 synthetic -> 1.95x @ N=128 synthetic; 2.7-3.0x @ N=256/512 on REAL
-search-derived programs) but at a measured **8.6-8.8% verdict-flip-
-rate cost vs. the cached serial path on real programs** -- see `rewards.py::
+search-derived programs) but, for the default uncached decode, at a measured
+**8.6-8.8% verdict-flip-rate cost vs. the cached serial path on real
+programs** -- see `rewards.py::
 GenerationReward.masked_batch_call`'s docstring for the mechanism (`use_cache
 =False` full-prefix recompute, diverges from the `use_cache=True` baseline at
 the same bf16-non-associativity level that makes greedy decoding diverge
-across GPU architectures).
+across GPU architectures). `GenerationReward(masked_batch_kv=True)` decodes
+through a real KV cache instead, the same algorithm as the serial path.
 NOT proven result-preserving the way the replica pool / async scheduler are --
 this is a genuine speed/fidelity tradeoff, opt-in and clearly labeled as such
 everywhere it's wired in. `_evaluate_jobs` routes a round through
@@ -229,8 +231,8 @@ class MCTSRunner:
         # of one reward_fn call per distinct program (serial or replica-parallel).
         # Measured tradeoff, not a strict improvement -- see
         # `GenerationReward.masked_batch_call`'s own docstring for the
-        # ~8.6-8.8% verdict-flip-rate cost this carries on real search-derived
-        # programs. Independent of `reward_fns`/the replica pool -- the two opt-ins
+        # ~8.6-8.8% verdict-flip-rate cost its uncached decode carries on real
+        # search-derived programs. Independent of `reward_fns`/the replica pool -- the two opt-ins
         # are mutually exclusive in practice (masked_batch_reward_fn, if set, takes
         # priority in `_evaluate_jobs` whenever a round has >1 distinct job).
         self._masked_batch_reward = masked_batch_reward_fn

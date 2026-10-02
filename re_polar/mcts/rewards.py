@@ -543,6 +543,84 @@ def _masked_batch_layer_pass(
     return state
 
 
+def _masked_batch_layer_pass_kv(
+    layers,
+    state,
+    paths: List[List[int]],
+    position_ids,
+    cos,
+    sin,
+    causal_mask,
+    device,
+    kv,
+    cache_len: int,
+    max_group_size: Optional[int] = None,
+):
+    """KV-cached twin of `_masked_batch_layer_pass`: same greedy
+    largest-group-first scheduling and gather/scatter, but each group forward
+    attends to its prefix through a per-row cache instead of recomputing it.
+    Used only by `GenerationReward`'s KV decode (`masked_batch_kv=True`).
+
+    `kv[row][path_pos] = (K, V)`, each `[n_kv_heads, seq_len, head_dim]`. Slots
+    are keyed by PATH POSITION, not by layer: a repeat visits the same
+    underlying layer at two path positions and needs two independent slots,
+    exactly like the serial engine's unique-`layer_idx` shallow copies
+    (re_polar/core/layer_engine.py). `cache_len` is the length already stored in
+    every slot (0 at prefill); it is the same for all rows within a step, so a
+    group's rows stack into one batched past even though each row reads and
+    writes its own slot."""
+    from transformers import DynamicCache
+
+    n_rows = state.shape[0]
+    row_queue = [list(p) for p in paths]
+    while any(row_queue):
+        groups: Dict[int, List[int]] = {}
+        for i in range(n_rows):
+            if row_queue[i]:
+                groups.setdefault(row_queue[i][0], []).append(i)
+        layer_idx, rows = max(groups.items(), key=lambda g: len(g[1]))
+        chunks = (
+            [rows[i : i + max_group_size] for i in range(0, len(rows), max_group_size)]
+            if max_group_size and len(rows) > max_group_size
+            else [rows]
+        )
+        for chunk_rows in chunks:
+            idx = torch.tensor(chunk_rows, device=device)
+            sub_hidden = state.index_select(0, idx)
+            sub_mask = (
+                causal_mask.index_select(0, idx) if torch.is_tensor(causal_mask) else causal_mask
+            )
+            # a row's path position == how many layers it has already executed
+            slots = [len(paths[i]) - len(row_queue[i]) for i in chunk_rows]
+            cache = DynamicCache()
+            if cache_len > 0:
+                cache.update(
+                    torch.stack([kv[i][s][0] for i, s in zip(chunk_rows, slots)]),
+                    torch.stack([kv[i][s][1] for i, s in zip(chunk_rows, slots)]),
+                    layer_idx,
+                )
+            out = layers[layer_idx](
+                sub_hidden,
+                attention_mask=sub_mask,
+                position_ids=position_ids.index_select(0, idx),
+                position_embeddings=(cos.index_select(0, idx), sin.index_select(0, idx)),
+                past_key_values=cache,
+                use_cache=True,
+                cache_position=torch.arange(
+                    cache_len, cache_len + sub_hidden.shape[1], device=device
+                ),
+            )
+            if isinstance(out, tuple):
+                out = out[0]
+            keys, values = cache.layers[layer_idx].keys, cache.layers[layer_idx].values
+            for k, (i, s) in enumerate(zip(chunk_rows, slots)):
+                kv[i][s] = (keys[k], values[k])
+            state = state.index_copy(0, idx, out)
+            for i in chunk_rows:
+                row_queue[i].pop(0)
+    return state
+
+
 def _bucket_row_indices(lengths: List[int], n_buckets: int) -> List[List[int]]:
     """Length-bucketing for masked_batch_call:
     partitions `range(len(lengths))` into `n_buckets` groups of rows with similar
@@ -615,6 +693,7 @@ class GenerationReward:
         prompt_style: str = "raw",
         masked_batch_max_group_size: Optional[int] = None,
         masked_batch_buckets: int = 8,
+        masked_batch_kv: bool = False,
         text_log_path: Optional[str] = None,
     ):
         self.executor = executor
@@ -640,6 +719,12 @@ class GenerationReward:
         # batch for the whole round) -- the degenerate case `_bucket_row_indices`
         # already handles, not a separate code path.
         self.masked_batch_buckets = masked_batch_buckets
+        # KV-cached masked-batch decode: masked_batch_call prefills once, then
+        # decodes one token per step against a per-(row, path-position) KV cache
+        # (`_masked_batch_decode_bucket_kv`) -- the same algorithm as the cached
+        # serial `__call__`, instead of recomputing the full prefix every step.
+        # Default False = the uncached decode.
+        self.masked_batch_kv = masked_batch_kv
         if prompt_style not in PROMPT_STYLES:
             raise ValueError(f"prompt_style must be one of {sorted(PROMPT_STYLES)}")
         self._prompt_fn = PROMPT_STYLES[prompt_style]
@@ -837,14 +922,19 @@ class GenerationReward:
         `generate()`) per distinct program. Validated standalone against an
         uncached control (bit-identical) and benchmarked separately: speedup
         scales with row count (0.79x @ N=4 -> 1.95x @ N=128 synthetic; 2.7-3.0x
-        @ N=256/512 on REAL MCTS-search-derived programs), at a measured
+        @ N=256/512 on REAL MCTS-search-derived programs). The default uncached
+        decode (`masked_batch_kv=False`) comes at a measured
         **8.6-8.8% verdict-flip-rate cost vs. the cached serial `__call__` path** on
         real programs (root cause: `use_cache=False` full-prefix recompute every
         step diverges from `use_cache=True` at the bf16-non-associativity level for
         repeat-heavy/deep programs -- the same bf16 non-associativity that makes
         greedy decoding diverge across GPU architectures, not a bug in the
         gather/scatter mechanism itself, which was proven bit-identical to an
-        uncached control).
+        uncached control). `masked_batch_kv=True` removes that recompute: it
+        decodes through a real KV cache (`_masked_batch_decode_bucket_kv`), the
+        same algorithm as `__call__`, so a row decoded alone matches the serial
+        path and what is left once rows share a forward call is batch-shape
+        bf16 noise.
 
         `programs`/`questions`/`gt_answers` are PARALLEL arrays, one entry per row
         -- unlike `__call__`, `programs[i]` may differ per row (that's the whole
@@ -890,12 +980,16 @@ class GenerationReward:
         prompts = [self._prompt_fn(self.tokenizer, q) for q in questions]
         lengths = [len(self.tokenizer.encode(p)) for p in prompts]
 
+        decode_bucket = (
+            self._masked_batch_decode_bucket_kv
+            if self.masked_batch_kv
+            else self._masked_batch_decode_bucket
+        )
+
         def process_bucket(bucket_indices: List[int]) -> List[float]:
             b_paths = [paths[i] for i in bucket_indices]
             b_prompts = [prompts[i] for i in bucket_indices]
-            texts = self._masked_batch_decode_bucket(
-                b_paths, b_prompts, layers, inner, model, device
-            )
+            texts = decode_bucket(b_paths, b_prompts, layers, inner, model, device)
             b_programs = [programs[i] for i in bucket_indices]
             b_questions = [questions[i] for i in bucket_indices]
             b_gt = [gt_answers[i] for i in bucket_indices]
@@ -964,6 +1058,84 @@ class GenerationReward:
                 pad_mask = torch.cat(
                     [pad_mask, torch.ones(n_rows, 1, dtype=pad_mask.dtype, device=device)], dim=1
                 )
+
+        return [self.tokenizer.decode(g, skip_special_tokens=True) for g in generated]
+
+    def _masked_batch_decode_bucket_kv(
+        self, paths: List[List[int]], prompts: List[str], layers, inner, model, device
+    ) -> List[str]:
+        """KV-cached twin of `_masked_batch_decode_bucket` (`masked_batch_kv`):
+        prefill the left-padded prompt ONCE, filling every row's per-path-position
+        KV slots, then decode one token per step through the cache -- the same
+        algorithm as the cached serial `__call__`, still batched across distinct
+        programs. Same left-padding, scheduling (`_masked_batch_layer_pass_kv`)
+        and slice-before-norm as the uncached version.
+
+        Left-padding: the cached slots include the pad columns, so the cache
+        length is the same for every row, but RoPE uses each row's LOGICAL
+        position (`cur_len - n_pad`), the way HF drives a left-padded cached
+        decode. `mask_cache` holds no real K/V (those live in `kv`); it only
+        tells `create_causal_mask` the past length so the pad columns stay
+        masked for the length-1 decode query."""
+        import torch
+        from transformers import DynamicCache
+        from transformers.masking_utils import create_causal_mask
+
+        n_rows = len(paths)
+        enc = self.tokenizer(prompts, return_tensors="pt", padding=True).to(device)
+        seq = enc["input_ids"]
+        pad_mask = enc["attention_mask"]
+        prompt_len = seq.shape[1]
+        n_pad = (pad_mask == 0).sum(dim=1)
+        generated: List[List[int]] = [[] for _ in range(n_rows)]
+        kv: List[dict] = [dict() for _ in range(n_rows)]
+
+        with torch.no_grad():
+            # prefill: full padded prompt, populates every slot
+            position_ids = (
+                torch.arange(prompt_len, device=device).unsqueeze(0) - n_pad.unsqueeze(1)
+            ).clamp(min=0)
+            hidden = inner.embed_tokens(seq)
+            mask_cache = DynamicCache()
+            for step in range(self.max_new_tokens):
+                cache_len = 0 if step == 0 else prompt_len + step - 1
+                cos, sin = inner.rotary_emb(hidden, position_ids)
+                causal_mask = create_causal_mask(
+                    config=model.config,
+                    inputs_embeds=hidden,
+                    attention_mask=pad_mask,
+                    past_key_values=mask_cache if step else None,
+                    position_ids=position_ids,
+                )
+                state = _masked_batch_layer_pass_kv(
+                    layers,
+                    hidden,
+                    paths,
+                    position_ids,
+                    cos,
+                    sin,
+                    causal_mask,
+                    device,
+                    kv,
+                    cache_len=cache_len,
+                    max_group_size=self.masked_batch_max_group_size,
+                )
+                next_tok = model.lm_head(inner.norm(state[:, -1, :])).argmax(-1)
+                for i in range(n_rows):
+                    generated[i].append(next_tok[i].item())
+
+                # decode: the next step's input is just the new token
+                grown = hidden.shape[1]
+                mask_cache.update(
+                    torch.zeros(n_rows, 1, grown, 1, dtype=state.dtype, device=device),
+                    torch.zeros(n_rows, 1, grown, 1, dtype=state.dtype, device=device),
+                    0,
+                )
+                pad_mask = torch.cat(
+                    [pad_mask, torch.ones(n_rows, 1, dtype=pad_mask.dtype, device=device)], dim=1
+                )
+                position_ids = (prompt_len + step - n_pad).unsqueeze(1)
+                hidden = inner.embed_tokens(next_tok.unsqueeze(1))
 
         return [self.tokenizer.decode(g, skip_special_tokens=True) for g in generated]
 

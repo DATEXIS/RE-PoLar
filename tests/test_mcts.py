@@ -516,6 +516,122 @@ def test_masked_batch_layer_pass_max_group_size_caps_peak_batch():
     assert [n for (_idx, n) in calls if _idx == 0] == [10]
 
 
+def test_masked_batch_layer_pass_kv_scheduling_and_slot_bookkeeping():
+    """CPU-only unit test of the KV-cached scheduling core
+    (`_masked_batch_layer_pass_kv`). Fake layers write one K/V per query token
+    into the passed-in cache, encoding their underlying layer index into K, so
+    we can assert without a model that:
+
+      1. scheduling is IDENTICAL to the uncached pass (greedy largest-group-first),
+      2. every path position gets its OWN kv slot, and a REPEAT (same underlying
+         layer at two path positions) lands in two DISTINCT slots -- the property
+         that makes the KV path match the serial engine's
+         unique-`layer_idx`-per-position shallow copies.
+    """
+    import torch
+
+    from re_polar.mcts.rewards import _masked_batch_layer_pass, _masked_batch_layer_pass_kv
+
+    calls = []  # (layer_idx, group_size) in call order
+
+    def make_layer(idx):
+        def layer(
+            hidden,
+            attention_mask=None,
+            position_ids=None,
+            position_embeddings=None,
+            past_key_values=None,
+            use_cache=None,
+            cache_position=None,
+        ):
+            b, q = hidden.shape[0], hidden.shape[1]
+            past_key_values.update(
+                torch.full((b, 1, q, 1), float(idx)), torch.full((b, 1, q, 1), idx + 0.5), idx
+            )
+            calls.append((idx, b))
+            return hidden + 1.0
+
+        return layer
+
+    layers = [make_layer(i) for i in range(4)]
+    # row 0: repeats layer 0 (path positions 0 and 1 are both underlying layer 0)
+    # rows 1-7: keep [0,1,2];  rows 8-9: skip layer 0 -> [1,2]
+    paths = [[0, 0, 1, 2]] + [[0, 1, 2]] * 7 + [[1, 2]] * 2
+    n_rows = len(paths)
+    prompt_len = 5
+    position_ids = torch.zeros(n_rows, prompt_len, dtype=torch.long)
+    cos = torch.zeros(n_rows, prompt_len)
+    sin = torch.zeros(n_rows, prompt_len)
+    kv = [dict() for _ in range(n_rows)]
+
+    out = _masked_batch_layer_pass_kv(
+        layers,
+        torch.zeros(n_rows, prompt_len, 1),
+        paths,
+        position_ids,
+        cos,
+        sin,
+        causal_mask=None,
+        device="cpu",
+        kv=kv,
+        cache_len=0,
+    )
+
+    # each row's final value = number of layers in ITS path (each adds 1.0)
+    expected = torch.tensor([4.0] + [3.0] * 7 + [2.0] * 2).view(n_rows, 1, 1)
+    assert torch.equal(out, expected.expand(n_rows, prompt_len, 1))
+
+    # scheduling parity: the KV pass groups rows exactly as the uncached pass does
+    plain_calls = []
+
+    def make_plain_layer(idx):
+        def layer(
+            hidden, attention_mask=None, position_ids=None, position_embeddings=None, use_cache=None
+        ):
+            plain_calls.append((idx, hidden.shape[0]))
+            return hidden + 1.0
+
+        return layer
+
+    _masked_batch_layer_pass(
+        [make_plain_layer(i) for i in range(4)],
+        torch.zeros(n_rows, prompt_len, 1),
+        paths,
+        position_ids,
+        cos,
+        sin,
+        causal_mask=None,
+        device="cpu",
+    )
+    assert calls == plain_calls
+
+    def slot_layer(row, pos):  # the underlying layer index encoded into that slot's K
+        return kv[row][pos][0].flatten()[0].item()
+
+    # row 0's repeat: two distinct slots, both holding layer 0
+    assert set(kv[0]) == {0, 1, 2, 3}
+    assert [slot_layer(0, p) for p in range(4)] == [0.0, 0.0, 1.0, 2.0]
+    assert kv[0][0][0].shape == (1, prompt_len, 1)
+    # a skip row only has path positions 0,1 (underlying layers 1,2)
+    assert set(kv[8]) == {0, 1}
+    assert [slot_layer(8, p) for p in range(2)] == [1.0, 2.0]
+
+    # a decode step seeds each slot's past and appends exactly one token
+    _masked_batch_layer_pass_kv(
+        layers,
+        torch.zeros(n_rows, 1, 1),
+        paths,
+        torch.zeros(n_rows, 1, dtype=torch.long),
+        torch.zeros(n_rows, 1),
+        torch.zeros(n_rows, 1),
+        causal_mask=None,
+        device="cpu",
+        kv=kv,
+        cache_len=prompt_len,
+    )
+    assert kv[0][0][0].shape == (1, prompt_len + 1, 1)
+
+
 def test_rmsnorm_slice_before_is_bit_identical_to_slice_after():
     """Pins a real memory-savings fix in BOTH `masked_batch_call`s: computing
     `norm(state[:, -1, :])` must be BIT-identical to the naive `norm(state)[:, -1, :]`.
