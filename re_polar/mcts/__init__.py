@@ -14,9 +14,35 @@ rewards.py   GenerationReward: batched greedy generation through
              scoring, ~100x cheaper -> makes 27-32B MCTS feasible.
 """
 
-from .rewards import GenerationReward, LogLikReward
-from .scheduler import EvalCache, MCTSRunner, derive_tree_seed
-from .search import ProgramMCTS
+import importlib
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # static analysis only; never imported at runtime
+    from .rewards import GenerationReward, LogLikReward
+    from .scheduler import EvalCache, MCTSRunner, derive_tree_seed
+    from .search import ProgramMCTS
+
+# Lazy (PEP 562): `python -m re_polar.mcts.run_search_*` makes every spawned
+# grading worker re-import its main module, and with it this package. Eager
+# imports here pulled torch (via rewards.py) into each RLIMIT_AS-capped worker;
+# see re_polar/core/__init__.py.
+_LAZY = {
+    "GenerationReward": "rewards",
+    "LogLikReward": "rewards",
+    "EvalCache": "scheduler",
+    "MCTSRunner": "scheduler",
+    "derive_tree_seed": "scheduler",
+    "ProgramMCTS": "search",
+}
+
+
+def __getattr__(name):
+    if name not in _LAZY:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(importlib.import_module(f".{_LAZY[name]}", __name__), name)
+    globals()[name] = value
+    return value
+
 
 __all__ = [
     "ProgramMCTS",

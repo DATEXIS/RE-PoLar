@@ -40,6 +40,11 @@ def _safe_grade(evaluator, ref: str, resp_text: str) -> bool:
     try:
         ans = evaluator.extract_ans(resp_text)
         return bool(ans) and bool(evaluator.eq(ref, ans))
+    except MemoryError:
+        # the worker's RLIMIT_AS cap tripped: let it reach _grade_batch, which
+        # still scores 0 but writes a fail-log entry, so a too-tight cap can't
+        # silently turn correct answers into 0s
+        raise
     except Exception:
         return False
 

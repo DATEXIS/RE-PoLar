@@ -10,8 +10,8 @@ checks, and only keeps the cropped label when it verifiably is.
 Pipeline (one job, one model load):
   1. VERIFY: for each TRAIN [0:1250] sample with >=1 times!=2 path, build the
      cropped (times=2) program, execute it online (GenerationReward, the
-     standard cached serial path -- NOT masked_batch_call, which has a
-     measured 8.6-8.8% verdict-flip cost, not wanted for a trustworthy
+     standard cached serial path -- NOT masked_batch_call, whose batch-shape
+     bf16 noise can occasionally flip a verdict, not wanted for a trustworthy
      verdict here). Correct -> keep the cropped path (now a genuinely
      times=2-verified non-identity program). Incorrect -> drop that path
      from training entirely.

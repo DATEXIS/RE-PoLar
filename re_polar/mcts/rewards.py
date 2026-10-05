@@ -693,7 +693,7 @@ class GenerationReward:
         prompt_style: str = "raw",
         masked_batch_max_group_size: Optional[int] = None,
         masked_batch_buckets: int = 8,
-        masked_batch_kv: bool = False,
+        masked_batch_kv: bool = True,
         text_log_path: Optional[str] = None,
     ):
         self.executor = executor
@@ -723,7 +723,8 @@ class GenerationReward:
         # decodes one token per step against a per-(row, path-position) KV cache
         # (`_masked_batch_decode_bucket_kv`) -- the same algorithm as the cached
         # serial `__call__`, instead of recomputing the full prefix every step.
-        # Default False = the uncached decode.
+        # Default True = the paper's configuration (Appendix A.7); False =
+        # uncached decode.
         self.masked_batch_kv = masked_batch_kv
         if prompt_style not in PROMPT_STYLES:
             raise ValueError(f"prompt_style must be one of {sorted(PROMPT_STYLES)}")
@@ -922,19 +923,21 @@ class GenerationReward:
         `generate()`) per distinct program. Validated standalone against an
         uncached control (bit-identical) and benchmarked separately: speedup
         scales with row count (0.79x @ N=4 -> 1.95x @ N=128 synthetic; 2.7-3.0x
-        @ N=256/512 on REAL MCTS-search-derived programs). The default uncached
-        decode (`masked_batch_kv=False`) comes at a measured
-        **8.6-8.8% verdict-flip-rate cost vs. the cached serial `__call__` path** on
-        real programs (root cause: `use_cache=False` full-prefix recompute every
-        step diverges from `use_cache=True` at the bf16-non-associativity level for
-        repeat-heavy/deep programs -- the same bf16 non-associativity that makes
-        greedy decoding diverge across GPU architectures, not a bug in the
-        gather/scatter mechanism itself, which was proven bit-identical to an
-        uncached control). `masked_batch_kv=True` removes that recompute: it
-        decodes through a real KV cache (`_masked_batch_decode_bucket_kv`), the
-        same algorithm as `__call__`, so a row decoded alone matches the serial
-        path and what is left once rows share a forward call is batch-shape
-        bf16 noise.
+        @ N=256/512 on REAL MCTS-search-derived programs).
+
+        NOT bit-identical to `__call__`: bf16 addition is not associative, so
+        the kernel a row runs depends on the shape of the batch it shares, which
+        can occasionally flip a greedily decoded token and cascade into a 0/1
+        reward flip (paper Appendix A.6). The default decode
+        (`masked_batch_kv=False`, `_masked_batch_decode_bucket`) additionally
+        recomputes the full prefix with `use_cache=False` every step.
+        `masked_batch_kv=True` (the default) decodes through a per-(row,
+        path-position) KV cache instead (`_masked_batch_decode_bucket_kv`), the same algorithm as
+        `__call__`: bit-identical to it when no other row shares the forward
+        call (tests/test_masked_batch_kv_decode.py), and once rows are batched
+        its residual disagreement is indistinguishable from that batch-shape
+        noise. The paper's MCTS runs all use `masked_batch_kv=True` (Appendix
+        A.7).
 
         `programs`/`questions`/`gt_answers` are PARALLEL arrays, one entry per row
         -- unlike `__call__`, `programs[i]` may differ per row (that's the whole
@@ -951,11 +954,12 @@ class GenerationReward:
         see that function's docstring for the mechanism and measured ~1.4-1.8x
         fewer forward calls on real programs).
 
-        **OPT-IN ONLY.** Never called by `__call__`/the default MCTSRunner path --
-        only reachable via `MCTSRunner(masked_batch_reward_fn=...)`
-        (`re_polar/mcts/scheduler.py::_generate_masked_batch`). Given the flip-rate
-        cost above, callers should treat this as a measured speed/fidelity
-        tradeoff, not a drop-in replacement for `__call__`.
+        Never called by `__call__`; reached via `MCTSRunner(masked_batch_reward_fn=
+        ...)` (`re_polar/mcts/scheduler.py::_generate_masked_batch`), which
+        `run_search_dart_math` sets by default -- every MCTS run in the paper used
+        it with `masked_batch_kv=True` (Appendix A.7). Given the batch-shape noise
+        above it is not a drop-in replacement for `__call__` where exact serial
+        rewards matter (re-verifying a program, final evaluation).
 
         LENGTH BUCKETING: the round is split into
         `self.masked_batch_buckets` length-sorted buckets (`_bucket_row_indices`)

@@ -22,6 +22,24 @@ from pathlib import Path
 from re_polar.models import MODEL_REGISTRY
 
 
+def resolve_masked_batch_flags(args) -> None:
+    """Fill in --masked-batch/--masked-batch-kv when not passed (None): the paper's
+    configuration (both on, Appendix A.7) wherever there is a model, both off
+    under --offline-replay. Refuses contradictory combinations."""
+    if args.masked_batch is None:
+        args.masked_batch = not args.offline_replay
+    if args.masked_batch_kv is None:
+        args.masked_batch_kv = args.masked_batch
+    if args.masked_batch_kv and not args.masked_batch:
+        raise SystemExit("--masked-batch-kv only changes how --masked-batch decodes; pass both")
+    if args.masked_batch and str(args.replicas).strip().lower() != "1":
+        raise SystemExit(
+            "--masked-batch (on by default) and --replicas != 1 don't combine: masked-batch "
+            "takes over every multi-program round, leaving the replicas unused. Pass "
+            "--no-masked-batch to use the replica pool."
+        )
+
+
 def main():
     # torch-free imports (these are all --offline-replay needs; the model-side
     # imports live in the non-offline branch below so a replay loads no torch).
@@ -178,30 +196,24 @@ def main():
     )
     parser.add_argument(
         "--masked-batch",
-        action="store_true",
-        help="Opt-in cross-program masked/gathered batching (re_polar/mcts/"
-        "scheduler.py module docstring 'MASKED-BATCH SCHEDULER'): a round's "
-        "distinct pending programs share ONE forward pass instead of one "
-        "reward-fn call each. Off by default. Measured tradeoff, NOT "
-        "result-preserving -- ~8.6-8.8%% verdict-flip-rate cost vs. the "
-        "cached serial path on real search-derived programs with the default "
-        "uncached decode (see --masked-batch-kv for the cached one). Incompatible "
-        "with --replicas != 1 (masked-batch takes priority in "
-        "_evaluate_jobs whenever both would apply; pass --replicas 1 "
-        "explicitly to avoid confusion).",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Cross-program masked/gathered batching (re_polar/mcts/scheduler.py "
+        "module docstring 'MASKED-BATCH SCHEDULER'): a round's distinct "
+        "pending programs share ONE forward pass instead of one reward-fn "
+        "call each. ON by default, as in every MCTS run in the paper "
+        "(Appendix A.7); off under --offline-replay (no model). NOT "
+        "result-preserving -- batch-shape bf16 noise can occasionally flip a "
+        "reward vs. the cached serial path (paper Appendix A.6/A.7); "
+        "--no-masked-batch for the serial path. Incompatible with --replicas "
+        "!= 1 (pass --no-masked-batch to use the replica pool).",
     )
     parser.add_argument(
         "--masked-batch-max-group-size",
         type=int,
         default=None,
-        help="Caps peak per-forward-call memory in --masked-batch's greedy "
-        "largest-group-first scheduling (re_polar/mcts/rewards.py) -- added "
-        "after an OOM on a memory-constrained GPU for the mmlu_pro variant "
-        "(a single group grew large enough to exceed budget). Splits an "
-        "oversized group into sequential sub-chunks of at most this many "
-        "rows instead of one huge call -- bounds memory WITHOUT reducing "
-        "--n-inputs. Default None = uncapped (original behavior). No effect "
-        "without --masked-batch.",
+        help="Max rows per --masked-batch forward call; bounds GPU memory. "
+        "Default None = uncapped. Lower it on OOM (see README).",
     )
     parser.add_argument(
         "--masked-batch-buckets",
@@ -220,12 +232,14 @@ def main():
     )
     parser.add_argument(
         "--masked-batch-kv",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="KV-cached --masked-batch decode (re_polar/mcts/rewards.py): prefill "
         "once, then decode one token per step against a per-(row, "
         "path-position) KV cache -- the same algorithm as the cached serial "
-        "path -- instead of the default use_cache=False full-prefix "
-        "recompute at every step. No effect without --masked-batch.",
+        "path. ON by default whenever --masked-batch is (the paper's "
+        "configuration, Appendix A.7); --no-masked-batch-kv for the older "
+        "use_cache=False full-prefix recompute at every step.",
     )
     parser.add_argument(
         "--global-selection",
@@ -271,8 +285,7 @@ def main():
         "pool (--replicas) does not fully recoup this, so budget for it.",
     )
     args = parser.parse_args()
-    if args.masked_batch_kv and not args.masked_batch:
-        raise SystemExit("--masked-batch-kv only changes how --masked-batch decodes; pass both")
+    resolve_masked_batch_flags(args)
     if args.log_answers and not args.cache_dir:
         raise SystemExit("--log-answers requires --cache-dir (that's where the answer log goes)")
     per_tree_seed = not args.shared_seed
@@ -486,6 +499,8 @@ def main():
         "alpha": args.alpha,
         "beta": args.beta,
         "prompt_style": args.prompt_style,
+        "masked_batch": args.masked_batch,
+        "masked_batch_kv": args.masked_batch_kv,
     }
     print(json.dumps(stats))
     print(

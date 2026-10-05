@@ -1601,7 +1601,9 @@ def test_grade_batch_isolates_pathological_answer_and_logs(tmp_path):
         fail_log_path=str(log),
         difficulty=4,
         grade_timeout_s=3,
-        grade_mem_bytes=512 * 1024**2,
+        # Linux enforces RLIMIT_AS on the whole worker (~2.6 GiB virtual after its
+        # imports), so a cap below that grades every answer 0; macOS ignores it
+        grade_mem_bytes=4 * 1024**3,
         grade_workers=2,
     )
     prog = Program.identity(36)
@@ -1682,7 +1684,9 @@ def test_grade_batch_no_storm_on_boxed_giant(tmp_path):
         fail_log_path=str(log),
         difficulty=3,
         grade_timeout_s=3,
-        grade_mem_bytes=512 * 1024**2,
+        # Linux enforces RLIMIT_AS on the whole worker (~2.6 GiB virtual after its
+        # imports), so a cap below that grades every answer 0; macOS ignores it
+        grade_mem_bytes=4 * 1024**3,
         grade_workers=2,
     )
     prog = Program.identity(36)
@@ -1908,3 +1912,33 @@ def test_text_log_is_off_by_default_and_costs_nothing():
     gr = R.GenerationReward.__new__(R.GenerationReward)  # no model needed
     gr.text_log = None
     assert gr.text_log is None
+
+
+def test_masked_batch_flags_default_to_paper_config():
+    """run_search_dart_math defaults to masked-batch + KV (paper Appendix A.7),
+    switches both off under --offline-replay, and refuses contradictions."""
+    from types import SimpleNamespace
+
+    import pytest
+
+    from re_polar.mcts.run_search_dart_math import resolve_masked_batch_flags
+
+    def resolve(masked_batch=None, masked_batch_kv=None, offline_replay=None, replicas="1"):
+        args = SimpleNamespace(
+            masked_batch=masked_batch,
+            masked_batch_kv=masked_batch_kv,
+            offline_replay=offline_replay,
+            replicas=replicas,
+        )
+        resolve_masked_batch_flags(args)
+        return args.masked_batch, args.masked_batch_kv
+
+    assert resolve() == (True, True)  # paper default
+    assert resolve(masked_batch_kv=False) == (True, False)  # uncached decode
+    assert resolve(masked_batch=False) == (False, False)  # serial path
+    assert resolve(offline_replay="cache_dir") == (False, False)  # no model
+    assert resolve(masked_batch=False, replicas="auto") == (False, False)
+    with pytest.raises(SystemExit):
+        resolve(masked_batch=False, masked_batch_kv=True)
+    with pytest.raises(SystemExit):
+        resolve(replicas="4")  # default masked-batch would leave replicas unused

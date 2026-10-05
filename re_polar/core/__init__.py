@@ -19,11 +19,37 @@ the mmlu_pro_* modules are imported from their own submodule, same as
 before the merge.
 """
 
+import importlib
+from typing import TYPE_CHECKING
+
 from .ir import Op, Segment, Program, MAX_SEGMENT_LEN
 from .grammar import validate_program, is_valid
-from .model_loader import load_model_and_tokenizer, detect_device
-from .layer_engine import LayerEngine
-from .executor import ProgramExecutor
+
+if TYPE_CHECKING:  # static analysis only; never imported at runtime
+    from .executor import ProgramExecutor
+    from .layer_engine import LayerEngine
+    from .model_loader import detect_device, load_model_and_tokenizer
+
+# torch/transformers-backed names load on first access (PEP 562), so importing
+# any submodule -- in particular the torch-free grader.py inside spawned,
+# RLIMIT_AS-capped grading workers -- doesn't drag torch in through this file.
+# Eager imports here put every grading worker at ~7.2 GiB virtual size on Linux
+# (vs ~2.6 GiB for the evaluator alone), leaving <1 GiB of the 8 GiB cap.
+_LAZY = {
+    "load_model_and_tokenizer": "model_loader",
+    "detect_device": "model_loader",
+    "LayerEngine": "layer_engine",
+    "ProgramExecutor": "executor",
+}
+
+
+def __getattr__(name):
+    if name not in _LAZY:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(importlib.import_module(f".{_LAZY[name]}", __name__), name)
+    globals()[name] = value
+    return value
+
 
 __all__ = [
     "Op",

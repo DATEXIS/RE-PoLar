@@ -192,9 +192,10 @@ hours on a single GPU (longer without flash-attention, e.g. on Apple
 Silicon MPS). For a fast first-run smoke test, add `--difficulty 1 --limit
 40` (or similar) to cut this down to a couple minutes.
 
-The search that *discovers* this data (`re_polar/mcts/run_search_dart_math.py`,
-`re_polar/mcts/run_search_mmlu_pro_domains.py`) is directly runnable as a
-script with a full CLI. There's no single command that regenerates the
+The search that *discovers* this data (`re_polar/mcts/run_search_dart_math.py`)
+is directly runnable as a script with a full CLI, as is the MMLU-Pro search
+behind the paper's MMLU-Pro analysis
+(`re_polar/mcts/run_search_mmlu_pro_domains.py`, outputs not released). There's no single command that regenerates the
 *entire* release: it's 5 models × 5 difficulty tiers (25 runs total), each
 a separate, GPU-hour-scale MCTS search — expect the full release to cost
 many GPU-hours in aggregate, and run the 25 (model, difficulty) combos in
@@ -207,6 +208,19 @@ python -m re_polar.mcts.run_search_dart_math --difficulty 1 --n-inputs 50 \
     --budget 100 --data-dir ./data/dart_math \
     --output-root ./data/mcts --cache-dir ./data/mcts_cache
 ```
+
+### Running the MCTS search
+
+- DART-Math search defaults to masked-batch + KV decoding, as in the paper
+  (Appendix A.7). `--no-masked-batch` evaluates one program at a time.
+- `--masked-batch-max-group-size`: max rows per forward call, uncapped by
+  default. Lower it on OOM. Caps that ran for Qwen3-8B:
+
+| Search                  | GPU           | Cap |
+| ----------------------- | ------------- | --- |
+| DART-Math               | B200 (180 GB) | 768 |
+| DART-Math               | A100 (40 GB)  | 512 |
+| MMLU-Pro (long prompts) | A100 (40 GB)  | 64  |
 
 ## Cluster / Docker
 

@@ -1,7 +1,10 @@
 """MCTS program discovery over mmlu_pro_domains (LogLikReward), the
 "own data + models" analog of run_search_dart_math.py.
 
-Differs from the DART-Math runner in three ways:
+Backs the paper's MMLU-Pro analysis; its outputs are not part of the data
+release.
+
+Differs from the DART-Math runner in four ways:
   - reward = LogLikReward (one log-likelihood forward pass, no generation/
     grading loop) instead of GenerationReward -- ~100x cheaper, what makes
     27-32B MCTS feasible (re_polar/mcts/rewards.py).
@@ -12,6 +15,8 @@ Differs from the DART-Math runner in three ways:
     replacement) instead of a flat --n-inputs prefix -- keeps a pilot
     balanced across domains instead of favoring whichever domain sorts first
     in train.json.
+  - --masked-batch is off by default (the paper states it only for
+    DART-Math), and there is no --masked-batch-kv (no decode loop).
 
 Faithful search config: --max-repeat-times defaults to 5 (r<=4 == a segment
 executed up to 5x), unlike the DART-Math runner's r=2 default (kept there
@@ -245,28 +250,17 @@ def main():
     parser.add_argument(
         "--masked-batch",
         action="store_true",
-        help="Opt-in cross-program masked/gathered batching for LogLikReward "
-        "(re_polar/mcts/rewards.py::LogLikReward.masked_batch_call) -- one "
-        "shared forward pass per round across ALL distinct pending programs "
-        "instead of one program at a time. Unlike GenerationReward's "
-        "version, LogLikReward's serial baseline is ALREADY "
-        "use_cache=False (single forward pass, no generation loop) -- so "
-        "this carries none of the cache-vs-no-cache fidelity tradeoff the "
-        "DART-Math version has; expected closer to risk-free. OFF by "
-        "default -- zero behavior change when unset.",
+        help="Share one forward pass per round across all distinct programs "
+        "(LogLikReward.masked_batch_call). Off by default, unlike "
+        "run_search_dart_math: the paper states masked-batch only for "
+        "DART-Math. No KV variant: log-likelihood scoring has no decode loop.",
     )
     parser.add_argument(
         "--masked-batch-max-group-size",
         type=int,
         default=None,
-        help="Caps peak per-forward-call memory in --masked-batch's greedy "
-        "largest-group-first scheduling (re_polar/mcts/rewards.py) -- added "
-        "after an OOM on a memory-constrained GPU (a single group grew "
-        "large enough to exceed budget). Splits an oversized group into "
-        "sequential sub-chunks of at most this many rows instead of one "
-        "huge call -- bounds memory WITHOUT reducing --n-per-domain. "
-        "Default None = uncapped (original behavior). No effect without "
-        "--masked-batch.",
+        help="Max rows per --masked-batch forward call; bounds GPU memory. "
+        "Default None = uncapped. Lower it on OOM (see README).",
     )
     parser.add_argument(
         "--masked-batch-buckets",

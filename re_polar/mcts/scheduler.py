@@ -118,9 +118,10 @@ pool's own exclusivity/concurrency test). Whether it actually fixes the
 N=4 regression / tiny-config starvation on a real multi-day run is a
 separate, larger validation not covered by these unit-level checks.
 
-MASKED-BATCH SCHEDULER (off by default -- `MCTSRunner(
-masked_batch_reward_fn=...)`): a third, independent opt-in axis alongside the
-replica pool and async scheduler, attacking a different bottleneck. The
+MASKED-BATCH SCHEDULER (`MCTSRunner(masked_batch_reward_fn=...)`; None here,
+but `run_search_dart_math` sets it by default, as in every MCTS run in the
+paper, Appendix A.7): a third axis alongside the replica pool and async
+scheduler, attacking a different bottleneck. The
 replica pool parallelizes ACROSS distinct programs by giving each its own
 model replica (capped ~1.2-1.5x by shared HBM bandwidth -- N replicas still
 each read the full model's weights). Masked-batching instead runs ALL of a
@@ -131,17 +132,14 @@ regardless of how many distinct programs need it, not once per program.
 Validated standalone for correctness (bit-identical to an uncached control)
 and benchmarked separately: speedup scales with round batch width (0.79x @
 N=4 synthetic -> 1.95x @ N=128 synthetic; 2.7-3.0x @ N=256/512 on REAL
-search-derived programs) but, for the default uncached decode, at a measured
-**8.6-8.8% verdict-flip-rate cost vs. the cached serial path on real
-programs** -- see `rewards.py::
-GenerationReward.masked_batch_call`'s docstring for the mechanism (`use_cache
-=False` full-prefix recompute, diverges from the `use_cache=True` baseline at
-the same bf16-non-associativity level that makes greedy decoding diverge
-across GPU architectures). `GenerationReward(masked_batch_kv=True)` decodes
-through a real KV cache instead, the same algorithm as the serial path.
+search-derived programs) but rows sharing a forward call get batch-shape-
+dependent bf16 rounding, which can occasionally flip a reward vs. the cached
+serial path, with or without `GenerationReward(masked_batch_kv=True)` -- see
+`rewards.py::GenerationReward.masked_batch_call`'s docstring and the paper's
+Appendix A.6/A.7.
 NOT proven result-preserving the way the replica pool / async scheduler are --
-this is a genuine speed/fidelity tradeoff, opt-in and clearly labeled as such
-everywhere it's wired in. `_evaluate_jobs` routes a round through
+this is a genuine speed/fidelity tradeoff, clearly labeled as such everywhere
+it's wired in. `_evaluate_jobs` routes a round through
 `_generate_masked_batch` instead of `_generate_parallel`/serial whenever
 `masked_batch_reward_fn` is set AND the round has >1 distinct pending program
 (a single-program round has nothing to batch across).
@@ -223,7 +221,7 @@ class MCTSRunner:
         beta: float = 0.5,
     ):
         self.inputs = inputs
-        # MASKED-BATCH SCHEDULER (opt-in, see module docstring below):
+        # MASKED-BATCH SCHEDULER (see module docstring; the CLI's default):
         # None (default) -> zero behavior change, _evaluate_jobs takes the exact
         # same branches as before this param existed. When set, a round with >1
         # distinct pending program routes through ONE shared cross-program forward
@@ -231,10 +229,11 @@ class MCTSRunner:
         # of one reward_fn call per distinct program (serial or replica-parallel).
         # Measured tradeoff, not a strict improvement -- see
         # `GenerationReward.masked_batch_call`'s own docstring for the
-        # ~8.6-8.8% verdict-flip-rate cost its uncached decode carries on real
-        # search-derived programs. Independent of `reward_fns`/the replica pool -- the two opt-ins
-        # are mutually exclusive in practice (masked_batch_reward_fn, if set, takes
-        # priority in `_evaluate_jobs` whenever a round has >1 distinct job).
+        # batch-shape bf16 noise that can occasionally flip a reward.
+        # Independent of `reward_fns`/the replica pool, but the two are mutually
+        # exclusive in practice: masked_batch_reward_fn, if set, takes priority in
+        # `_evaluate_jobs` whenever a round has >1 distinct job, which is why
+        # run_search_dart_math refuses the combination.
         self._masked_batch_reward = masked_batch_reward_fn
         # Reward-fn REPLICA POOL for cross-sample parallelism (module docstring).
         # None -> a 1-element pool wrapping `reward_fn` == the pre-pool scheduler.
