@@ -4,6 +4,20 @@
 
 <p align="center">[<a href="https://datexis.github.io/RE-PoLar/">Project Page</a>] [<a href="https://arxiv.org/abs/2609.31360">Paper (arXiv)</a>]</p>
 
+> [!CAUTION]
+> **Update on PoLar's artifact release (October 2026).** On September 28, 2026,
+> the same day as our
+> [public comment on PoLar's OpenReview page](https://openreview.net/forum?id=pl10b6EQAN),
+> the PoLar authors released their MCTS code and closed
+> [tianyi-lab/PoLar#2](https://github.com/tianyi-lab/PoLar/issues/2). They have
+> still not released the MCTS-derived training programs (PoLar data) or the
+> trained router checkpoints, so Section 2 and Tables 2–3 of PoLar still
+> cannot be independently verified. On first inspection, the released code
+> does not match the method and numbers reported in the paper in several places. Our
+> full MCTS implementation and search data have been public here since
+> September 22, 2026. We are analysing their release in detail and will
+> update Re-PoLar with our findings as soon as we can.
+
 <p align="center"><img src="figures/method_overview.png" width="720" alt="A router reads the prompt and picks a per-layer skip/keep/repeat program before the frozen transformer runs, echoing a thalamo-cortical routing analogy."></p>
 
 LLM inference conventionally runs every input through every transformer
