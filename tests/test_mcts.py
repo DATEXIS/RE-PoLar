@@ -17,7 +17,9 @@ reach at all.
 import threading
 import time
 
-from re_polar.mcts.scheduler import EvalCache, MCTSRunner
+import pytest
+
+from re_polar.mcts.scheduler import EvalCache, MCTSRunner, derive_tree_seed
 from re_polar.mcts.search import ProgramMCTS
 from re_polar.core import MAX_SEGMENT_LEN, Op, Program, Segment, is_valid
 
@@ -936,8 +938,6 @@ def test_async_scheduler_replica_exclusivity_and_real_parallelism():
 
 
 def test_derive_tree_seed_is_deterministic_and_varies_by_query_id():
-    from re_polar.mcts.scheduler import derive_tree_seed
-
     assert derive_tree_seed(42, "q0") == derive_tree_seed(42, "q0")  # deterministic
     assert derive_tree_seed(42, "q0") != derive_tree_seed(42, "q1")  # varies by query_id
     assert derive_tree_seed(42, "q0") != derive_tree_seed(43, "q0")  # varies by base seed
@@ -1942,3 +1942,323 @@ def test_masked_batch_flags_default_to_paper_config():
         resolve(masked_batch=False, masked_batch_kv=True)
     with pytest.raises(SystemExit):
         resolve(replicas="4")  # default masked-batch would leave replicas unused
+
+
+# --------------------------------------------------------------------------- #
+# PoLar-fidelity knobs and PoLar's own search loop (paper Appendix B)
+# --------------------------------------------------------------------------- #
+
+
+def test_root_only_multilength_restricts_non_root_nodes_to_length_one():
+    """Li et al.'s generate_mcts_candidates(is_root=False) only emits length>1
+    skip/repeat edits at the root; every other node sees length==1 only. Default
+    (False) keeps the unrestricted action set."""
+    default = ProgramMCTS(num_layers=D, budget=10, seed=0)
+    assert any(length > 1 for _s, length, _op, _t in default._actions_for(()))
+    child_edits = ((0, 1, Op.SKIP, 1),)  # one placed edit -> non-root node
+    assert any(length > 1 for _s, length, _op, _t in default._actions_for(child_edits))
+
+    fidelity = ProgramMCTS(num_layers=D, budget=10, seed=0, root_only_multilength=True)
+    assert any(length > 1 for _s, length, _op, _t in fidelity._actions_for(()))
+    child_actions = fidelity._actions_for(child_edits)
+    assert child_actions and all(length == 1 for _s, length, _op, _t in child_actions)
+
+
+def test_min_max_length_bounds_filter_candidates_by_resulting_executed_len():
+    """Their MODEL_DEPTH_PRESETS bound a candidate's resulting path length at
+    candidate-generation time. D=36, max_repeat_times=2: root candidates have
+    lengths {32..35} (skip 4..1) and {37..40} (2x-repeat 1..4); a [35, 37] window
+    keeps exactly the smallest skip and the smallest repeat."""
+
+    def resulting_len(tree, action):
+        _start, length, op, times = action
+        delta = -length if op is Op.SKIP else (times - 1) * length
+        return tree._executed_len(()) + delta
+
+    unbounded = ProgramMCTS(num_layers=D, budget=10, seed=0)
+    assert {resulting_len(unbounded, a) for a in unbounded._actions_for(())} == {
+        32,
+        33,
+        34,
+        35,
+        37,
+        38,
+        39,
+        40,
+    }
+    bounded = ProgramMCTS(num_layers=D, budget=10, seed=0, min_length=35, max_length=37)
+    assert {resulting_len(bounded, a) for a in bounded._actions_for(())} == {35, 37}
+    impossible = ProgramMCTS(num_layers=D, budget=10, seed=0, min_length=1000, max_length=1001)
+    assert impossible._actions_for(()) == []
+
+
+def _polar_iid_reward(tid, path, p=0.2):
+    import hashlib
+
+    h = hashlib.md5(f"{tid}|{tuple(path)}".encode()).digest()
+    return 1.0 if int.from_bytes(h[:4], "big") / 2**32 < p else 0.0
+
+
+def _run_polar_selection_tree(tid, seed=42, budget=100):
+    """Qwen3-8B under --polar-fidelity: epsilon 0.1, root-only multi-length edits,
+    path length 24..44, PoLar's search loop."""
+    t = ProgramMCTS(
+        num_layers=36,
+        budget=budget,
+        seed=seed,
+        epsilon=0.1,
+        root_only_multilength=True,
+        min_length=24,
+        max_length=44,
+        polar_selection=True,
+    )
+    out = []
+    while (prop := t.propose()) is not None:
+        prog, chain = prop
+        path = prog.to_layer_path()
+        t.update(chain, _polar_iid_reward(tid, path), prog)
+        out.append((len(chain) - 1, path))
+    return t, out
+
+
+def test_polar_selection_dives_like_polar():
+    """PoLar's loop evaluates exactly ONE root child per tree and then dives deep,
+    unlike our widening search. Budget, uniqueness and length bounds hold."""
+    depths, maxes = [], []
+    for tid in range(20):
+        t, out = _run_polar_selection_tree(tid)
+        assert len(out) == 100 and t.exhausted
+        assert len({tuple(p) for _d, p in out}) == 100  # never re-evaluates
+        assert all(24 <= len(p) <= 44 for _d, p in out)
+        assert sum(d == 1 for d, _p in out) == 1  # one root child, then dive
+        depths += [d for d, _p in out]
+        maxes.append(max(d for d, _p in out))
+    assert sum(depths) / len(depths) > 3.5
+    assert sum(maxes) / len(maxes) > 7
+
+
+def test_polar_selection_shared_seed_gives_every_tree_the_same_first_move():
+    """PoLar calls random.seed(42) at the start of EVERY tree, so every tree's
+    first evaluated program is the same regardless of its rewards."""
+    firsts = {tuple(_run_polar_selection_tree(tid, budget=1)[1][0][1]) for tid in range(5)}
+    assert len(firsts) == 1
+
+
+def test_polar_selection_program_sequence_is_pinned():
+    """Regression pin: the exact programs the first 5 trees evaluate, as produced by
+    the implementation behind the paper's Appendix B runs."""
+    import hashlib
+    import json
+
+    seqs = [[p for _d, p in _run_polar_selection_tree(tid)[1]] for tid in range(5)]
+    digest = hashlib.sha256(json.dumps(seqs).encode()).hexdigest()
+    assert digest == "393a70aa6351c61572537545420b87f76e2285c39c90a6350ce944979b70c89f"
+
+
+def test_polar_selection_is_program_for_program_identical_to_polar_code():
+    """Runs Li et al.'s own mcts_search next to polar_selection on the same
+    deterministic reward: every tree in which their code never generated a NESTED
+    candidate (our one deliberate deviation) must evaluate the identical program
+    sequence. Their code is not part of this repository (no license): set POLAR_REPO
+    to a checkout of github.com/tianyi-lab/PoLar to run this test. Their functions
+    are extracted from the file and executed here, the file is never imported."""
+    import ast
+    import math
+    import os
+    import random
+    from collections import Counter
+    from difflib import SequenceMatcher
+    from pathlib import Path
+
+    pytest.importorskip("torch")  # program_from_layer_path lives in the router module
+    from re_polar.router.train import program_from_layer_path
+
+    repo = os.environ.get("POLAR_REPO")
+    if not repo:
+        pytest.skip("set POLAR_REPO to a checkout of Li et al.'s PoLar repository")
+    ref = Path(repo) / "mcts_discovery" / "run_mcts.py"
+    src = ref.read_text()
+    want = {"MCTSNode", "MCTSSearch", "get_all_nodes", "generate_mcts_candidates", "mcts_search"}
+    code = "\n".join(
+        ast.get_source_segment(src, n)
+        for n in ast.parse(src).body
+        if getattr(n, "name", None) in want
+    )
+    g = dict(
+        math=math,
+        random=random,
+        Counter=Counter,
+        SequenceMatcher=SequenceMatcher,
+        MIN_LENGTH=24,
+        MAX_LENGTH=44,
+        ORIGINAL_DEPTH=36,
+        print=lambda *a, **k: None,
+    )
+    exec(code, g)
+    orig_gen = g["generate_mcts_candidates"]
+
+    def nested(p):
+        try:
+            program_from_layer_path(list(p), 36, strict_repeat_2x=False)
+            return False
+        except ValueError:
+            return True
+
+    clean = identical = 0
+    for tid in range(40):
+        saw_nested = [False]
+
+        def gen(path, visited, is_root=False):
+            out = orig_gen(path, visited, is_root)
+            saw_nested[0] |= any(nested(c) for c, _a in out)
+            return out
+
+        g["generate_mcts_candidates"] = gen
+        g["evaluate_accuracy"] = lambda path, samples, tid=tid: _polar_iid_reward(tid, path)
+        _bt, _ms, traj = g["mcts_search"](list(range(36)), None, 100)
+        theirs = [t["path"] for t in traj]
+        ours = [p for _d, p in _run_polar_selection_tree(tid)[1]]
+        if not saw_nested[0]:
+            clean += 1
+            identical += theirs == ours
+    assert clean >= 5  # enough nested-free trees to mean something (~25% at seed 42)
+    assert identical == clean
+
+
+def test_polar_knobs_default_off_are_bit_identical_to_omitting_them():
+    """Our own search must be unchanged by the existence of the PoLar knobs."""
+    a = MCTSRunner(
+        make_inputs(3), num_layers=D, reward_fn=FakeReward(), budget=100, c=1.414, lam=5.0, seed=0
+    ).run(log_every=0)
+    b = MCTSRunner(
+        make_inputs(3),
+        num_layers=D,
+        reward_fn=FakeReward(),
+        budget=100,
+        c=1.414,
+        lam=5.0,
+        seed=0,
+        root_only_multilength=False,
+        min_length=None,
+        max_length=None,
+        polar_selection=False,
+    ).run(log_every=0)
+    for qid in a:
+        assert a[qid].evaluated == b[qid].evaluated
+        assert a[qid].trajectory == b[qid].trajectory
+
+
+def _resolved(**overrides):
+    import argparse
+
+    from re_polar.mcts.run_search_dart_math import resolve_search_config
+
+    args = dict(
+        model="qwen3_8b",
+        budget=None,
+        max_repeat_times=None,
+        epsilon=None,
+        grade_timeout=None,
+        polar_fidelity=False,
+        polar_selection=False,
+        polar_per_question_seed=False,
+        widening_search=False,
+        global_selection=False,
+        root_only_multilength=False,
+        min_length=None,
+        max_length=None,
+        shared_seed=False,
+        log_answers=None,
+        cache_dir="cache",
+        split=None,
+    )
+    args.update(overrides)
+    ns = argparse.Namespace(**args)
+    resolve_search_config(ns)
+    return ns
+
+
+def test_polar_per_question_seed_resolution():
+    assert _resolved(polar_selection=True).shared_seed is True  # their random.seed(42)
+    assert _resolved(polar_fidelity=True).shared_seed is True
+    a = _resolved(polar_fidelity=True, polar_per_question_seed=True)
+    assert a.polar_selection and not a.shared_seed
+    with pytest.raises(SystemExit):
+        _resolved(polar_per_question_seed=True)
+    with pytest.raises(SystemExit):
+        _resolved(polar_selection=True, shared_seed=True, polar_per_question_seed=True)
+
+
+def test_polar_per_question_seed_gives_distinct_seeds_and_first_edits():
+    def first_edits(per_tree_seed):
+        inputs = [{"query_id": f"dm1_{i}", "question": f"q{i}", "gt_ans": "1"} for i in range(20)]
+        runner = MCTSRunner(
+            inputs,
+            num_layers=36,
+            reward_fn=None,
+            budget=2,
+            c=1.414,
+            lam=5.0,
+            seed=42,
+            per_tree_seed=per_tree_seed,
+            epsilon=0.1,
+            root_only_multilength=True,
+            min_length=24,
+            max_length=44,
+            polar_selection=True,
+        )
+        firsts = {}
+        for qid, t in runner.trees.items():
+            while (prop := t.propose()) is not None:  # identity first, then the first edit
+                prog, chain = prop
+                t.update(chain, 0.0, prog)
+                if len(chain) > 1:
+                    firsts[qid] = tuple(prog.to_layer_path())
+                    break
+        return runner, firsts
+
+    shared, f_shared = first_edits(False)
+    perq, f_perq = first_edits(True)
+    assert {t.seed for t in shared.trees.values()} == {42}
+    assert len(set(f_shared.values())) == 1  # theirs: every tree's first edit is the same
+    assert {q: t.seed for q, t in perq.trees.items()} == {
+        q: derive_tree_seed(42, q) for q in perq.trees
+    }
+    assert len(set(f_perq.values())) > 1
+
+
+def test_search_defaults_are_the_paper_main_track_config():
+    """No flags = the main-track MCTS jobs' command: --budget 200 --c 1.414 --lam 5.0
+    --epsilon 0.0 --alpha 2.0 --beta 0.5 --max-repeat-times 5, per-tree seeds, oneshot
+    prompt, answers logged."""
+    a = _resolved()
+    assert (a.budget, a.max_repeat_times, a.epsilon, a.grade_timeout) == (200, 5, 0.0, None)
+    assert a.split == "all"  # every question of the level (generate_main_seeds.py: --split all)
+    assert not a.polar_selection and not a.shared_seed and not a.root_only_multilength
+    assert a.log_answers is True
+    assert _resolved(cache_dir=None).log_answers is False
+
+
+def test_polar_fidelity_is_their_released_config():
+    """--polar-fidelity = the PoLar-split jobs: their search loop with one shared seed,
+    100 simulations, a layer executed at most twice, epsilon 0.1, root-only
+    multi-length edits, their per-model length preset, 60 s grading timeout."""
+    a = _resolved(polar_fidelity=True)
+    assert (a.budget, a.max_repeat_times, a.epsilon, a.grade_timeout) == (100, 2, 0.1, 60)
+    assert a.split == "train"  # the PoLar pool
+    assert _resolved(polar_fidelity=True, split="trainval").split == "trainval"
+    assert a.polar_selection and a.shared_seed and a.root_only_multilength
+    assert (a.min_length, a.max_length) == (24, 44)
+    assert (
+        _resolved(polar_fidelity=True, model="qwen15_moe_a27b").min_length,
+        _resolved(polar_fidelity=True, model="qwen15_moe_a27b").max_length,
+    ) == (16, 28)
+    # our search under their parameters (Appendix B.4 cross-check): per-tree seeds
+    w = _resolved(polar_fidelity=True, widening_search=True)
+    assert not w.polar_selection and not w.shared_seed and w.budget == 100
+    # explicit values win
+    assert _resolved(polar_fidelity=True, budget=50).budget == 50
+    with pytest.raises(SystemExit):
+        _resolved(widening_search=True)
+    with pytest.raises(SystemExit):
+        _resolved(polar_fidelity=True, model="qwen3_32b")

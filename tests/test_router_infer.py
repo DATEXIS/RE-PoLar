@@ -16,12 +16,20 @@ torch = pytest.importorskip("torch")
 from re_polar.core import Op, Program, Segment, is_valid
 from re_polar.router import PolarRouter
 from re_polar.router.infer import (
+    _build_arg_parser,
     assert_roundtrips,
     decode_programs,
     grade_router,
     grade_router_topk,
+    grade_topk_pairs,
     group_by_program,
+    load_test_json,
     load_test_split,
+    main,
+    mcnemar_exact_p,
+    paired_vs_identity,
+    pass_at_j_curve,
+    question_records,
     resolve_difficulties,
     summarize,
 )
@@ -235,3 +243,89 @@ def test_decode_programs_valid_and_roundtrip(seed):
 
     # the standing-invariant helper agrees (does not raise)
     assert_roundtrips(programs, Dr)
+
+
+# --------------------------------------------------------------------------- #
+# pass@1..k curve, paired comparison against identity, per-question records,
+# flat eval sets (--test-json)
+# --------------------------------------------------------------------------- #
+def test_pass_at_j_curve_is_cumulative_any_solve():
+    keep = tuple(_p_keep().to_layer_path())
+    skip = tuple(_p_skip().to_layer_path())
+    topk = [
+        [_p_keep(), _p_skip(), _p_repeat()],  # solved first at j=2
+        [_p_keep()],  # solved at j=1, shorter list
+        [_p_repeat(), _p_skip()],  # never solved
+    ]
+    table = {(skip, "q0"): 1.0, (keep, "q1"): 1.0}
+    pairs = grade_topk_pairs(topk, ["q0", "q1", "q2"], ["g0", "g1", "g2"], _PathReward(table))
+    assert pass_at_j_curve(topk, pairs) == pytest.approx([1 / 3, 2 / 3, 2 / 3])
+
+
+def test_mcnemar_exact_p():
+    assert mcnemar_exact_p(0, 0) == 1.0
+    assert mcnemar_exact_p(3, 3) == 1.0
+    assert mcnemar_exact_p(10, 0) == pytest.approx(2 / 2**10)  # all discordant pairs one way
+    assert mcnemar_exact_p(2, 8) == pytest.approx(mcnemar_exact_p(8, 2))
+    assert mcnemar_exact_p(2, 8) == pytest.approx(2 * (1 + 10 + 45) / 2**10)
+
+
+def test_paired_vs_identity_counts_rescue_harm_and_top1_diversity():
+    programs = [_p_keep(), _p_skip(), _p_skip(), _p_repeat()]
+    identity = [1.0, 0.0, 1.0, 0.0]
+    router = [1.0, 1.0, 0.0, 0.0]  # q1 rescued, q2 harmed
+    s = paired_vs_identity(identity, router, programs, D)
+    assert (s["rescue_at1"], s["harm_at1"]) == (1, 1)
+    assert s["mcnemar_p"] == 1.0
+    assert s["n_nonidentity_top1"] == 3
+    assert s["n_distinct_top1"] == 3
+    assert s["top_nonidentity_share"] == pytest.approx(2 / 4)  # _p_skip on 2 of 4 questions
+
+
+def test_question_records_keeps_top1_and_grades_every_candidate():
+    topk = [[_p_skip(), _p_keep()], [_p_keep()]]
+    pair = {
+        (tuple(_p_skip().to_layer_path()), 0): 1.0,
+        (tuple(_p_keep().to_layer_path()), 0): 0.0,
+        (tuple(_p_keep().to_layer_path()), 1): 1.0,
+    }
+    recs = question_records(["a", "b"], topk, [0.0, 1.0], pair, D)
+    assert recs[0]["layer_path"] == _p_skip().to_layer_path() and recs[0]["nonidentity"]
+    assert not recs[0]["identity_correct"]
+    assert [c["correct"] for c in recs[0]["candidates"]] == [True, False]
+    assert recs[1] == {
+        "query_id": "b",
+        "layer_path": list(range(D)),
+        "identity_correct": True,
+        "nonidentity": False,
+        "candidates": [{"layer_path": list(range(D)), "correct": True}],
+    }
+
+
+def test_load_test_json_fills_missing_query_id(tmp_path):
+    d = tmp_path / "asdiv"
+    d.mkdir()
+    (d / "test.json").write_text(
+        json.dumps(
+            [
+                {"id": 0, "question": "q0", "gt_ans": "9"},
+                {"id": 1, "query_id": "x1", "question": "q1", "gt_ans": "2"},
+            ]
+        )
+    )
+    rows = load_test_json(d / "test.json")
+    assert [r["query_id"] for r in rows] == ["asdiv_0", "x1"]
+    assert len(load_test_json(d / "test.json", limit=1)) == 1
+
+
+def test_infer_parser_test_json_and_data_dir():
+    a = _build_arg_parser().parse_args(
+        ["--checkpoint", "c.pt", "--data-dir", "d", "--output", "o.json"]
+    )
+    assert a.data_dir == "d" and a.test_json is None and a.top_k_paths == 1
+    a = _build_arg_parser().parse_args(
+        ["--checkpoint", "c.pt", "--test-json", "a/test.json", "b/test.json", "--output", "o.json"]
+    )
+    assert a.data_dir is None and a.test_json == ["a/test.json", "b/test.json"]
+    with pytest.raises(SystemExit):
+        main(["--checkpoint", "c.pt", "--output", "o.json"])

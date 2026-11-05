@@ -1,38 +1,48 @@
-"""Menu coverage via real cross-execution: for a model/difficulty, rank
-programs -- identity included -- by how many questions they solved DURING
-the original MCTS search, then actually EXECUTE the top-K of those programs against every
-question in the full train+val+test pool (not just the ones the search
-happened to already try each program on). This is what produces the paper's
-Finding 5 menu-coverage numbers (coverage vs. menu size K): ranking alone
-(without real execution) understates coverage, since the original search
-never tried every top-K program against every question -- only real
-execution gives the true coverage curve.
+"""Menu coverage (paper Finding 5): rank programs, identity included, by how many questions
+they solved during the MCTS search, execute the top-K on a set of questions, and report which
+share of those questions at least one of the top-1..K programs solves (coverage vs. menu size K).
+Every top-K program is executed on every question, since the search tried each program only on
+some of them.
 
-Free-reuse rule: any (program, question) pair the original MCTS search
-already recorded as valid/invalid is reused as-is, never re-executed; only
-genuinely untried pairs are run fresh. Uses `GenerationReward.__call__`
-(serial, not masked-batch) so every reused/generated label stays directly
-comparable to the ones already on record from the original search.
+Which questions:
+  --rank-pool all --eval-pool all         (default) rank and execute on train+val+test
+                                          (in-sample; paper Fig. 4a and Fig. 9, the grids in
+                                          data/menu_crossexec/)
+  --rank-pool trainval --eval-pool test   rank on train+val, execute on test: the menu is chosen
+                                          without seeing the questions it is scored on (the
+                                          held-out check, data/menu_crossexec_heldout/;
+                                          compare both with analysis.mcts_design.menu_heldout)
 
-Output is a full, appendable per-program x per-question grid, compact-
-encoded: the qid list is written ONCE per difficulty, and each program's
-results are a same-length list of {0,1} rewards + a parallel provenance
-string (one char per qid: 'v'=known valid from the original MCTS search,
-'i'=known invalid from the original MCTS search, 'f'=freshly executed this
-run) aligned positionally against that qid list -- no repeated qid keys.
-This lets a later pass (a) exclude identity, (b) add more programs, or (c)
-add more questions, as pure post-processing / targeted appends, without
-re-deriving or re-running anything already stored.
+Reuse: a (program, question) cell the search already graded valid/invalid is taken from the
+search, and with --reuse-grid every cell of another output grid of this script is taken from
+that grid; only the remaining cells are executed, with `GenerationReward.__call__` (serial,
+not masked-batch).
+
+Output: one per-program x per-question grid per difficulty. `qids` is written once; each program
+has a same-length list of {0,1} rewards and a provenance string, one letter per question:
+'v' / 'i' = valid / invalid in the search, 'g' = from --reuse-grid, 'f' = executed in this run.
+
+The paper's grids use the seed-42 search of each model and the oneshot prompt, the search's own:
 
   python -m analysis.mcts_design.menu_coverage \
       --model qwen25_3b --difficulty 1 --k 100 --batch-size 128 \
-      --data-dir ./data/dart_math --mcts-dir ./data/mcts/qwen25_3b \
+      --data-dir ./data/dart_math --mcts-dir ./data/mcts_results/qwen25_3b/seed42 \
       --output ./results/menu_crossexec/qwen25_3b/diff1.json
+
+Held-out grid of the same cell (cells already in the in-sample grid are reused):
+
+  python -m analysis.mcts_design.menu_coverage \
+      --model qwen25_3b --difficulty 1 --k 100 --batch-size 128 \
+      --data-dir ./data/dart_math --mcts-dir ./data/mcts_results/qwen25_3b/seed42 \
+      --rank-pool trainval --eval-pool test \
+      --reuse-grid ./data/menu_crossexec/qwen25_3b/diff1.json.gz \
+      --output ./results/menu_crossexec_heldout/qwen25_3b/diff1.json
 
 Top level is stdlib-only so nothing here needs torch until `main()` runs.
 """
 
 import argparse
+import gzip
 import json
 from collections import defaultdict
 from pathlib import Path
@@ -49,13 +59,10 @@ def resolve_difficulties(vals):
 
 
 def build_candidate_pool(mcts_samples, pool_qids, k):
-    """Rank programs -- identity included -- by how many pool questions they
-    were recorded valid for during the original search ("most found" first),
-    and return the top-k along with the full set of (qid -> known reward)
-    pairs already on record for each -- reused for free, never re-generated.
-    Identity is deliberately not excluded: it's "valid" for every question
-    the model's standard pass already answers correctly, so it typically
-    ranks #1 -- the paper's menu-coverage curve is meant to include it."""
+    """Rank programs, identity included, by how many questions in `pool_qids` the search
+    graded them valid on (most first), and return the top-k with their known
+    (qid -> reward) cells on those questions. Identity is valid for every question the
+    standard forward pass answers correctly, so it typically ranks first."""
     valid_qids = defaultdict(set)
     known = defaultdict(dict)  # path tuple -> {qid: reward}
     for sample in mcts_samples:
@@ -73,6 +80,51 @@ def build_candidate_pool(mcts_samples, pool_qids, k):
     return [(path, known[path]) for path, _ in ranked]
 
 
+def known_labels(mcts_samples, qids, paths):
+    """(path -> {qid: reward}) for `paths` on `qids`, from the search's valid/invalid logs."""
+    paths = set(paths)
+    known = defaultdict(dict)
+    for sample in mcts_samples:
+        qid = sample.get("sample_info", {}).get("query_id")
+        if qid not in qids:
+            continue
+        for p in sample.get("final_valid_transitions", []):
+            if tuple(p) in paths:
+                known[tuple(p)][qid] = 1.0
+        for p in sample.get("final_invalid_transitions", []):
+            if tuple(p) in paths:
+                known[tuple(p)].setdefault(qid, 0.0)
+    return known
+
+
+def grid_labels(grid_path, difficulty, drop=""):
+    """(path -> {qid: reward}) of an output grid of this script, for `difficulty`; cells whose
+    provenance letter is in `drop` are left out (and so re-executed)."""
+    p = Path(grid_path)
+    grid = json.loads(gzip.open(p, "rt").read() if p.suffix == ".gz" else p.read_text())
+    (pd,) = [d for d in grid["per_difficulty"] if d["difficulty"] == difficulty]
+    return {
+        tuple(row["path"]): {
+            q: float(r)
+            for q, r, pv in zip(pd["qids"], row["rewards"], row["provenance"])
+            if pv not in drop
+        }
+        for row in pd["per_program"]
+    }
+
+
+def find_mcts_file(mcts_dir, model_id, diff) -> Path:
+    """merged_mcts_samples.json[.gz] of one level, in either layout: a released
+    <model>/ directory (mcts_dir/dart-math-diff-N/...) or a run_search_dart_math
+    output root (mcts_dir/<model_id>/dart-math-diff-N/...)."""
+    ns = f"dart-math-diff-{diff}"
+    for d in (Path(mcts_dir) / ns, Path(mcts_dir) / model_id / ns):
+        for name in ("merged_mcts_samples.json", "merged_mcts_samples.json.gz"):
+            if (d / name).exists():
+                return d / name
+    raise FileNotFoundError(f"no {ns}/merged_mcts_samples.json[.gz] under {mcts_dir}")
+
+
 def main(argv=None):
     from re_polar.models import MODEL_REGISTRY
     from re_polar.core import LayerEngine
@@ -88,7 +140,43 @@ def main(argv=None):
         "--data-dir", required=True, help="DART-Math root (has diff{N}/{train,val,test}.json)"
     )
     p.add_argument(
-        "--mcts-dir", required=True, help="MCTS output root (has diff{N}/merged_mcts_samples.json)"
+        "--mcts-dir",
+        required=True,
+        help="one model's MCTS results (dart-math-diff-N/merged_mcts_samples.json[.gz]), or a "
+        "run_search_dart_math --output-root",
+    )
+    p.add_argument(
+        "--prompt-style",
+        default="oneshot",
+        help="GenerationReward prompt style; must be the prompt the search ran with, since "
+        "known (program, question) labels are reused from it. The paper's grids: oneshot.",
+    )
+    p.add_argument(
+        "--rank-pool",
+        choices=("all", "trainval"),
+        default="all",
+        help="questions whose search counts rank the programs: all = train+val+test (in-sample, "
+        "the grids in data/menu_crossexec/); trainval = train+val only (held-out menu)",
+    )
+    p.add_argument(
+        "--eval-pool",
+        choices=("all", "test"),
+        default="all",
+        help="questions the top-K programs are executed on: all = train+val+test; "
+        "test = the test questions only (held-out menu)",
+    )
+    p.add_argument(
+        "--reuse-grid",
+        default=None,
+        help="output grid of this script for the same model and prompt (.json or .json.gz): "
+        "its cells are reused (provenance 'g') instead of re-executed",
+    )
+    p.add_argument(
+        "--reuse-grid-drop",
+        default="",
+        help="provenance letters of --reuse-grid cells NOT to reuse, e.g. 'i' when the grid's "
+        "known-invalid cells come from an older search; they are re-executed unless the "
+        "--mcts-dir search knows the cell itself",
     )
     p.add_argument("--k", type=int, default=100)
     p.add_argument("--output", required=True)
@@ -110,14 +198,22 @@ def main(argv=None):
     engine = LayerEngine(cfg["model_id"], trust_remote_code=cfg.get("trust_remote_code", True))
     executor = ProgramExecutor(engine)
     D = engine.num_layers
-    reward = GenerationReward(executor, batch_size=args.batch_size)  # prompt_style="raw" default
+    reward = GenerationReward(executor, batch_size=args.batch_size, prompt_style=args.prompt_style)
 
     results = []
     for diff in diffs:
         train_data = load_json(Path(args.data_dir) / f"diff{diff}" / "train.json")
         val_data = load_json(Path(args.data_dir) / f"diff{diff}" / "val.json")
         test_data = load_json(Path(args.data_dir) / f"diff{diff}" / "test.json")
-        pool_data = train_data + val_data + test_data
+        rank_qid_set = {
+            d["query_id"]
+            for d in (
+                train_data + val_data
+                if args.rank_pool == "trainval"
+                else train_data + val_data + test_data
+            )
+        }
+        pool_data = test_data if args.eval_pool == "test" else train_data + val_data + test_data
         if args.limit:
             pool_data = pool_data[: args.limit]
         pool_qids = [d["query_id"] for d in pool_data]
@@ -129,21 +225,23 @@ def main(argv=None):
         q_by_qid = {d["query_id"]: d["question"] for d in pool_data}
         n_pool = len(pool_qids)
         print(
-            f"[diff {diff}] {n_pool} pool questions (train={len(train_data)}, "
+            f"[diff {diff}] {n_pool} {args.eval_pool} questions (train={len(train_data)}, "
             f"val={len(val_data)}, test={len(test_data)})",
             flush=True,
         )
 
-        mcts_samples = load_samples(
-            Path(args.mcts_dir)
-            / cfg["model_id"]
-            / f"dart-math-diff-{diff}"
-            / "merged_mcts_samples.json"
+        mcts_samples = load_samples(find_mcts_file(args.mcts_dir, cfg["model_id"], diff))
+        ranked = build_candidate_pool(mcts_samples, rank_qid_set, args.k)
+        known_eval = known_labels(mcts_samples, pool_qid_set, [path for path, _ in ranked])
+        candidates = [(path, known_eval.get(path, {})) for path, _ in ranked]
+        reused_grid = (
+            grid_labels(args.reuse_grid, diff, args.reuse_grid_drop) if args.reuse_grid else {}
         )
-        candidates = build_candidate_pool(mcts_samples, pool_qid_set, args.k)
         print(
-            f"[diff {diff}] top-{len(candidates)} candidate programs selected "
-            f"(ranked over the full {n_pool}-question pool)",
+            f"[diff {diff}] top-{len(candidates)} candidate programs selected (ranked over "
+            f"{len(rank_qid_set)} {args.rank_pool} questions, executed on {n_pool} "
+            f"{args.eval_pool} questions; {sum(p in reused_grid for p, _ in candidates)} "
+            f"of them in --reuse-grid)",
             flush=True,
         )
 
@@ -156,6 +254,10 @@ def main(argv=None):
             if not args.fresh:
                 for qid, r in known.items():
                     provenance[qid] = "v" if r > 0 else "i"
+                for qid, r in reused_grid.get(path, {}).items():
+                    if qid in pool_qid_set and qid not in row:
+                        row[qid] = r
+                        provenance[qid] = "g"
             todo_qids = [q for q in pool_qids if q not in row]
             n_reused_total += n_pool - len(todo_qids)
             n_new_total += len(todo_qids)
@@ -182,7 +284,7 @@ def main(argv=None):
             )
 
         # real top-k coverage curve: in the candidates' rank order (by search-frequency
-        # over the full pool), how much of the pool does ANY of the top-1..top-K solve,
+        # over --rank-pool), how much of --eval-pool does ANY of the top-1..top-K solve,
         # using the REAL (executed) labels.
         any_solved = [0] * n_pool
         coverage_curve = []
@@ -209,8 +311,13 @@ def main(argv=None):
             "provenance_legend": {
                 "v": "known valid from original MCTS search (reused, not re-executed)",
                 "i": "known invalid from original MCTS search (reused, not re-executed)",
+                "g": "reused from --reuse-grid (not re-executed)",
                 "f": "freshly executed this run",
             },
+            "rank_pool": args.rank_pool,
+            "eval_pool": args.eval_pool,
+            "reuse_grid": args.reuse_grid,
+            "reuse_grid_drop": args.reuse_grid_drop,
             "per_program": per_program_rows,
         }
         results.append(row_out)
@@ -222,7 +329,13 @@ def main(argv=None):
             flush=True,
         )
 
-    out = {"model": args.model, "k": args.k, "schema": "menu_coverage", "per_difficulty": results}
+    out = {
+        "model": args.model,
+        "k": args.k,
+        "prompt_style": args.prompt_style,
+        "schema": "menu_crossexec_v2",
+        "per_difficulty": results,
+    }
     outp = Path(args.output)
     outp.parent.mkdir(parents=True, exist_ok=True)
     outp.write_text(json.dumps(out))

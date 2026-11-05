@@ -174,7 +174,30 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "output JSON.",
     )
     p.add_argument("--seed", type=int, default=0, help="base seed for --random-baseline-seeds")
+    p.add_argument(
+        "--fixed-program-json",
+        default=None,
+        help="also score ONE fixed program on every TEST question, read from a "
+        "re_polar.router.fixed_program output (methods.fixed.winner.layer_path); adds a "
+        "'fixed_program' block (acc, delta, rescue/harm vs identity, per domain). Paper "
+        "Appendix B.6: PoLar-split fixed programs on MMLU-Pro.",
+    )
+    p.add_argument(
+        "--probs-log",
+        default=None,
+        help="JSONL with the full answer-choice distribution per (question, program) "
+        "(LogLikReward's probs_log_path)",
+    )
     return p
+
+
+def rescue_harm(rewards: List[float], identity_rewards: List[float]) -> dict:
+    """Rescues (identity wrong -> correct), harms (identity correct -> wrong), exact McNemar p."""
+    from re_polar.router.infer import mcnemar_exact_p
+
+    b = sum(1 for r, i in zip(rewards, identity_rewards) if r >= 1 and i < 1)
+    c = sum(1 for r, i in zip(rewards, identity_rewards) if r < 1 and i >= 1)
+    return {"rescue": b, "harm": c, "mcnemar_p": mcnemar_exact_p(b, c)}
 
 
 def main(argv: Optional[List[str]] = None) -> Path:
@@ -220,7 +243,9 @@ def main(argv: Optional[List[str]] = None) -> Path:
     engine = LayerEngine(cfg["model_id"], trust_remote_code=cfg.get("trust_remote_code", True))
     executor = ProgramExecutor(engine)
     D = engine.num_layers
-    reward_fn = LogLikReward(executor, batch_size=args.batch_size, no_think=no_think)
+    reward_fn = LogLikReward(
+        executor, batch_size=args.batch_size, no_think=no_think, probs_log_path=args.probs_log
+    )
 
     router = load_checkpoint(args.checkpoint)
     if router.num_layers != D:
@@ -236,6 +261,9 @@ def main(argv: Optional[List[str]] = None) -> Path:
         {"question": r["question"], "options": r["options"], "category": r["category"]}
         for r in fixture
     ]
+    if args.probs_log:  # the probs log keys rows by query_id (scoring ignores extra keys)
+        for q, r in zip(question_dicts, fixture):
+            q["query_id"] = str(r.get("question_id", r.get("id", "")))
     question_strs = [format_mmlu_question(q, no_think=no_think) for q in question_dicts]
     gt_answers = [int(r["answer_index"]) for r in fixture]
     categories = [str(r["category"]) for r in fixture]
@@ -277,6 +305,50 @@ def main(argv: Optional[List[str]] = None) -> Path:
     per_domain = per_domain_summaries(
         categories, domains, rewards_at_1, programs, identity_rewards, D
     )
+
+    fixed_block, fixed_rewards = None, None
+    if args.fixed_program_json:
+        from re_polar.router.train import program_from_layer_path
+
+        winner = json.loads(Path(args.fixed_program_json).read_text())["methods"]["fixed"]["winner"]
+        fixed = program_from_layer_path(winner["layer_path"], D, strict_repeat_2x=False)
+        fixed_rewards = reward_fn(fixed, question_dicts, gt_answers)
+        fixed_block = {
+            "source": args.fixed_program_json,
+            "layer_path": winner["layer_path"],
+            "acc": sum(fixed_rewards) / len(fixed_rewards),
+            "identity_acc": overall_summary["identity_acc"],
+            **rescue_harm(fixed_rewards, identity_rewards),
+            "per_domain": [],
+        }
+        fixed_block["delta"] = fixed_block["acc"] - fixed_block["identity_acc"]
+        for domain in domains:
+            idx = [i for i, c in enumerate(categories) if c == domain]
+            if idx:
+                fr, ir = [fixed_rewards[i] for i in idx], [identity_rewards[i] for i in idx]
+                fixed_block["per_domain"].append(
+                    dict(
+                        domain=domain,
+                        n=len(idx),
+                        acc=sum(fr) / len(fr),
+                        identity_acc=sum(ir) / len(ir),
+                        delta=(sum(fr) - sum(ir)) / len(idx),
+                        **rescue_harm(fr, ir),
+                    )
+                )
+    overall_summary.update(
+        {f"router_{k}": v for k, v in rescue_harm(rewards_at_1, identity_rewards).items()}
+    )
+    for d in per_domain:
+        idx = [i for i, c in enumerate(categories) if c == d["domain"]]
+        d.update(
+            {
+                f"router_{k}": v
+                for k, v in rescue_harm(
+                    [rewards_at_1[i] for i in idx], [identity_rewards[i] for i in idx]
+                ).items()
+            }
+        )
 
     random_baseline = None
     if args.random_baseline_seeds > 0:
@@ -321,9 +393,22 @@ def main(argv: Optional[List[str]] = None) -> Path:
         "overall": overall_summary,
         "per_domain": per_domain,
         "random_baseline": random_baseline,
+        "fixed_program": fixed_block,
         "programs": [
-            {"category": cat, "layer_path": p.to_layer_path()}
-            for cat, p in zip(categories, programs)
+            {
+                "category": cat,
+                "layer_path": p.to_layer_path(),
+                "identity_correct": ir >= 1,
+                "router_correct": rr >= 1,
+                **({"fixed_correct": fr >= 1} if fixed_rewards else {}),
+            }
+            for cat, p, ir, rr, fr in zip(
+                categories,
+                programs,
+                identity_rewards,
+                rewards_at_1,
+                fixed_rewards or [0.0] * len(programs),
+            )
         ],
     }
     out_path = Path(args.output)
@@ -362,6 +447,18 @@ def main(argv: Optional[List[str]] = None) -> Path:
                 else "ROUTER <= RANDOM (no clear signal beyond try-5-candidates luck)"
             )
             print(f"  -> {verdict}")
+    o = overall_summary
+    print(
+        f"\nSUMMARY {args.model} MMLU-Pro ({len(fixture)} q): identity {o['identity_acc']:.4f} | "
+        f"router@1 {o['router_acc']:.4f} ({o['delta']:+.4f}, rescue {o['router_rescue']} harm "
+        f"{o['router_harm']}, p {o['router_mcnemar_p']:.3f})"
+        + (
+            f" | fixed {fixed_block['acc']:.4f} ({fixed_block['delta']:+.4f}, rescue "
+            f"{fixed_block['rescue']} harm {fixed_block['harm']}, p {fixed_block['mcnemar_p']:.3f})"
+            if fixed_block
+            else ""
+        )
+    )
     print(f"\nWrote results -> {out_path}")
 
     return out_path

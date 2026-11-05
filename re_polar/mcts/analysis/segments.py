@@ -140,6 +140,32 @@ def shortest_valid(paths: Sequence[Sequence[int]], num_layers: int) -> Tuple[int
     return min((tuple(p) for p in paths), key=lambda p: (len(p), n_edits(p, num_layers), p))
 
 
+def segment_stats(programs: Sequence[Sequence[int]], num_layers: int) -> Dict[str, float]:
+    """Shares (%) over the edit segments (skip/repeat; keep excluded) of `programs`, the F4
+    numbers: single_pct / le2_pct = segments touching 1 / <= 2 layers; seg_rep_le1_pct =
+    segments repeated at most once (a skip counts as 0 repeats); repeat_seg_rep1_pct = among
+    repeat segments, those repeated exactly once (2 executions); prog_max_le1_pct = programs
+    whose most-repeated segment is repeated at most once (Fig. 7b's 0 + 1)."""
+    seglen, segrep, progmax = Counter(), Counter(), Counter()
+    for p in programs:
+        edits = [g for g in decode(p, num_layers).segments if g.op.value != "keep"]
+        for g in edits:
+            seglen[min(len(g), 4)] += 1
+            segrep[min(g.times - 1, 2) if g.op.value == "repeat" else 0] += 1
+        progmax[min(max([g.times - 1 for g in edits if g.op.value == "repeat"], default=0), 2)] += 1
+    n_seg, n_prog = sum(seglen.values()), sum(progmax.values())
+    n_rep = segrep[1] + segrep[2]
+    return {
+        "n_programs": n_prog,
+        "n_segments": n_seg,
+        "single_pct": 100 * seglen[1] / n_seg,
+        "le2_pct": 100 * (seglen[1] + seglen[2]) / n_seg,
+        "seg_rep_le1_pct": 100 * (segrep[0] + segrep[1]) / n_seg,
+        "repeat_seg_rep1_pct": 100 * segrep[1] / n_rep if n_rep else None,
+        "prog_max_le1_pct": 100 * (progmax[0] + progmax[1]) / n_prog,
+    }
+
+
 def layer_freq(paths: Sequence[Sequence[int]], which: str, num_layers: int) -> List[float]:
     """Count, per layer index, how many of `paths` skip / repeat that layer."""
     freq = [0] * num_layers

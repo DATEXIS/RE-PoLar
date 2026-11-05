@@ -4,19 +4,15 @@
 
 <p align="center">[<a href="https://datexis.github.io/RE-PoLar/">Project Page</a>] [<a href="https://arxiv.org/abs/2609.31360">Paper (arXiv)</a>]</p>
 
-> [!CAUTION]
-> **Update on PoLar's artifact release (October 2026).** On September 28, 2026,
-> the same day as our
-> [public comment on PoLar's OpenReview page](https://openreview.net/forum?id=pl10b6EQAN),
-> the PoLar authors released their MCTS code and closed
-> [tianyi-lab/PoLar#2](https://github.com/tianyi-lab/PoLar/issues/2). They have
-> still not released the MCTS-derived training programs (PoLar data) or the
-> trained router checkpoints, so Section 2 and Tables 2–3 of PoLar still
-> cannot be independently verified. On first inspection, the released code
-> does not match the method and numbers reported in the paper in several places. Our
-> full MCTS implementation and search data have been public here since
-> September 22, 2026. We are analysing their release in detail and will
-> update Re-PoLar with our findings as soon as we can.
+> [!NOTE]
+> Li et al. released their MCTS code on September 28, 2026
+> ([tianyi-lab/PoLar#2](https://github.com/tianyi-lab/PoLar/issues/2)), the same day as our
+> [public comment on PoLar's OpenReview page](https://openreview.net/forum?id=pl10b6EQAN);
+> their MCTS-derived training programs and router checkpoints are not released. This
+> repository now also runs **their search, their prompt and their data split** (paper Appendix B):
+> `--polar-fidelity` reproduces their released search program for program, and
+> `re_polar.datasets.polar_split` rebuilds their question sets. All programs, routers and
+> results are released (see [Data](#data)).
 
 <p align="center"><img src="figures/method_overview.png" width="720" alt="A router reads the prompt and picks a per-layer skip/keep/repeat program before the frozen transformer runs, echoing a thalamo-cortical routing analogy."></p>
 
@@ -27,26 +23,27 @@ skips/repeats certain layers, found through a Monte Carlo Tree Search (MCTS), ca
 that a small router can predict a good program on out-of-distribution (OOD) data directly, without running the
 search at inference time.
 
-This repo reproduces that search and router across
-5 models and releases the ~10M programs it found (979k valid — the program
-solved its question; 9.1M invalid — executed but wrong) across 50k
-questions.
- We reproduce several of PoLar's core
-findings (skip beats standard pass, repeat beats skip, combining both
-beats either alone), and read the router's coordinating role as
-functionally analogous to how the thalamus routes computation across
-cortical areas. Apart from that, we fail to reproduce PoLar's router result for
-single-shot inference: across every model and difficulty we test, the
-router's top-1 prediction collapses back to the standard forward pass,
-even though its top-k candidates taken together do show a real accuracy
-gain. We checked the search itself isn't the cause: it reproduces PoLar's
-own reported skip/repeat improvements, so our discovered programs are
-sound — though we can't claim they're the *same* programs PoLar found,
-since PoLar released neither their MCTS code nor the programs themselves.
-On the router side we tried a range of training variations (architecture,
-supervision, loss weighting, sampling — see the paper's Appendix A.8 for
-the full list); the top-1 collapse persists across all of them, which is
-why we read it as a real finding rather than a bug on our side.
+This repo reproduces that search and router across 6 models and 3 search seeds, and
+releases every program the searches evaluated (56.6M, 4.6M of them valid, i.e. solving their
+question) for every question studied. We reproduce several of PoLar's core findings:
+skipping beats the standard pass, repeating beats skipping, and combining both beats either alone; shorter programs suffice for
+easier questions, while harder ones need more repeats. For PoLar's main claim, the
+router's gain, we find what drives it:
+
+- **Under their setup** (their search, prompt and split, run with `--polar-fidelity` on
+  `re_polar.datasets.polar_split`), the **router gains by repairing the format of the
+  model's answers**, which a single fixed program, selected on validation questions, does
+  better.
+- **In our setup** (a prompt that already fixes the format, a larger data split and our
+  search), the **router's top prediction collapses to the standard pass** on every model and
+  seed, although its top-5 programs together still gain. The router outputs the decoded
+  average of its training labels, under every training recipe we tried (paper Appendix A.9).
+
+Beyond reproduction, a small fixed menu of programs solves far more questions than the
+standard pass, and programs that correct errors are brittle: undoing a single edit
+typically breaks the correction. We read the router's intended coordinating role as
+functionally analogous to how the thalamus routes computation across cortical areas;
+a router that actually picks a better program per input remains to be found.
 
 ## Motivation
 
@@ -113,17 +110,28 @@ The method, in three parts:
 
 ## Data
 
-`re_polar/mcts/` discovered ~10M programs (979k valid — the program solved
-its question; 9.1M invalid — executed but wrong) for
-~50,000 questions across 5 models (Qwen3-8B,
-Qwen3-32B, Qwen2.5-3B, Qwen2.5-7B, Qwen1.5-MoE-A2.7B) and 5 DART-Math
-difficulty tiers (2000 questions each). This is what the structural analysis is built from and the router is trained
-on. The full data ships in this
-repo, format and layout documented in [`data/`](data/DATA.md) — `mcts_results/`,
-`generated_answers/`, `menu_crossexec/`, and the router checkpoints are all
-Git-LFS tracked, and `mcts_results/`/`generated_answers/` are gzip-compressed
-(`.json.gz`/`.jsonl.gz`); a plain `git clone` needs `git lfs` to actually
-pull them.
+Everything our searches, routers and fixed programs produced is released as the
+Hugging Face dataset [`SWAMBIT/re-polar`](https://huggingface.co/datasets/SWAMBIT/re-polar)
+(about 6 GB, documented in [`data/DATA.md`](data/DATA.md)), downloaded into `data/` with
+`hf download SWAMBIT/re-polar --repo-type dataset --local-dir data`:
+
+- **Main track** (our DART-Math split, our search, oneshot prompt), 6 models × 3 search
+  seeds × 5 difficulty levels: every program each search evaluated, with its verdict
+  (`mcts_results/`), the model's generated answer behind each verdict
+  (`generated_answers/`), the trained routers (`router_checkpoints/`), their test results
+  (`router_results/`), the fixed program per level (`fixed_program/`), and the menu
+  cross-execution behind Finding 5, in-sample and held-out (`menu_crossexec/`,
+  `menu_crossexec_heldout/`).
+- **PoLar split** (`polar_split/`, paper Appendix B): Li et al.'s search on their own
+  question sets, 4 models × 2 prompts (`polar_default`, `oneshot`) × 3 seeds, with the
+  4-fold router and fixed-program results, the routers trained on their train/val/test
+  split, and the out-of-distribution routers.
+- **Cross-checks** (`cross_checks/`, Appendix B.4): their search on our split, and our
+  search on their split.
+
+No question text or reference answer is stored: the DART-Math questions are rebuilt from
+the public DART-Math pool (`re_polar.datasets.dart_math`, `re_polar.datasets.polar_split`)
+and joined back by `query_id` (`re_polar.datasets.attach_mcts_questions`).
 
 ## Results
 
@@ -133,100 +141,132 @@ is a representative slice. Our
 interactive explorer for the MCTS search itself (see Method above).
 
 Skip and repeat combined beat either alone, on every model and DART-Math
-difficulty (shown here at difficulty 1). Base = identity already correct;
-Skip/Loop = identity or a skip-only/repeat-only valid program exists;
-Skip&Loop = identity or any valid program exists, all measured over the
+difficulty (shown here at difficulty 1, mean ± std over the three search seeds, as in
+the paper's appendix table). Base = identity already correct (seed 42);
+Skip/Repeat = identity or a skip-only/repeat-only valid program exists;
+Skip&Repeat = identity or any valid program exists, all measured over the
 MCTS-search pool (all 2000 DART-Math questions per difficulty):
 
 <div align="center">
 
-| model             | Base  | Skip  | Loop  | Skip&Loop | Gain  |
-| ----------------- | ----- | ----- | ----- | --------- | ----- |
-| Qwen1.5-MoE-A2.7B | 22.7% | 34.8% | 67.1% | 73.0%     | +50.2 |
-| Qwen2.5-3B        | 31.6% | 54.8% | 76.5% | 82.7%     | +51.0 |
-| Qwen2.5-7B        | 50.0% | 65.4% | 84.9% | 89.0%     | +39.0 |
-| Qwen3-8B          | 48.6% | 67.3% | 83.8% | 88.8%     | +40.2 |
-| Qwen3-32B         | 62.5% | 84.4% | 94.8% | 97.1%     | +34.6 |
+| model             | Base  | Skip       | Repeat     | Skip&Repeat | Gain  |
+| ----------------- | ----- | ---------- | ---------- | ----------- | ----- |
+| Qwen1.5-MoE-A2.7B | 22.7% | 35.6 ± 0.7 | 67.0 ± 0.4 | 73.3 ± 0.4  | +50.6 |
+| Qwen2.5-3B        | 31.6% | 54.7 ± 0.3 | 75.5 ± 0.8 | 82.3 ± 0.3  | +50.6 |
+| Qwen2.5-7B        | 50.0% | 65.2 ± 1.2 | 84.6 ± 0.3 | 89.0 ± 0.2  | +39.1 |
+| Qwen3-8B          | 48.6% | 66.7 ± 0.9 | 83.5 ± 0.3 | 88.5 ± 0.4  | +39.9 |
+| Qwen3-32B         | 62.5% | 84.6 ± 0.3 | 95.1 ± 0.3 | 97.1 ± 0.2  | +34.6 |
+| LLaMA-3.2-3B      | 16.8% | 33.6 ± 0.7 | 59.1 ± 0.8 | 68.7 ± 1.2  | +51.9 |
 
 </div>
 
-Computed by [`re_polar/mcts/analysis/polar_comparison.py`](re_polar/mcts/analysis/polar_comparison.py)'s
+Per seed, computed by [`re_polar/mcts/analysis/polar_comparison.py`](re_polar/mcts/analysis/polar_comparison.py)'s
 `compute_skip_loop_accuracy`.
 
 <br>
 
-<p align="center"><img src="figures/menu_coverage_by_model.png" width="560" alt="Line chart: coverage % rising with menu size K (1 to 100) for 5 models, from about 20-35% at K=1 to 50-75% at K=100, each approaching a dashed reference line marking that model's ceiling."></p>
+<p align="center"><img src="figures/menu_coverage_by_model.png" width="640" alt="Line chart: menu pass@K rising with menu size K (1 to 100) for 6 models, from about 20-35% at K=1 to 65-85% at K=100."></p>
 
-**Menu coverage**: rank programs by how many questions they solved during
-search, then, for each menu size K, execute the top-K of those against
+**Menu coverage** (seed-42 search, oneshot prompt): rank programs by how many questions
+they solved during search, then, for each menu size K, execute the top-K of those against
 every question and measure what fraction they solve. This ranking includes
 the identity/standard-pass program, which is typically the single
 highest-coverage entry (it's "valid" for every question the model already
 answers correctly with zero layer edits). See
-[`analysis/mcts_design/menu_coverage.py`](analysis/mcts_design/menu_coverage.py).
+[`analysis/mcts_design/menu_coverage.py`](analysis/mcts_design/menu_coverage.py); the figure
+ranks and scores on all 2,000 questions per level (`data/menu_crossexec/`). The held-out check
+in the paper ranks on the train+val questions only and scores on the 500 test questions
+(`--rank-pool trainval --eval-pool test`, `data/menu_crossexec_heldout/`): averaged over the
+6 models and 5 levels, the top-100 menu solves 70.9% against 28.0% for identity (2.5x),
+in-sample 71.6% against 27.8% (2.6x). Both are printed by
+`python -m analysis.mcts_design.menu_heldout`.
 Router accuracy and program-structure analysis are under
 [`analysis/`](analysis/); see the paper for the full results.
 
 ## Quickstart
 
-Build a DART-Math train/val/test split (MATH+GSM8K, difficulty 1-5):
+Build our DART-Math train/val/test split (MATH+GSM8K, difficulty 1-5), and Li et al.'s
+(MATH only, Appendix B):
 
 ```bash
 python -m re_polar.datasets.dart_math --out-dir ./data/dart_math --include-gsm8k
+python -m re_polar.datasets.polar_split --out-dir ./data/polar_split_questions
 ```
 
 Join question text onto the released MCTS data and train a router:
 
 ```bash
 python -m re_polar.datasets.attach_mcts_questions \
-    --mcts-dir data/mcts_results --dart-math-dir ./data/dart_math \
-    --out-dir ./data/mcts_results_full
+    --mcts-dir data/mcts_results/qwen3_8b --dart-math-dir ./data/dart_math \
+    --out-dir ./data/mcts_results_full/qwen3_8b
 
 python -m re_polar.router.train \
-    --samples data/mcts_results_full/qwen3_8b/dart-math-diff-1/merged_mcts_samples.json \
+    --samples data/mcts_results_full/qwen3_8b/seed42/dart-math-diff-1/merged_mcts_samples.json \
     --model qwen3_8b --train-per-diff 1250 --out ./results/router_qwen3_8b.pt
 ```
 
-The released MCTS files hold all 2000 questions of a tier in the order
+The released MCTS files hold all 2000 questions of a level in the order
 train (1250), val (250), test (500). `--train-per-diff 1250` trains on the
-first 1250, validates on the next 250 and leaves the test questions out.
+first 1250, validates on the next 250 and leaves the test questions out. The paper's
+routers come from the validation-selected sweep in
+[`analysis/router_recipe_sweep/sweep_router.py`](analysis/router_recipe_sweep/sweep_router.py)
+(learning rate × batch size × epochs, selected by validation loss, Appendix A.9).
 
-Evaluate a trained router against the identity-program baseline:
+Evaluate a trained router against the identity program (the standard forward pass), and
+pick and evaluate the fixed program of a level:
 
 ```bash
 python -m re_polar.router.infer \
     --checkpoint ./results/router_qwen3_8b.pt --model qwen3_8b \
-    --data-dir ./data/dart_math --difficulty all \
-    --output ./results/infer_qwen3_8b.json
+    --data-dir ./data/dart_math --difficulty 1 --top-k-paths 5 \
+    --output ./results/infer_qwen3_8b_diff1.json
+
+python -m re_polar.router.fixed_program --model qwen3_8b --difficulty 1 \
+    --samples data/mcts_results_full/qwen3_8b/seed42/dart-math-diff-1/merged_mcts_samples.json \
+    --data-dir ./data/dart_math --out ./results/fixed_qwen3_8b_diff1.json
 ```
 
-As written above this evaluates all 5 difficulty tiers' full test sets
-(2500 questions) with real generation per question — expect this to take
-hours on a single GPU (longer without flash-attention, e.g. on Apple
-Silicon MPS). For a fast first-run smoke test, add `--difficulty 1 --limit
-40` (or similar) to cut this down to a couple minutes.
-
-The search that *discovers* this data (`re_polar/mcts/run_search_dart_math.py`)
-is directly runnable as a script with a full CLI, as is the MMLU-Pro search
-behind the paper's MMLU-Pro analysis
-(`re_polar/mcts/run_search_mmlu_pro_domains.py`, outputs not released). There's no single command that regenerates the
-*entire* release: it's 5 models × 5 difficulty tiers (25 runs total), each
-a separate, GPU-hour-scale MCTS search — expect the full release to cost
-many GPU-hours in aggregate, and run the 25 (model, difficulty) combos in
-parallel across GPUs rather than sequentially on one (see the paper's
-Appendix B.2 for the compute infrastructure and hardware we used). A cheap
-pilot:
-
-```bash
-python -m re_polar.mcts.run_search_dart_math --difficulty 1 --n-inputs 50 \
-    --budget 100 --data-dir ./data/dart_math \
-    --output-root ./data/mcts --cache-dir ./data/mcts_cache
-```
+Both generate an answer for every test question (500 per level): expect hours on a single
+GPU, longer on Apple Silicon. Add `--limit 40` (infer) or `--test-limit 40` (fixed
+program) for a smoke test.
 
 ### Running the MCTS search
 
-- DART-Math search defaults to masked-batch + KV decoding, as in the paper
-  (Appendix A.7). `--no-masked-batch` evaluates one program at a time.
+[`re_polar/mcts/run_search_dart_math.py`](re_polar/mcts/run_search_dart_math.py) runs one
+search per model and level. Its defaults are the paper's main-track configuration (200
+simulations, a layer executed at most five times, oneshot prompt, masked-batch + KV
+decoding, Appendix A.8), so a main-track run needs no search flags:
+
+```bash
+python -m re_polar.mcts.run_search_dart_math --model qwen3_8b --difficulty 1 --split all \
+    --seed 42 --data-dir ./data/dart_math \
+    --output-root ./data/mcts --cache-dir ./data/mcts_cache
+```
+
+`--polar-fidelity` switches to Li et al.'s released search and parameters (100
+simulations, a layer executed at most twice, epsilon 0.1, multi-layer edits only at the
+root, their per-model program-length window, one shared seed for all questions). The
+PoLar-split runs of Appendix B:
+
+```bash
+python -m re_polar.mcts.run_search_dart_math --model qwen3_8b --difficulty 1 --split train \
+    --polar-fidelity --prompt-style polar_default --seed 42 \
+    --data-dir ./data/polar_split_questions/pool \
+    --output-root ./data/mcts_polar --cache-dir ./data/mcts_polar_cache
+```
+
+Their routers and fixed programs use 4-fold cross-validation over each level's questions:
+`python -m re_polar.router.fold_data` writes a fold's train/val/test files for the router
+sweep, `router.infer` and `router.fixed_program`. Every run writes `run_config.json` next
+to its output. A pilot: add `--n-inputs 20 --budget 20`.
+
+The full release is 6 models × 5 levels × 3 seeds (90 main-track searches) plus 120
+PoLar-split searches, each a separate, GPU-hour-scale job: run them in parallel across GPUs
+(Appendix C.1 lists the compute we used). The MMLU-Pro search behind Appendix E is
+[`re_polar/mcts/run_search_mmlu_pro_domains.py`](re_polar/mcts/run_search_mmlu_pro_domains.py)
+(outputs not released).
+
+- `--no-masked-batch` evaluates one program at a time.
 - `--masked-batch-max-group-size`: max rows per forward call, uncapped by
   default. Lower it on OOM. Caps that ran for Qwen3-8B:
 

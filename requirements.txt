@@ -1,6 +1,10 @@
 torch>=2.11.0,<3.0.0
-transformers>=5.4.0,<6.0.0  # masking_utils.create_causal_mask(inputs_embeds=...) signature (masked-batch decodes)
-accelerate>=0.27.0
+# transformers/accelerate/tokenizers: the router and fixed-program images of the paper (v2); the
+# searches ran on transformers 5.12.1 (data/DATA.md). >=5.4 is needed for the masked-batch decodes
+# (masking_utils.create_causal_mask(inputs_embeds=...)).
+transformers==5.17.0
+tokenizers==0.23.2
+accelerate==1.15.0
 numpy>=1.24.0
 tqdm>=4.66.0
 datasets>=2.0.0

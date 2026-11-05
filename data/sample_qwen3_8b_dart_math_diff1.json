@@ -1,8 +1,6 @@
 {
   "samples": [
     {
-      "question": "In a field of 500 clovers, 20% have four leaves and one quarter of these are purple clovers. Assuming these proportions are exactly correct, how many clovers in the field are both purple and four-leaved?",
-      "gt_ans": "25",
       "final_valid_transitions": [
         [
           0,
@@ -26575,8 +26573,6 @@
       ]
     },
     {
-      "question": "Sabrina is collecting herbs to make a poultice for her grandmother. She needs twice as many basil leaves as sage leaves and 5 fewer sage leaves than verbena leaves. If she needs 12 basil leaves, how many leaves total does she need?",
-      "gt_ans": "29",
       "final_valid_transitions": [
         [
           0,
@@ -51750,8 +51746,6 @@
       ]
     },
     {
-      "question": "Lewis found 4 more items on the scavenger hunt than Samantha.  Samantha found four times the amount of items than Tanya who was only able to find 4 items.  How many items did Lewis find?",
-      "gt_ans": "20",
       "final_valid_transitions": [
         [
           0,
@@ -77504,8 +77498,6 @@
       ]
     },
     {
-      "question": "If eight movie tickets cost 2 times as much as one football game ticket, and each movie ticket is sold at $30, calculate the total amount of money Chandler will pay if he buys eight movie tickets and five football game tickets.",
-      "gt_ans": "840",
       "final_valid_transitions": [],
       "final_invalid_transitions": [
         [
@@ -102729,8 +102721,6 @@
       ]
     },
     {
-      "question": "Tom split 2 apples into 8 slices each. Tom gave 3/8ths of the apple slices to his friend Jerry, then ate half of the remaining slices. How many apple slices does Tom have left?",
-      "gt_ans": "5",
       "final_valid_transitions": [
         [
           0,

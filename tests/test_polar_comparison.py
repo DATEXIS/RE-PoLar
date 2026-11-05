@@ -163,3 +163,33 @@ def test_compute_segment_length_distribution_sums_to_one(groups):
     assert total == pytest.approx(1.0)
     assert f7a["n"] > 0
     assert 0.0 <= f7a["le2_pct"] <= 100.0
+
+
+def test_segment_stats_on_hand_made_programs():
+    from re_polar.mcts.analysis.segments import segment_stats
+
+    # D=6: skip [2,4) (2 layers); repeat [2,4) once (2 executions); repeat layer 2 twice (3 executions)
+    progs = [(0, 1, 4, 5), (0, 1, 2, 3, 2, 3, 4, 5), (0, 1, 2, 2, 2, 3, 4, 5)]
+    r = segment_stats(progs, 6)
+    assert r["n_programs"] == 3 and r["n_segments"] == 3
+    assert r["single_pct"] == 100 / 3  # only the triple-executed layer 2 is one layer long
+    assert r["le2_pct"] == 100.0
+    assert r["seg_rep_le1_pct"] == 200 / 3  # the skip (0 repeats) and the once-repeated block
+    assert r["repeat_seg_rep1_pct"] == 50.0  # of the two repeat segments, one is repeated once
+    assert r["prog_max_le1_pct"] == 200 / 3
+
+
+def test_f4_count_all_uses_every_valid_program():
+    from re_polar.mcts.analysis.polar_comparison import (
+        compute_segment_length_distribution,
+        compute_segment_recurrence_distribution,
+    )
+
+    # one question with two valid programs: a 1-layer skip (shortest) and a 2-layer repeat
+    groups = {"1": [make_sample("q", 1, False, extra_valid=[skip_path([5]), repeat_path(10)])]}
+    short = compute_segment_length_distribution(groups, D)
+    every = compute_segment_length_distribution(groups, D, count="all")
+    assert short["n"] == 1 and short["1"] == 1.0
+    assert every["n"] == 2 and every["1"] == 1.0  # repeat_path(10) repeats one layer
+    assert compute_segment_recurrence_distribution(groups, D)["0"] == 1.0
+    assert compute_segment_recurrence_distribution(groups, D, count="all")["1"] == 0.5

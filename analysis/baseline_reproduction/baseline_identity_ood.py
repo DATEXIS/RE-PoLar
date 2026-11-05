@@ -77,6 +77,16 @@ def main(argv=None):
     )
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--limit", type=int, default=None, help="first N questions (smoke tests)")
+    p.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=None,
+        help="generation budget; default: GenerationReward's paper default (50). The paper's "
+        "Appendix B.6 protocol check also runs 512.",
+    )
+    p.add_argument(
+        "--text-log", default=None, help="write every answer (re_polar.mcts.textlog format) here"
+    )
     args = p.parse_args(argv)
 
     if args.model not in MODEL_REGISTRY:
@@ -86,8 +96,13 @@ def main(argv=None):
     engine = LayerEngine(cfg["model_id"], trust_remote_code=cfg.get("trust_remote_code", True))
     executor = ProgramExecutor(engine)
     D = engine.num_layers
+    extra = {} if args.max_new_tokens is None else {"max_new_tokens": args.max_new_tokens}
     reward_fn = GenerationReward(
-        executor, batch_size=args.batch_size, prompt_style=args.prompt_style
+        executor,
+        batch_size=args.batch_size,
+        prompt_style=args.prompt_style,
+        text_log_path=args.text_log,
+        **extra,
     )  # boxed gate + strict grade
     identity = Program.identity(D)
 
@@ -107,6 +122,7 @@ def main(argv=None):
         "model": args.model,
         "dataset": args.dataset,
         "prompt_style": args.prompt_style,
+        "max_new_tokens": reward_fn.max_new_tokens,
         "n": len(rewards),
         "identity_acc": round(acc, 4),
     }
@@ -114,6 +130,11 @@ def main(argv=None):
     outp.parent.mkdir(parents=True, exist_ok=True)
     outp.write_text(json.dumps(out, indent=2))
     print(f"\nwrote {outp}", flush=True)
+    print(
+        f"SUMMARY {args.model} {args.dataset} {args.prompt_style} {reward_fn.max_new_tokens} tok: "
+        f"identity {acc:.4f} (n={len(rewards)})",
+        flush=True,
+    )
     return outp
 
 

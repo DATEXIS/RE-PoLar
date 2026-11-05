@@ -24,12 +24,9 @@ def load_model_and_tokenizer(
     # token=None (the default, not passed explicitly): use a cached/env HF
     # token if one is present, else fetch anonymously. Every model in
     # MODEL_REGISTRY except llama32_3b is public and needs no token at all.
-    # llama32_3b is gated, but that's not why it's excluded from the
-    # MCTS/router track by default -- see the paper's Appendix A.5 for the
-    # actual reasoning. If a gated model is ever used here, the caller
-    # needs an HF_TOKEN with access to it set in the environment (or to be
-    # logged in via `hf auth login`) -- from_pretrained already respects
-    # that automatically, no code change needed.
+    # llama32_3b is gated: the caller needs an HF_TOKEN with access to it set
+    # in the environment (or to be logged in via `hf auth login`) --
+    # from_pretrained already respects that automatically.
     if device == "cuda":
         model = AutoModelForCausalLM.from_pretrained(
             model_id,

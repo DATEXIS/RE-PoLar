@@ -2,9 +2,15 @@
 
 Third-party data and code this repository depends on, and their licenses.
 All code under `re_polar/` is original to this project unless noted below.
-PoLar's own repository carries no license, so `re_polar/core`, `re_polar/mcts`, and
-`re_polar/router` are independent reimplementations from the published paper's
-formalization, not derived from PoLar's code.
+PoLar's own repository ([tianyi-lab/PoLar](https://github.com/tianyi-lab/PoLar)) carries
+no license, so no code of theirs is copied, vendored or imported here. `re_polar/core`,
+`re_polar/mcts` and `re_polar/router` are independent reimplementations from the
+published papers' formalization. Two parts follow the *behaviour* of the MCTS code they
+released during our review (`mcts_discovery/run_mcts.py`, commit `c86d76e`), written by
+us and checked against it: the search's PoLar mode (`--polar-selection` /
+`--polar-fidelity` in `re_polar/mcts/`, checked program for program by
+`tests/test_mcts.py` when `POLAR_REPO` points at a checkout of their repository) and the
+PoLar-split question sets (`re_polar/datasets/polar_split.py`, their `sample_dataset`).
 
 ## dart-math (`re_polar/vendor/dart_math/`)
 

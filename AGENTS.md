@@ -30,18 +30,25 @@ Everything lives under the single `re_polar/` package.
   method's contribution, see its own docstring for provenance), the
   executor, and both grading paths (generation-based for DART-Math/ASDiv/
   MAWPS, log-likelihood MCQ scoring for MMLU-Pro).
-- `re_polar/mcts/`: the search that discovers programs.
+- `re_polar/mcts/`: the search that discovers programs: our own (default, the paper's
+  main track) and Li et al.'s released search (`--polar-fidelity`, paper Appendix B),
+  implemented anew and verified program for program against their code.
 - `re_polar/mcts/analysis/`: metrics computed over MCTS output (program
   structure, not router-related).
-- `re_polar/router/`: embedding → program predictor, trained on MCTS output.
+- `re_polar/router/`: embedding → program predictor, trained on MCTS output; the
+  fixed-program baseline (`fixed_program.py`) and the PoLar-split cross-validation folds
+  (`fold_data.py`).
 - `re_polar/datasets/`: dataset builders (`merged_mcts_samples.json`
-  read/write, DART-Math/MMLU-Pro/ASDiv/MAWPS splits).
+  read/write, our DART-Math split, Li et al.'s PoLar split, MMLU-Pro/ASDiv/MAWPS).
 - `re_polar/models/`: one config per evaluated model (`MODEL_REGISTRY`).
 - `re_polar/vendor/dart_math/`: third-party answer grading, see `NOTICE.md`.
 - `data/` (top-level, separate from `re_polar/datasets/`): the full data
-  release (MCTS-discovered programs, generated text, menu cross-execution,
-  router checkpoints), plus `DATA.md` describing its schema.
-- `analysis/`: regenerates every paper table/figure number from code.
+  release (MCTS-discovered programs, generated text, routers and their results,
+  fixed programs, menu cross-execution; main track, PoLar split, cross-checks), plus
+  `DATA.md` describing its schema. It never holds question text (see `DATA.md`).
+- `analysis/`: scripts behind the paper's analyses that need a model run (baselines,
+  router recipe sweep, menu cross-execution, error analysis, MMLU-Pro letter bias,
+  reversion robustness). Figure drawing and table aggregation are not part of the release.
 - `analysis/tree_viz/`: `extract.py` turns `data/mcts_results_full/` +
   `data/generated_answers/` into the tree-data JSON `template.html` renders
   as a self-contained, offline interactive viewer of MCTS-discovered

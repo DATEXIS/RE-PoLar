@@ -15,6 +15,16 @@ __pycache__/
 # reconstructed locally, see data/DATA.md
 /data/dart_math/
 /data/mcts_results_full/
+/data/polar_split_questions/
+# the data release, downloaded from Hugging Face (see data/DATA.md)
+/data/mcts_results/
+/data/generated_answers/
+/data/router_checkpoints/
+/data/router_results/
+/data/fixed_program/
+/data/menu_crossexec/
+/data/polar_split/
+/data/cross_checks/
 
 .pytest_cache/
 .ipynb_checkpoints/
@@ -26,3 +36,8 @@ docs/
 # directory across branches, so switching from project-page leaves this
 # untracked here otherwise.
 /media/
+/scratch/
+
+# our release checks (leak scan, GPU smoke vs released data), kept local, not published
+/tests/test_release_data.py
+/tests/test_smoke_vs_release.py

@@ -1,4 +1,10 @@
-"""MCTS program discovery, reimplemented from the PoLar paper (no code published).
+"""MCTS program discovery, reimplemented from the PoLar papers.
+
+The default search is our own reconstruction from the papers, written before Li et al.
+released their search code. `polar_selection=True` (+ `root_only_multilength`,
+`min_length`/`max_length`) re-implements the behaviour of their released search
+(github.com/tianyi-lab/PoLar, `mcts_discovery/run_mcts.py`), see "POLAR SELECTION MODE"
+below; paper Appendix B runs it on their split.
 
 "Edits over identity" formulation (Option A). The program is IDENTITY by
 default; the search places a small set of *edits*, each edit = one contiguous
@@ -104,6 +110,7 @@ scheduler.py (program-major). Evaluated programs and rewards accumulate in
 
 import math
 import random
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -170,6 +177,12 @@ class Node:
     # (a node there may have several parents, so a single back-pointer would be
     # meaningless; None throughout for that mode).
     parent: Optional["Node"] = None
+    # Only used by ProgramMCTS(polar_selection=True) (see POLAR SELECTION MODE below):
+    # PoLar's stored MCTSNode.ucb (-inf until the node is first on a backprop chain),
+    # MCTSNode.fully_explored, and the node's concrete layer path.
+    ucb: float = -math.inf
+    fully_explored: bool = False
+    path: Optional[Tuple[int, ...]] = None
 
 
 class ProgramMCTS:
@@ -188,7 +201,11 @@ class ProgramMCTS:
         max_repeat_times: int = DEFAULT_MAX_REPEAT_TIMES,
         epsilon: float = 0.0,
         global_selection: bool = False,
-        ucb_global_v: bool = True
+        ucb_global_v: bool = True,
+        root_only_multilength: bool = False,
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        polar_selection: bool = False,
     ):
         self.num_layers = num_layers
         self.budget = budget
@@ -219,6 +236,16 @@ class ProgramMCTS:
         # No effect under global_selection=True: that mode already always uses
         # global V via its own dedicated _global_ucb, never calls _ucb at all.
         self.ucb_global_v = ucb_global_v
+        # PoLar-fidelity knobs (all off by default = our own search's action space),
+        # matching the action-space rules of Li et al.'s released search code:
+        # root_only_multilength: only the root gets 2-4-layer skip/repeat edits, every
+        # other node single-layer edits only (their generate_mcts_candidates(is_root=False)).
+        # min_length/max_length: drop a candidate whose executed path length falls outside
+        # [min_length, max_length] at candidate-generation time (their MODEL_DEPTH_PRESETS,
+        # e.g. Qwen3-8B 24..44). None leaves that side unbounded.
+        self.root_only_multilength = root_only_multilength
+        self.min_length = min_length
+        self.max_length = max_length
         self.rng = random.Random(seed)
         self._universe = _action_universe(num_layers, max_repeat_times)
         # canonical sorted edit-tuple -> Node (module docstring, TRANSPOSITION)
@@ -253,6 +280,19 @@ class ProgramMCTS:
         # own (empty) executed path -- it's a real tree node the search
         # actually visited, not a no-op.
         self.trajectory: List[dict] = []
+        # POLAR SELECTION MODE (block comment above _propose_polar). Single-parent tree
+        # like global_selection; per-tree set of every candidate layer path ever
+        # generated (PoLar's `visited_paths`), seeded with identity.
+        self.polar_selection = polar_selection
+        if polar_selection and global_selection:
+            raise ValueError("polar_selection is exclusive with global_selection")
+        self._polar_visited = {tuple(range(num_layers))}
+        if polar_selection:
+            self.root.path = tuple(range(num_layers))
+            # fresh RNG stream: _get_or_create(()) above already consumed draws shuffling
+            # root.untried, which this mode never uses. PoLar calls random.seed(42) right
+            # before its loop.
+            self.rng = random.Random(seed)
 
     @property
     def exhausted(self) -> bool:
@@ -271,16 +311,36 @@ class ProgramMCTS:
         edits placed) this is exactly the action set the earlier `_actions_at(0)`
         (before ANY-ORDER PLACEMENT) produced, in the same order, only DEEPER
         nodes see a different (larger) set.
+
+        root_only_multilength / min_length / max_length (__init__): restrict non-root
+        nodes to length-1 edits, and drop edits whose resulting executed length leaves
+        [min_length, max_length].
         """
         if not edits:
-            return list(self._universe)
-        occupied = bytearray(self.num_layers)
-        for start, length, _op, _times in edits:
-            for i in range(start, start + length):
-                occupied[i] = 1
-        # filter the interned universe rather than building fresh tuples, so a
-        # node's untried list costs one pointer per entry (see _ACTION_UNIVERSE)
-        return [a for a in self._universe if not any(occupied[i] for i in range(a[0], a[0] + a[1]))]
+            candidates = list(self._universe)
+        else:
+            occupied = bytearray(self.num_layers)
+            for start, length, _op, _times in edits:
+                for i in range(start, start + length):
+                    occupied[i] = 1
+            # filter the interned universe rather than building fresh tuples, so a
+            # node's untried list costs one pointer per entry (see _ACTION_UNIVERSE)
+            candidates = [
+                a for a in self._universe if not any(occupied[i] for i in range(a[0], a[0] + a[1]))
+            ]
+            if self.root_only_multilength:
+                candidates = [a for a in candidates if a[1] == 1]
+        if self.min_length is not None or self.max_length is not None:
+            base_len = self._executed_len(edits)
+            lo = self.min_length if self.min_length is not None else -math.inf
+            hi = self.max_length if self.max_length is not None else math.inf
+
+            def _delta(a: Edit) -> int:
+                _start, length, op, times = a
+                return -length if op is Op.SKIP else (times - 1) * length
+
+            candidates = [a for a in candidates if lo <= base_len + _delta(a) <= hi]
+        return candidates
 
     def _child_edits(self, edits: Tuple[Edit, ...], action: Edit) -> Tuple[Edit, ...]:
         """Canonical (sorted-by-start) edit tuple for placing `action` on `edits`.
@@ -452,11 +512,9 @@ class ProgramMCTS:
     # actually costs meaningful budget.
     #
     # STATUS: this is our reconstruction of one plausible literal reading of
-    # a 7-line, informally-worded algorithm box with no released code to
-    # check against (PoLar's own public repo has no MCTS search code at all,
-    # only a consumer of precomputed merged_mcts_samples.json -- confirmed by
-    # direct search). Not proven to match what the paper's authors actually
-    # ran. Piloted as the default after a CPU pilot battery (fake
+    # a 7-line, informally-worded algorithm box, written before Li et al.
+    # released their search code. Their released search differs from this
+    # reading; it is re-implemented as POLAR SELECTION MODE below. Piloted as the default after a CPU pilot battery (fake
     # rewards; no GPU/model in this environment) showed it: crash-free across
     # 180 (reward, seed) combinations, deterministic given a seed, held the
     # root.visits==total-simulations invariant throughout, matched-or-beat
@@ -534,6 +592,118 @@ class ProgramMCTS:
             return self._propose_global() if not self.exhausted else None
         return program, self._chain_to(child)
 
+    # -- POLAR SELECTION MODE (opt-in via polar_selection=True) -------------
+    #
+    # Re-implements Li et al.'s released search loop (github.com/tianyi-lab/PoLar,
+    # mcts_discovery/run_mcts.py: `mcts_search` + `generate_mcts_candidates`), down to
+    # candidate ORDER and the exact sequence of RNG calls, so that given identical
+    # rewards a tree evaluates the same programs in the same order (checked program
+    # for program against their code, tests/test_mcts.py). No code of theirs is
+    # copied or imported. Compared with our widening search, their loop dives deep
+    # (paper Appendix B: median deepest program 9 edits vs. 3) with exactly ONE root
+    # child per tree.
+    # Per simulation:
+    #   1. selection: from root, while the node has children, restrict to children
+    #      not `fully_explored` (insertion order); draw rng.random() and w.p. epsilon
+    #      take rng.choice of them, else the FIRST argmax of the STORED `ucb`. A
+    #      never-backpropped child has ucb=-inf, so greedy selection only steps into
+    #      visited children -> one narrow chain.
+    #   2. expansion: at the reached node, generate candidates on the CONCRETE layer
+    #      path as PoLar does (per position i: skip 1[,2,3,4 at root], repeat 1 (only
+    #      if no layer then appears > max_repeat_times times)[,2,3,4 at root]), drop
+    #      any whose path this tree already generated, add the rest as children, then
+    #      evaluate rng.choice(children sorted by path). An epsilon-picked, never-
+    #      visited node gets expanded without its own program ever being evaluated,
+    #      same as PoLar.
+    #   3. backprop (update()): visits/total along the chain, then
+    #      ucb = Q - lam*len/D + c*sqrt(ln(root.visits_before + 1)/v), stored (stale
+    #      afterwards, as in PoLar), then fully_explored propagation.
+    # PoLar seeds every tree identically (random.seed(42) at the start of every
+    # mcts_search), so every tree's first move is the same program; the caller
+    # reproduces that by passing the same `seed` to every tree
+    # (run_search_dart_math --polar-selection forces the shared seed).
+    # Deliberate deviations: (a) NESTED candidates are dropped (no decomposition
+    # into contiguous original-index segments -> not a Program, module docstring;
+    # 0.3% of the programs their search evaluates); a tree whose candidate list
+    # contained one then follows a different RNG stream from that point on; (b) a
+    # dead-end expansion (no new candidates) retries instead of spending a
+    # simulation on a stale-score backprop.
+
+    def _polar_candidate_paths(self, path: Tuple[int, ...], is_root: bool):
+        """PoLar's generate_mcts_candidates on a concrete layer path, same order,
+        same bounds (without the visited-set bookkeeping)."""
+        lo = self.min_length if self.min_length is not None else -math.inf
+        hi = self.max_length if self.max_length is not None else math.inf
+        multi = is_root or not self.root_only_multilength
+        n = len(path)
+        for i in range(n):
+            for k in range(1, MAX_SEGMENT_LEN + 1):
+                if k > 1 and not (multi and i + k - 1 < n):
+                    continue
+                cand = path[:i] + path[i + k :]
+                if cand and lo <= len(cand) <= hi:
+                    yield cand
+            for k in range(1, MAX_SEGMENT_LEN + 1):
+                if k > 1 and not (multi and i + k - 1 < n):
+                    continue
+                cand = path[:i] + path[i : i + k] + path[i:]
+                if k == 1 and max(Counter(cand).values()) > self.max_repeat_times:
+                    continue
+                if lo <= len(cand) <= hi:
+                    yield cand
+
+    def _polar_children(self, node: Node) -> None:
+        # lazy: re_polar.router.train imports torch at module scope, and this module
+        # stays torch-free for the grader workers and the CPU tests
+        from re_polar.router.train import program_from_layer_path
+
+        for cand in self._polar_candidate_paths(node.path, node is self.root):
+            if cand in self._polar_visited:
+                continue
+            self._polar_visited.add(cand)
+            try:
+                program = program_from_layer_path(
+                    list(cand), self.num_layers, strict_repeat_2x=False
+                )
+            except ValueError:
+                continue  # nested: deviation (a) above
+            child = Node(
+                edits=tuple(program_edits(program)),
+                executed_len=len(cand),
+                untried=[],
+                parent=node,
+                path=cand,
+            )
+            node.children[cand] = child
+
+    def _propose_polar(self) -> Optional[Tuple[Program, List[Node]]]:
+        if self.exhausted:
+            return None
+        while True:
+            node, chain = self.root, [self.root]
+            while node.children:
+                unexplored = [ch for ch in node.children.values() if not ch.fully_explored]
+                if not unexplored:
+                    break
+                if self.rng.random() < self.epsilon:
+                    node = self.rng.choice(unexplored)
+                else:
+                    node = max(unexplored, key=lambda ch: ch.ucb)
+                chain.append(node)
+            if node.fully_explored:
+                return None  # only root can end here: whole reachable space done
+            self._polar_children(node)
+            if not node.children:
+                node.fully_explored = True
+                for anc in reversed(chain[:-1]):
+                    if all(ch.fully_explored for ch in anc.children.values()):
+                        anc.fully_explored = True
+                continue  # deviation (b) above
+            child = self.rng.choice(sorted(node.children.values(), key=lambda ch: ch.path))
+            chain.append(child)
+            self.proposals += 1
+            return self._build_program(child.edits), chain
+
     def propose(self) -> Optional[Tuple[Program, List[Node]]]:
         """Select + expand -> a complete program to evaluate + its backprop chain.
 
@@ -549,6 +719,8 @@ class ProgramMCTS:
         """
         if self.global_selection:
             return self._propose_global()
+        if self.polar_selection:
+            return self._propose_polar()
 
         if self.exhausted:
             return None
@@ -585,6 +757,20 @@ class ProgramMCTS:
         for node in chain:
             node.visits += 1
             node.total_reward += reward
+        if self.polar_selection:
+            # PoLar backprops leaf -> root, so every non-root node's ucb sees
+            # root.visits BEFORE this simulation's increment (_propose_polar).
+            root_v_before = self.root.visits - 1
+            for node in chain:
+                rv = self.root.visits if node is self.root else root_v_before
+                node.ucb = (
+                    node.total_reward / node.visits
+                    - self.lam * node.executed_len / self.num_layers
+                    + self.c * math.sqrt(math.log(rv + 1) / node.visits)
+                )
+            for node in reversed(chain):
+                if node.children and all(ch.fully_explored for ch in node.children.values()):
+                    node.fully_explored = True
         if program is not None:
             self.evaluated[tuple(program.to_layer_path())] = reward
         parent = chain[-2] if len(chain) > 1 else None
@@ -622,3 +808,13 @@ class ProgramMCTS:
 
     def invalid_paths(self) -> List[List[int]]:
         return [list(p) for p, r in self.evaluated.items() if r < 1.0]
+
+
+def program_edits(program: Program) -> List[Edit]:
+    """`program`'s non-KEEP segments as canonical Edit tuples (start, length, op, times),
+    in increasing-start order, the representation ProgramMCTS builds internally."""
+    return [
+        (seg.start, len(seg), seg.op, seg.times)
+        for seg in program.segments
+        if seg.op is not Op.KEEP
+    ]

@@ -219,6 +219,10 @@ class MCTSRunner:
         ucb_global_v: bool = True,
         alpha: float = 2.0,
         beta: float = 0.5,
+        root_only_multilength: bool = False,
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        polar_selection: bool = False,
     ):
         self.inputs = inputs
         # MASKED-BATCH SCHEDULER (see module docstring; the CLI's default):
@@ -285,6 +289,13 @@ class MCTSRunner:
         # cap is never reached within any realistic budget) effectively
         # disable widening without touching ProgramMCTS directly.
         self.alpha, self.beta = alpha, beta
+        # PoLar-fidelity knobs and PoLar's own search loop (ProgramMCTS.__init__ and
+        # "POLAR SELECTION MODE" in re_polar/mcts/search.py), forwarded to every tree.
+        # PoLar seeds every tree with the SAME seed; reproducing that is the caller's
+        # job (per_tree_seed=False; run_search_dart_math --polar-selection does it).
+        self.root_only_multilength = root_only_multilength
+        self.min_length, self.max_length = min_length, max_length
+        self.polar_selection = polar_selection
         self.trees = {
             inp["query_id"]: ProgramMCTS(
                 num_layers,
@@ -298,6 +309,10 @@ class MCTSRunner:
                 ucb_global_v=ucb_global_v,
                 alpha=alpha,
                 beta=beta,
+                root_only_multilength=root_only_multilength,
+                min_length=min_length,
+                max_length=max_length,
+                polar_selection=polar_selection,
             )
             for inp in inputs
         }
