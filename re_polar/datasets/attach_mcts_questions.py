@@ -3,9 +3,10 @@ published mcts_results samples (which don't carry it), by query_id.
 
   python -m re_polar.datasets.dart_math --out-dir ./data/dart_math --include-gsm8k
   python -m re_polar.datasets.attach_mcts_questions \\
-      --mcts-dir mcts_results --dart-math-dir ./data/dart_math --out-dir ./data/mcts_results_full
+      --mcts-dir data/mcts_results/qwen3_8b --dart-math-dir ./data/dart_math \\
+      --out-dir ./data/mcts_results_full/qwen3_8b
 
-Output mirrors the input tree (`<out-dir>/<model>/dart-math-diff-<N>/
+Run once per model. Output mirrors the input tree (`<out-dir>/seed<S>/dart-math-diff-<N>/
 merged_mcts_samples.json`), records back in `schemas.sample_record()`'s
 original shape. Don't commit the output dir.
 """

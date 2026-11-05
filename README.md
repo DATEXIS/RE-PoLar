@@ -24,7 +24,7 @@ that a small router can predict a good program on out-of-distribution (OOD) data
 search at inference time.
 
 This repo reproduces that search and router across 6 models and 3 search seeds, and
-releases every program the searches evaluated (56.6M, 4.4M of them valid, i.e. solving their
+releases every program the searches evaluated (56.6M, 4.6M of them valid, i.e. solving their
 question) for every question studied. We reproduce several of PoLar's core findings:
 skipping beats the standard pass, repeating beats skipping, and combining both beats either alone; shorter programs suffice for
 easier questions, while harder ones need more repeats. For PoLar's main claim, the
