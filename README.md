@@ -2,7 +2,7 @@
 
 <p align="center">Code and data for <em>"Programs-of-Layers in LLMs through the Lens of Cortical Areas"</em> — a reproduction and extension of <a href="https://arxiv.org/abs/2606.06574">PoLar</a> (Li et al., ICML 2026).</p>
 
-<p align="center">[<a href="https://datexis.github.io/RE-PoLar/">Project Page</a>] [<a href="https://arxiv.org/abs/2609.31360">Paper (arXiv)</a>]</p>
+<p align="center">[<a href="https://datexis.github.io/RE-PoLar/">Project Page</a>] [<a href="https://arxiv.org/abs/2609.31360">Paper (arXiv)</a>] [<a href="https://huggingface.co/datasets/SWAMBIT/re-polar">Data (Hugging Face)</a>]</p>
 
 > [!NOTE]
 > Li et al. released their MCTS code on September 28, 2026
