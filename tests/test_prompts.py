@@ -59,7 +59,17 @@ def test_prompt_styles_registry_has_expected_variants():
         "paper_chat_sys",
         "drllm_chat_minimal_fewshot",
         "drllm_chat_minimal_fewshot_prefill",
+        "polar_default",
+        "oneshot",
     }
+
+
+def test_paper_prompt_names_are_aliases_of_the_original_keys():
+    """The paper calls the two prompts polar_default and oneshot; both names must
+    produce exactly the text of the keys the released runs were made with."""
+    tok = _FakeTokenizer()
+    assert PROMPT_STYLES["polar_default"](tok, "Q?") == PROMPT_STYLES["raw"](tok, "Q?")
+    assert PROMPT_STYLES["oneshot"](tok, "Q?") == PROMPT_STYLES["paper_minimal_fewshot"](tok, "Q?")
 
 
 def test_paper_chat_sys_prompt_uses_zeroshot_content_not_the_fewshot_demo():

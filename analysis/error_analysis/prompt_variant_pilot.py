@@ -300,7 +300,12 @@ def grade_all_pooled(refs: List[str], texts: List[str], workers: int = 4) -> Lis
     import multiprocessing as mp
     from pebble import ProcessPool
     from re_polar.core.grader import _grade_worker, _grade_worker_init
-    from re_polar.mcts.rewards import GRADE_MAX_TASKS, GRADE_MEM_BYTES, GRADE_TIMEOUT_S
+    from re_polar.mcts.rewards import (
+        GRADE_MAX_TASKS,
+        GRADE_MEM_BYTES,
+        GRADE_TIMEOUT_S,
+        _is_pool_break,
+    )
 
     n = len(refs)
     results: List[Optional[bool]] = [None] * n
@@ -311,10 +316,8 @@ def grade_all_pooled(refs: List[str], texts: List[str], workers: int = 4) -> Lis
         if not remaining:
             break
         if pool is not None:
-            try:
-                pool.stop()
-            except Exception:
-                pass
+            pool.stop()
+            pool.join()  # reap the old workers
         pool = ProcessPool(
             max_workers=workers,
             max_tasks=GRADE_MAX_TASKS,
@@ -323,13 +326,15 @@ def grade_all_pooled(refs: List[str], texts: List[str], workers: int = 4) -> Lis
             initargs=(GRADE_MEM_BYTES,),
         )
         futures: Dict[int, object] = {}
-        try:
-            for i in remaining:
+        for i in remaining:
+            try:
                 futures[i] = pool.schedule(
                     _grade_worker, args=(refs[i], texts[i]), timeout=GRADE_TIMEOUT_S
                 )
-        except Exception:
-            pass  # pool broke mid-schedule -> unscheduled indices stay in `remaining`
+            except Exception:
+                if attempt == 1:
+                    raise  # a FRESH pool cannot schedule: crash, never score ungraded 0
+                break  # pool broke mid-schedule -> unscheduled indices retried on a fresh pool
         still: List[int] = []
         for i in remaining:
             fut = futures.get(i)
@@ -339,19 +344,20 @@ def grade_all_pooled(refs: List[str], texts: List[str], workers: int = 4) -> Lis
             try:
                 results[i] = bool(fut.result())
             except Exception as e:
-                pool_broke = ("Broken" in type(e).__name__) or isinstance(e, OSError)
-                if pool_broke and attempt == 0:
+                if _is_pool_break(e):
+                    if attempt == 1:
+                        raise RuntimeError("grading pool broke again after a rebuild") from e
                     still.append(i)  # collateral of a pool break -> retry once, don't mislabel
                 else:
-                    results[i] = False  # contained timeout/expiry, or final -> genuine 0
+                    results[i] = False  # contained timeout/expiry/grader error -> genuine 0
             n_done += 1
             if n_done % 500 == 0 or n_done == n:
                 print(f"  graded {n_done}/{n}", flush=True)
         remaining = still
-    for i in remaining:  # defensive: unresolved even after the rebuild -> 0
-        results[i] = False
+    assert not remaining, remaining  # attempt 1 either resolves every answer or raises
     if pool is not None:
         pool.stop()
+        pool.join()
     return results
 
 

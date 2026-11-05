@@ -1375,6 +1375,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Path:
     args = _build_arg_parser().parse_args(argv)
     device = _resolve_device(args.device)
 
+    torch.manual_seed(args.seed)  # head init (sweep_router seeds it the same way)
     router = PolarRouter.for_model(args.model)
     anti_original = args.anti_original_lambda > 0.0
     if args.select_by in ("val_cache_acc", "val_cache_acc_at1") and args.no_validation:

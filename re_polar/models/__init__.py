@@ -39,9 +39,7 @@ QWEN15_MOE_A27B_CONFIG = {
 
 # HF-gated: accept Meta's license at
 # https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct before downloading.
-# Standard GQA full-attention. Used for baseline (Base-model) reproduction
-# only -- excluded from the MCTS search / router training track (see the
-# paper for the justification).
+# Standard GQA full-attention.
 LLAMA32_3B_CONFIG = {
     "model_id": "meta-llama/Llama-3.2-3B-Instruct",
     "num_layers": 28,
@@ -55,8 +53,6 @@ MODEL_REGISTRY = {
     "qwen25_3b": QWEN25_3B_CONFIG,
     "qwen25_7b": QWEN25_7B_CONFIG,
     "qwen15_moe_a27b": QWEN15_MOE_A27B_CONFIG,
-    # Baseline (Base-model) reproduction only -- excluded from the MCTS
-    # search / router training track (see the paper for the justification).
     "llama32_3b": LLAMA32_3B_CONFIG,
 }
 

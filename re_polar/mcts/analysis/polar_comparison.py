@@ -38,6 +38,11 @@ from typing import Dict, List, Optional, Tuple
 
 from .segments import decode, identity, op_class, shortest_valid
 
+# Which valid programs the F4 segment statistics count: "shortest" = the shortest valid program
+# per solved question (paper Fig. 7), "all" = every valid program the search found (paper F4
+# reports both; Li et al. do not say which they count).
+COUNTS = ("shortest", "all")
+
 # Depth-budget levels (% of D) swept for compute_accuracy_by_depth_budget.
 DEPTH_BUDGETS_PCT = [90, 95, 100, 105, 110, 115]
 
@@ -245,11 +250,26 @@ def compute_accuracy_by_executed_depth(
     return out
 
 
+def _f4_programs(groups: Dict[str, List[dict]], num_layers: int, count: str):
+    """The valid programs the F4 statistics count (see COUNTS), pooled across difficulties."""
+    assert count in COUNTS, count
+    for samples in groups.values():
+        for s in samples:
+            valid = [tuple(p) for p in s.get("final_valid_transitions", [])]
+            if not valid:
+                continue
+            if count == "shortest":
+                yield shortest_valid(valid, num_layers)
+            else:
+                yield from valid
+
+
 def compute_segment_length_distribution(
-    groups: Dict[str, List[dict]], num_layers: int, max_span: int = 4
+    groups: Dict[str, List[dict]], num_layers: int, max_span: int = 4, count: str = "shortest"
 ) -> dict:
     """Segment-length histogram, over the shortest-valid representative
-    program per solved question, pooled across all difficulties --
+    program per solved question (count="all": over every valid program),
+    pooled across all difficulties --
     DIAGONAL-ONLY (row==col). Off-diagonal (row < col, "gappy"/fragmented)
     cells can ONLY arise from MERGING two or more separate, non-adjacent
     edit actions into one measured "segment" -- a single atomic
@@ -267,19 +287,12 @@ def compute_segment_length_distribution(
     stated 54.5% / >66.7%."""
     counts = Counter()  # length -> count
     total = 0
-    for samples in groups.values():
-        for s in samples:
-            valid = [tuple(p) for p in s.get("final_valid_transitions", [])]
-            if not valid:
+    for rep in _f4_programs(groups, num_layers, count):
+        for seg in decode(rep, num_layers).segments:
+            if seg.op.value == "keep":
                 continue
-            rep = shortest_valid(valid, num_layers)
-            prog = decode(rep, num_layers)
-            for seg in prog.segments:
-                if seg.op.value == "keep":
-                    continue
-                length = min(len(seg), max_span)
-                counts[length] += 1
-                total += 1
+            counts[min(len(seg), max_span)] += 1
+            total += 1
     lengths = list(range(1, max_span + 1))
     matrix = [
         [(counts.get(row, 0) / total if total else 0.0) if col == row else None for col in lengths]
@@ -294,25 +307,23 @@ def compute_segment_length_distribution(
     }
 
 
-def compute_segment_recurrence_distribution(groups: Dict[str, List[dict]], num_layers: int) -> dict:
+def compute_segment_recurrence_distribution(
+    groups: Dict[str, List[dict]], num_layers: int, count: str = "shortest"
+) -> dict:
     """Max recurrence count per segment (0/1/2+), over the SHORTEST-VALID
-    representative program per solved question, pooled across all
+    representative program per solved question (count="all": over every
+    valid program), pooled across all
     difficulties (an assumption about PoLar's own pooling -- not something
     its published text explicitly confirms, flagged here since it isn't)."""
     counts = Counter()
     total = 0
-    for samples in groups.values():
-        for s in samples:
-            valid = [tuple(p) for p in s.get("final_valid_transitions", [])]
-            if not valid:
-                continue
-            rep = shortest_valid(valid, num_layers)
-            prog = decode(rep, num_layers)
-            max_times = max(
-                [seg.times - 1 for seg in prog.segments if seg.op.value == "repeat"], default=0
-            )
-            counts[min(max_times, 2)] += 1
-            total += 1
+    for rep in _f4_programs(groups, num_layers, count):
+        max_times = max(
+            [seg.times - 1 for seg in decode(rep, num_layers).segments if seg.op.value == "repeat"],
+            default=0,
+        )
+        counts[min(max_times, 2)] += 1
+        total += 1
     return {
         "0": counts.get(0, 0) / total if total else 0.0,
         "1": counts.get(1, 0) / total if total else 0.0,
@@ -356,7 +367,9 @@ def _diff_sort_key(g):
         return (1, g)
 
 
-def compute_findings(groups: Dict[str, List[dict]], num_layers: int) -> dict:
+def compute_findings(
+    groups: Dict[str, List[dict]], num_layers: int, count: str = "shortest"
+) -> dict:
     """One confirm/refute signal per this repo's own Findings F1-F4 (which
     mirror PoLar's own diagnostic Findings 1-4), computed from the SAME
     underlying data as the functions above (re-calls them -- cheap, this
@@ -365,8 +378,8 @@ def compute_findings(groups: Dict[str, List[dict]], num_layers: int) -> dict:
     skip_loop = compute_skip_loop_accuracy(groups, num_layers)
     recurrence_coverage = compute_valid_coverage_by_recurrence_budget(groups, num_layers)
     recurrence_req = compute_recurrence_and_skip_requirement(groups, num_layers)
-    seg_len = compute_segment_length_distribution(groups, num_layers)
-    seg_rec = compute_segment_recurrence_distribution(groups, num_layers)
+    seg_len = compute_segment_length_distribution(groups, num_layers, count=count)
+    seg_rec = compute_segment_recurrence_distribution(groups, num_layers, count=count)
 
     # F1: loop > skip, skiploop >= both, per difficulty.
     diffs = sorted(skip_loop, key=_diff_sort_key)

@@ -413,6 +413,10 @@ PROMPT_STYLES = {
     "drllm_chat_minimal_fewshot": drllm_chat_minimal_fewshot_prompt,
     "drllm_chat_minimal_fewshot_prefill": drllm_chat_minimal_fewshot_prefill_prompt,
 }
+# The paper's names for the two prompts it compares: polar_default = PoLar's own
+# Appendix D.4 prompt ("raw"), oneshot = ours ("paper_minimal_fewshot", one 1+1 demo).
+PROMPT_ALIASES = {"polar_default": "raw", "oneshot": "paper_minimal_fewshot"}
+PROMPT_STYLES.update({alias: PROMPT_STYLES[name] for alias, name in PROMPT_ALIASES.items()})
 
 
 def truncate_after_first_boxed(text: str) -> str:
@@ -456,6 +460,14 @@ def _answer_checker():
     from re_polar.vendor.dart_math.eval import EvaluatorMath
 
     return EvaluatorMath()
+
+
+def _is_pool_break(e: BaseException) -> bool:
+    """True for a broken grading pool (pebble sets BrokenProcessPool on every pending future),
+    False for a contained per-answer failure: TimeoutError, pebble's ProcessExpired (memory
+    cap), or an error raised by the grader itself. Both TimeoutError and ProcessExpired subclass
+    OSError, so `isinstance(e, OSError)` must not be used here."""
+    return "Broken" in type(e).__name__
 
 
 def _masked_batch_layer_pass(
@@ -766,11 +778,11 @@ class GenerationReward:
         return self._pool
 
     def _reset_pool(self):
+        # join() reaps the old workers; without it every reset leaks 2 processes (~1.5 GiB)
+        # until no new pool can start.
         if self._pool is not None:
-            try:
-                self._pool.stop()
-            except Exception:
-                pass
+            self._pool.stop()
+            self._pool.join()
         self._pool = None
 
     def _log_fail(
@@ -812,8 +824,10 @@ class GenerationReward:
         of thousands of grades were falsely scored 0 and cached. Here pool
         creation is bounded to at most TWO pools per batch: the persistent one,
         plus one rebuild if the whole pool genuinely breaks. A break only
-        RETRIES the collateral (its exception name carries "Broken"/OSError); a
-        contained per-answer timeout/expiry is scored 0 directly, never re-run.
+        RETRIES the collateral (its exception name carries "Broken", `_is_pool_break`);
+        a contained per-answer timeout/expiry is scored 0 directly, never re-run, and a
+        schedule() error on the fresh pool or a break of the rebuilt pool crashes, so an
+        ungraded answer is never scored 0.
 
         GRADING TEXT vs. LOGGED TEXT: `texts` (the raw model output) is
         what gets written to `text_log`/`_log_fail` for auditability, but grading
@@ -834,13 +848,15 @@ class GenerationReward:
                 self._reset_pool()  # discard a genuinely broken pool; rebuild once
             pool = self._ensure_pool()
             futures: Dict[int, object] = {}
-            try:
-                for i in remaining:
+            for i in remaining:
+                try:
                     futures[i] = pool.schedule(
                         _grade_worker, args=(refs[i], graded_texts[i]), timeout=self.grade_timeout_s
                     )
-            except Exception:
-                pass  # pool broke while scheduling -> unscheduled stay in `remaining`
+                except Exception:
+                    if attempt == 1:
+                        raise  # a FRESH pool cannot schedule: crash, never score ungraded 0
+                    break  # persistent pool broke -> unscheduled retried on a fresh pool
             still: List[int] = []
             for i in remaining:
                 fut = futures.get(i)
@@ -851,17 +867,16 @@ class GenerationReward:
                     results[i] = 1.0 if fut.result() else 0.0
                 except Exception as e:
                     name = type(e).__name__
-                    pool_broke = ("Broken" in name) or isinstance(e, OSError)
-                    if pool_broke and attempt == 0:
+                    if _is_pool_break(e):
+                        if attempt == 1:
+                            raise RuntimeError("grading pool broke again after a rebuild") from e
                         still.append(i)  # collateral of a pool break -> retry, don't mislabel
                     else:
-                        results[i] = 0.0  # contained (timeout/expiry) or final -> genuine 0
+                        results[i] = 0.0  # contained (timeout/expiry/grader error) -> genuine 0
                         self._log_fail(questions[i], refs[i], graded_texts[i], programs[i], name)
             remaining = still
-        for i in remaining:  # defensive: unresolved after the rebuild -> 0 + logged
-            results[i] = 0.0
-            self._log_fail(questions[i], refs[i], graded_texts[i], programs[i], "unresolved")
-        final = [r if r is not None else 0.0 for r in results]
+        assert not remaining, remaining  # attempt 1 either resolves every answer or raises
+        final = [float(r) for r in results]
         if self.text_log is not None:
             # every generation path (serial __call__, masked_batch_call,
             # sample_pass_at_k) funnels through here, and `questions`/`texts` are

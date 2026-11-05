@@ -1,11 +1,17 @@
 """MCTS program discovery over one DART-Math difficulty split.
 
+Defaults are the paper's main-track configuration (budget 200, repeat count <= 5,
+epsilon 0, oneshot prompt, masked-batch + KV decode). `--polar-fidelity` switches to
+Li et al.'s released search and parameters (paper Appendix B).
+
 Pilot run (a short budget/subset to sanity-check the search):
   python -m re_polar.mcts.run_search_dart_math --difficulty 1 --n-inputs 50 \
       --budget 100 --data-dir ./data/dart_math \
       --output-root ./data/mcts --cache-dir ./data/mcts_cache
 
-Full run: omit --n-inputs (all 1250 train inputs), shard by --difficulty.
+Main-track run as in the paper: --split all, no other flags, --seed 42 / 1 / 7.
+PoLar-split run as in the paper (Appendix B): --data-dir <polar split> --split train
+--polar-fidelity [--prompt-style polar_default] --seed 42 / 1 / 7.
 Output uses PoLar's own merged_mcts_samples.json schema
 (re_polar/datasets/schemas.py), so it feeds the router trainer directly.
 """
@@ -20,6 +26,64 @@ from pathlib import Path
 # re_polar.core) live inside main() so those workers stay lightweight. re_polar.models
 # is torch-free.
 from re_polar.models import MODEL_REGISTRY
+
+# Paper main-track search configuration (every main-track MCTS job ran with exactly these).
+MAIN_TRACK_DEFAULTS = {"budget": 200, "max_repeat_times": 5, "epsilon": 0.0, "split": "all"}
+# Li et al.'s released search (mcts_discovery/run_mcts.py): 100 simulations, a layer
+# executed at most twice, epsilon 0.1, 60 s grading timeout (their EvaluatorMathBatch).
+POLAR_FIDELITY_DEFAULTS = {
+    "budget": 100,
+    "max_repeat_times": 2,
+    "epsilon": 0.1,
+    "grade_timeout": 60,
+    "split": "train",  # the pool layout of re_polar.datasets.polar_split (pool/diffN/train.json)
+}
+# Their MODEL_DEPTH_PRESETS, (min_length, max_length) of a program's executed path,
+# for the four models of their setup.
+POLAR_LENGTH_PRESETS = {
+    "qwen3_8b": (24, 44),
+    "qwen25_3b": (24, 44),
+    "llama32_3b": (16, 32),
+    "qwen15_moe_a27b": (16, 28),
+}
+
+
+def resolve_search_config(args) -> None:
+    """Fill in every search knob left at None: the main-track configuration, or Li
+    et al.'s under --polar-fidelity. Explicitly passed values always win."""
+    if args.widening_search and (args.polar_selection or not args.polar_fidelity):
+        raise SystemExit(
+            "--widening-search only makes sense with --polar-fidelity and without --polar-selection"
+        )
+    base = POLAR_FIDELITY_DEFAULTS if args.polar_fidelity else MAIN_TRACK_DEFAULTS
+    for key, value in base.items():
+        if getattr(args, key) is None:
+            setattr(args, key, value)
+    if args.polar_fidelity:
+        args.root_only_multilength = True
+        if args.min_length is None or args.max_length is None:
+            preset = POLAR_LENGTH_PRESETS.get(args.model)
+            if preset is None:
+                raise SystemExit(
+                    f"--polar-fidelity has no length preset for --model {args.model!r}; "
+                    "pass --min-length and --max-length"
+                )
+            if args.min_length is None:
+                args.min_length = preset[0]
+            if args.max_length is None:
+                args.max_length = preset[1]
+        args.polar_selection = args.polar_selection or not args.widening_search
+    if args.polar_selection:
+        if args.global_selection:
+            raise SystemExit("--polar-selection is exclusive with --global-selection")
+        if not args.polar_per_question_seed:
+            args.shared_seed = True  # PoLar: random.seed(42) at the start of EVERY tree
+        elif args.shared_seed:
+            raise SystemExit("--polar-per-question-seed contradicts --shared-seed")
+    elif args.polar_per_question_seed:
+        raise SystemExit("--polar-per-question-seed only applies to --polar-selection")
+    if args.log_answers is None:
+        args.log_answers = bool(args.cache_dir)
 
 
 def resolve_masked_batch_flags(args) -> None:
@@ -51,23 +115,25 @@ def main():
     parser.add_argument("--difficulty", type=int, required=True, choices=[1, 2, 3, 4, 5])
     parser.add_argument(
         "--split",
-        default="train",
+        default=None,
         choices=["train", "val", "test", "trainval", "traintest", "all"],
-        help="traintest = train then test, one ordered file -- full search "
-        "runs use train+test, NOT val (val is held out for the router/"
-        "other downstream uses, not spent as extra MCTS search budget). "
-        "trainval = train then val (PoLar: trainer slices [0:1250]=train, "
-        "[1250:1500]=val). all = train then val then test, one ordered file "
-        "covering the COMPLETE difficulty tier -- for comparing discovered "
-        "program lengths against PoLar's own reported numbers, which are "
-        "computed over their full search population, not one held-out "
-        "slice.",
+        help="Which split file(s) of --data-dir to search, in this order. Default 'all' "
+        "(train then val then test: every question of the level, as in the paper's main "
+        "track), 'train' under --polar-fidelity (the PoLar pool, re_polar.datasets."
+        "polar_split's pool/diffN/train.json). trainval = train then val (the paper's "
+        "'their search on our split' cross-check); traintest = train then test.",
     )
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--output-root", required=True)
     parser.add_argument("--cache-dir", default=None)
     parser.add_argument("--n-inputs", type=int, default=None, help="pilot subset; default all")
-    parser.add_argument("--budget", type=int, default=100, help="MCTS simulations per input")
+    parser.add_argument(
+        "--budget",
+        type=int,
+        default=None,
+        help="MCTS simulations per input. Default 200 (paper main track), 100 under "
+        "--polar-fidelity.",
+    )
     parser.add_argument("--c", type=float, default=1.414, help="UCB exploration constant")
     parser.add_argument(
         "--alpha",
@@ -106,30 +172,30 @@ def main():
     parser.add_argument(
         "--epsilon",
         type=float,
-        default=0.0,
+        default=None,
         help="Probability of force-expanding a random untried edit instead of "
         "UCB-selecting an existing child during descent. PRE paper Appendix "
         "B: 'selects a random unexplored child node with probability 0.1 "
         "instead of the one with the highest UCB score' (note: our force-"
         "expand mechanism isn't a literal rendering of that -- see "
         "propose()'s legacy-branch comment in re_polar/mcts/search.py). Default "
-        "0.0: isolates widening+global-V from epsilon as a separate axis; "
-        "pass --epsilon 0.1 to match the paper's stated value.",
+        "0.0 (paper main track: isolates widening+global-V from epsilon as a "
+        "separate axis); 0.1 under --polar-fidelity, as in their released code.",
     )
     parser.add_argument(
         "--max-repeat-times",
         type=int,
-        default=2,
-        help="Max execution count for a REPEAT segment. Paper Appendix B.2 bounds "
-        "r<=4; our reconstruction defaulted to 2 (a single 2x loop). `times` "
-        "here counts TOTAL executions, so r<=4 means pass 5 (not 4) to match "
-        "the paper's search space -- see re_polar/mcts/search.py's "
-        "DEFAULT_MAX_REPEAT_TIMES comment. >2 needs a FRESH cache (new paths) "
-        "and is NOT valid with --offline-replay.",
+        default=None,
+        help="Max execution count for a REPEAT segment. PoLar's preprint bounds "
+        "r<=4 extra repetitions; `times` here counts TOTAL executions, so the "
+        "default 5 (paper main track) matches r<=4 -- see re_polar/mcts/search.py's "
+        "DEFAULT_MAX_REPEAT_TIMES comment. 2 under --polar-fidelity (their released "
+        "code's cap). --offline-replay needs 2 (the replayable caches only cover 2x loops).",
     )
     parser.add_argument(
         "--log-answers",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="Persist every GENERATED ANSWER plus the batch composition/order "
         "it was generated in, to <cache-dir>/answers_<model>_diff<N>.jsonl "
         "(+ a .questions.jsonl sidecar mapping question-hash -> question "
@@ -139,19 +205,21 @@ def main():
         "batch composition (bf16 batch-shape non-associativity) -- so "
         "without this a label cannot be audited after the fact. Purely "
         "additive side log: does not change search behavior, rewards, or "
-        "the main output file. Requires --cache-dir. OFF by default.",
+        "the main output file. Requires --cache-dir. ON by default whenever "
+        "--cache-dir is set (as in every paper run); --no-log-answers to turn off.",
     )
     parser.add_argument("--max-new-tokens", type=int, default=50)  # paper protocol (Appendix D.4)
     parser.add_argument(
         "--prompt-style",
-        default="paper_minimal_fewshot",
+        default="oneshot",
         help="GenerationReward prompt style (re_polar/mcts/rewards.py PROMPT_STYLES). "
-        "Default 'paper_minimal_fewshot' = one trivial demo "
+        "Default 'oneshot' (alias of 'paper_minimal_fewshot') = one trivial demo "
         "(1+1->\\boxed{2}) added ahead of the real question, same 50-token "
         "budget, raw completion (no chat template) -- the winner of a "
         "prompt-format investigation into the paper's own D.4 wording (see "
         "re_polar/mcts/rewards.py's PROMPT_STYLES docstring for the full "
-        "sweep). 'raw' = the paper's exact Appendix D.4 prompt, no fewshot. "
+        "sweep). 'polar_default' (alias of 'raw') = PoLar's exact Appendix D.4 "
+        "prompt, no demo. "
         "Any --offline-replay of a cache built under a DIFFERENT prompt "
         "style will hit cache misses the replay reward_fn treats as a hard "
         "error -- the prompt is baked into what got cached, not a "
@@ -284,7 +352,64 @@ def main():
         "by design, scheduler.py module docstring) -- the reward-fn replica "
         "pool (--replicas) does not fully recoup this, so budget for it.",
     )
+    parser.add_argument(
+        "--polar-fidelity",
+        action="store_true",
+        help="Li et al.'s released search with their parameters (paper Appendix B): "
+        "--polar-selection, budget 100, max repeat 2, epsilon 0.1, --root-only-multilength, "
+        "--min/--max-length from their per-model presets, --grade-timeout 60. Explicitly "
+        "passed values win. Does not change the data (--data-dir).",
+    )
+    parser.add_argument(
+        "--polar-selection",
+        action="store_true",
+        help="Li et al.'s own search loop (re_polar/mcts/search.py 'POLAR SELECTION MODE'): "
+        "greedy descent through visited children, expand-all/evaluate-one, their candidate "
+        "order on the concrete path, one shared seed for every tree (forces --shared-seed). "
+        "Implied by --polar-fidelity.",
+    )
+    parser.add_argument(
+        "--polar-per-question-seed",
+        action="store_true",
+        help="With --polar-selection: give every tree its own seed (sha256 of --seed and "
+        "query_id, scheduler.derive_tree_seed) instead of their shared random.seed(42). "
+        "Isolates the shared seed from their expansion rule (paper Appendix B.2).",
+    )
+    parser.add_argument(
+        "--widening-search",
+        action="store_true",
+        help="With --polar-fidelity: keep OUR progressive-widening search (per-tree seeds) "
+        "under their parameters instead of their search loop. Used for the 'our search on "
+        "the PoLar split' cross-check (paper Appendix B.4).",
+    )
+    parser.add_argument(
+        "--root-only-multilength",
+        action="store_true",
+        help="Only the root may place 2-4-layer edits; every other node single-layer edits "
+        "(their generate_mcts_candidates). Implied by --polar-fidelity.",
+    )
+    parser.add_argument(
+        "--min-length",
+        type=int,
+        default=None,
+        help="Drop candidate programs whose executed path is shorter than this (their "
+        "MIN_LENGTH). Default: unbounded; --polar-fidelity uses their per-model preset.",
+    )
+    parser.add_argument(
+        "--max-length",
+        type=int,
+        default=None,
+        help="Same as --min-length, upper bound (their MAX_LENGTH).",
+    )
+    parser.add_argument(
+        "--grade-timeout",
+        type=int,
+        default=None,
+        help="Per-answer grading timeout in seconds (GenerationReward.grade_timeout_s). "
+        "Default: GenerationReward's own; 60 under --polar-fidelity (their evaluator's).",
+    )
     args = parser.parse_args()
+    resolve_search_config(args)
     resolve_masked_batch_flags(args)
     if args.log_answers and not args.cache_dir:
         raise SystemExit("--log-answers requires --cache-dir (that's where the answer log goes)")
@@ -359,6 +484,8 @@ def main():
             text_log_path=answer_log,
             prompt_style=args.prompt_style,
         )
+        if args.grade_timeout is not None:
+            reward_kwargs["grade_timeout_s"] = args.grade_timeout
         replicas_arg = str(args.replicas).strip().lower()
         if replicas_arg == "1":
             engine = LayerEngine(
@@ -424,6 +551,16 @@ def main():
             "the offline-replay reward_fn treats as a hard error. Run --epsilon "
             "against a fresh cache (no --offline-replay) instead."
         )
+    if args.offline_replay and (
+        args.polar_selection
+        or args.root_only_multilength
+        or args.min_length is not None
+        or args.max_length is not None
+    ):
+        raise SystemExit(
+            "--offline-replay replays an EXISTING trajectory of our own search; the "
+            "PoLar-fidelity knobs change the action space or the search loop."
+        )
     if args.offline_replay and args.global_selection:
         raise SystemExit(
             "--offline-replay only supports the hierarchical mode's trajectory -- "
@@ -459,6 +596,10 @@ def main():
         ucb_global_v=not args.ucb_parent_v,
         alpha=args.alpha,
         beta=args.beta,
+        root_only_multilength=args.root_only_multilength,
+        min_length=args.min_length,
+        max_length=args.max_length,
+        polar_selection=args.polar_selection,
     )
 
     t0 = time.time()
@@ -482,9 +623,12 @@ def main():
             solved += 1
             shorter += any(len(p) < num_layers for p in valid)
 
-    write_merged_samples(
+    out_path = write_merged_samples(
         Path(args.output_root), cfg["model_id"], f"dart-math-diff-{args.difficulty}", samples
     )
+    # every setting the search ran with, next to its output (the samples file keeps
+    # PoLar's own schema)
+    (out_path.parent / "run_config.json").write_text(json.dumps(vars(args), indent=2) + "\n")
     rate = shorter / solved if solved else 0.0
     stats = {
         "n_inputs": len(inputs),
@@ -492,6 +636,10 @@ def main():
         "shorter_valid_rate": round(rate, 4),
         "identity_solve_rate": round(sum(runner.initial_metric.values()) / len(inputs), 4),
         "elapsed_s": round(elapsed, 1),
+        "seed": args.seed,
+        "budget": args.budget,
+        "max_repeat_times": args.max_repeat_times,
+        "polar_selection": args.polar_selection,
         "per_tree_seed": per_tree_seed,
         "global_selection": args.global_selection,
         "ucb_global_v": not args.ucb_parent_v,

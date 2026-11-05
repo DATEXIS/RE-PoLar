@@ -301,7 +301,9 @@ def build_test(out_dir: Path, fail_rates_path: Path, seed: int = SEED):
             raise ValueError(f"Test bin {level} has {len(binned)} records < {TEST_SIZE}")
         for r in binned:
             r["difficulty"] = level
-        rng = random.Random((seed, "test", level).__hash__())
+        # a str seed is hashed deterministically by random.Random (a tuple's __hash__
+        # containing a str is not: it changes with PYTHONHASHSEED)
+        rng = random.Random(f"{seed}:test:{level}")
         rng.shuffle(binned)
         lvl_dir = out_dir / f"diff{level}"
         lvl_dir.mkdir(parents=True, exist_ok=True)

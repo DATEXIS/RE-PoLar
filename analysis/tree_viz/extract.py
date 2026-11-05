@@ -18,6 +18,7 @@ Examples:
 
 Requires this repo's venv active (`re_polar` importable) — see AGENTS.md.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -73,7 +74,7 @@ def load_picks_file(path: str) -> list[tuple[int, int, str]]:
 
 
 @functools.lru_cache(maxsize=None)
-def load_samples(data_root: str, model_tag: str, diff: int) -> tuple:
+def load_samples(data_root: str, model_tag: str, diff: int, seed: int = 42) -> tuple:
     # mcts_results_full/, not mcts_results/ -- the plain data/mcts_results/ dump
     # doesn't carry question/gt_ans (see data/DATA.md); mcts_results_full/ is
     # the query_id-joined version `python -m re_polar.datasets.attach_mcts_questions`
@@ -82,6 +83,7 @@ def load_samples(data_root: str, model_tag: str, diff: int) -> tuple:
         Path(data_root)
         / "mcts_results_full"
         / model_tag
+        / f"seed{seed}"
         / f"dart-math-diff-{diff}"
         / "merged_mcts_samples.json"
     )
@@ -89,12 +91,13 @@ def load_samples(data_root: str, model_tag: str, diff: int) -> tuple:
 
 
 @functools.lru_cache(maxsize=None)
-def load_generation_index(data_root: str, model_tag: str, diff: int) -> dict:
+def load_generation_index(data_root: str, model_tag: str, diff: int, seed: int = 42) -> dict:
     """{(query_id, tuple(path)): {"text":..., "reward":...}}, built in one pass
-    over data/generated_answers/<model>/diff<D>.jsonl.gz (see data/DATA.md) --
-    "a sample of evaluations", not necessarily every path this tier's search
-    visited, so a miss here just means no generated text for that node."""
-    path = Path(data_root) / "generated_answers" / model_tag / f"diff{diff}.jsonl.gz"
+    over data/generated_answers/<model>/seed<S>/diff<D>.jsonl.gz (see data/DATA.md);
+    a miss just means no generated text for that node."""
+    path = (
+        Path(data_root) / "generated_answers" / model_tag / f"seed{seed}" / f"diff{diff}.jsonl.gz"
+    )
     index = {}
     if not path.exists():
         return index
@@ -108,9 +111,9 @@ def load_generation_index(data_root: str, model_tag: str, diff: int) -> dict:
 
 
 def all_picks_for_diff(
-    data_root: str, model_tag: str, diff: int, limit: int | None
+    data_root: str, model_tag: str, diff: int, limit: int | None, seed: int = 42
 ) -> list[tuple[int, int, str]]:
-    n = len(load_samples(data_root, model_tag, diff))
+    n = len(load_samples(data_root, model_tag, diff, seed))
     if limit:
         n = min(n, limit)
     return [(diff, i, f"diff{diff} #{i}") for i in range(n)]
@@ -193,12 +196,12 @@ def candidate_parents(edits, max_segment_len):
 # ------------------------------------------------------------- per-tree ----
 
 
-def build_tree(data_root, diff, idx, note, depth, text_cap, model_tag, strict_repeat_2x):
-    s = load_samples(data_root, model_tag, diff)[idx]
+def build_tree(data_root, diff, idx, note, depth, text_cap, model_tag, strict_repeat_2x, seed=42):
+    s = load_samples(data_root, model_tag, diff, seed)[idx]
     valid = s["final_valid_transitions"]
     invalid = s["final_invalid_transitions"]
     query_id = s["sample_info"]["query_id"]
-    gen_index = load_generation_index(data_root, model_tag, diff)
+    gen_index = load_generation_index(data_root, model_tag, diff, seed)
 
     nodes = {}
     dupe_hits = 0
@@ -411,6 +414,9 @@ def main() -> None:
         "--model-tag", default="qwen3_8b", choices=sorted(MODEL_REGISTRY), help="default: qwen3_8b"
     )
     ap.add_argument(
+        "--seed", type=int, default=42, help="search seed of the trees (42, 1 or 7; default 42)"
+    )
+    ap.add_argument(
         "--depth",
         type=int,
         help="number of model layers (default: MODEL_REGISTRY[model-tag]['num_layers'])",
@@ -441,7 +447,9 @@ def main() -> None:
     if args.picks_file:
         picks += load_picks_file(args.picks_file)
     for diff in args.all_diff:
-        picks += all_picks_for_diff(args.data_root, args.model_tag, diff, args.limit_per_diff)
+        picks += all_picks_for_diff(
+            args.data_root, args.model_tag, diff, args.limit_per_diff, args.seed
+        )
 
     if not picks:
         ap.error("no trees selected — use --pick, --picks-file, and/or --all-diff")
@@ -458,6 +466,7 @@ def main() -> None:
             args.text_cap,
             args.model_tag,
             args.strict_repeat_2x,
+            args.seed,
         )
         for diff, idx, note in picks
     ]

@@ -118,6 +118,13 @@ def main(argv=None):
         "train+val are ignored: on --split all files those are the 500 test questions.",
     )
     p.add_argument(
+        "--train-val-counts",
+        default=None,
+        help="per --samples file 'NTRAIN:NVAL', comma-separated in --samples order (e.g. one "
+        "router over all five levels of the PoLar split, whose level sizes differ). Overrides "
+        "--train-per-diff/--val-per-diff for that file.",
+    )
+    p.add_argument(
         "--val-eval-limit",
         type=int,
         default=250,
@@ -355,6 +362,15 @@ def main(argv=None):
         ProgramExecutor(engine), batch_size=args.gen_batch_size, prompt_style=args.prompt_style
     )
 
+    counts = {}
+    if args.train_val_counts:
+        pairs = [tuple(int(x) for x in c.split(":")) for c in args.train_val_counts.split(",")]
+        if len(pairs) != len(args.samples) or any(len(c) != 2 for c in pairs):
+            raise SystemExit(
+                f"--train-val-counts needs one NTRAIN:NVAL per --samples file ({len(args.samples)})"
+            )
+        counts = dict(zip(args.samples, pairs))
+
     group_summaries = []
     for gname, files in groups:
         print("\n" + "=" * 72, flush=True)
@@ -364,9 +380,8 @@ def main(argv=None):
         # [1250:1500]=val on the trainval-ordered merged file), NOT a random 90/10 holdout.
         train_samples, val_samples = [], []
         for path in files:
-            tr, va = positional_train_val(
-                load_supervision(path), args.train_per_diff, args.val_per_diff
-            )
+            n_tr, n_va = counts.get(path, (args.train_per_diff, args.val_per_diff))
+            tr, va = positional_train_val(load_supervision(path), n_tr, n_va)
             train_samples.extend(tr)
             val_samples.extend(va)
 
