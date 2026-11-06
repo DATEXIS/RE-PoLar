@@ -41,16 +41,17 @@
 <body>
     <header class="header">
         <div class="container">
-            <p class="wip-banner">🚧 Work in progress &mdash; paper under review</p>
+            <p class="status-note">Paper under review</p>
             <div class="notice-banner">
-                <strong>Update (October 2026):</strong> On September 28, 2026, the same day as our
-                <a href="https://openreview.net/forum?id=pl10b6EQAN">public comment on PoLar's OpenReview page</a>,
-                the PoLar authors released their MCTS code
-                (<a href="https://github.com/tianyi-lab/PoLar/issues/2">tianyi-lab/PoLar#2</a>).
-                They have still not released the MCTS-derived training programs or the trained router checkpoints.
-                On first inspection, the released code does not match the method and numbers reported in the paper in several places.
-                Our full MCTS implementation and search data have been public since September 22, 2026.
-                We are analysing their release in detail and will update Re-PoLar with our findings as soon as we can.
+                <strong>Update (November 2026):</strong> RE-PoLar now also runs
+                <strong>their search, their prompt and their data split</strong> (Appendix B of version 2
+                of our paper, on arXiv soon).
+                Li et al. released their MCTS code on September 28, 2026
+                (<a href="https://github.com/tianyi-lab/PoLar/issues/2">tianyi-lab/PoLar#2</a>), the same day as our
+                <a href="https://openreview.net/forum?id=pl10b6EQAN">public comment on PoLar's OpenReview page</a>;
+                their MCTS-derived training programs and router checkpoints are still not released.
+                All our programs, routers and results are
+                <a href="https://huggingface.co/datasets/SWAMBIT/re-polar">released</a>.
             </div>
 
             <h1>Programs-of-Layers in LLMs through the Lens of Cortical Areas</h1>
@@ -67,7 +68,7 @@
                         Senn</a><sup>3</sup>,
                     <a href="https://www.projekte.hu-berlin.de/en/larkum/people/matthew-larkum-en">Matthew Evan
                         Larkum</a><sup>2</sup>,
-                    <a href="https://prof.bht-berlin.de/gers">Felix Gers</a><sup>1</sup>
+                    <a href="https://prof.bht-berlin.de/gers">Felix Alexander Gers</a><sup>1</sup>
                 </p>
                 <p class="affiliations contact">
                     <a href="mailto:justus.westerhoff@bht-berlin.de">justus.westerhoff@bht-berlin.de</a>,
@@ -76,8 +77,8 @@
                 <p class="header-label">Affiliations</p>
                 <p class="affiliations">
                     <sup>1</sup>Berliner Hochschule f&uuml;r Technik (BHT), <sup>2</sup>Humboldt-Universit&auml;t zu
-                    Berlin, <sup>3</sup>University of Bern<br>
-                    Berlin, Germany; Bern, Switzerland
+                    Berlin, <sup>3</sup>University of Bern
+                    (Berlin, Germany; Bern, Switzerland)
                 </p>
                 <p class="affiliations">Part of the <a href="https://swambit.github.io/project/" target="_blank"
                         rel="noopener noreferrer">SWAMBIT</a> project.</p>
@@ -102,7 +103,18 @@
                             d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22">
                         </path>
                     </svg>
-                    Code (incl. datasets)
+                    Code
+                </a>
+                <a href="https://huggingface.co/datasets/SWAMBIT/re-polar" class="button" target="_blank"
+                    rel="noopener noreferrer">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        style="vertical-align: text-bottom; margin-right: 5px;">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                        <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"></path>
+                    </svg>
+                    Data (Hugging Face)
                 </a>
             </div>
             <p class="poster-note">(<a href="media/RE-PoLar-poster.pdf" target="_blank"
@@ -115,16 +127,21 @@
             <p class="tldr-box"><strong>TL;DR:</strong> We reproduce and extend
                 <a href="https://arxiv.org/abs/2606.06574" target="_blank" rel="noopener noreferrer">PoLar</a>
                 [ICML 2026 Oral], which lets LLMs dynamically skip or repeat transformer layers per input instead
-                of running their fixed forward pass. We confirm its core findings across 5 models, but find its
-                learned single-shot router
-                always collapses back to the standard pass, and use a deeper analysis of the resulting layer
-                &ldquo;programs&rdquo; to connect this routing to thalamo-cortical coordination in the brain.
+                of running their fixed forward pass. We confirm its core findings across 6 models
+                and 3 search seeds. For its main claim, the learned router&rsquo;s gain, we find what drives it:
+                under their setup <strong>the router repairs the format of the model&rsquo;s answers</strong>, which
+                <strong>a single fixed program does better</strong>, and how much it gains
+                <strong>depends strongly on the search seed</strong>; in our setup
+                <strong>its top prediction collapses to the standard pass</strong>. We connect programs-of-layers to
+                thalamo-cortical coordination in the brain, although a router that plays that role remains to be
+                found.
             </p>
         </div>
     </header>
 
     <section class="figure">
         <div class="container">
+            <h2 class="section-heading">Our Neuroscience Analogy</h2>
             <video class="figure-media" src="media/fig1.mp4" autoplay loop muted playsinline></video>
             <p class="figure-caption"><strong>Figure 1.</strong> A program-of-layers (PoLar), predicted by a lightweight
                 router,
@@ -138,76 +155,201 @@
         </div>
     </section>
 
-    <hr class="section-divider">
-
     <section class="abstract">
         <div class="container">
             <h2 class="section-heading">Abstract</h2>
-            <details class="abstract-details">
-                <summary>
-                    <span class="abstract-preview">Inference in LLMs is conventionally a fixed-depth, fixed-order
-                        forward pass through every layer, regardless of how difficult the input is. The human brain
-                        does not work this way: using the thalamus as a central hub, it routes information flexibly
-                        to all regions of the cortex according to demand.<span class="toggle-arrow"></span></span>
-                </summary>
-                <div class="abstract-rest">
-                    <p>
-                        <a href="https://openreview.net/forum?id=pl10b6EQAN" target="_blank"
-                            rel="noopener noreferrer">Li et al. (2026)</a> recently showed, with a system they call
-                        PoLar, that transformers can be given an analogous flexibility if their layers are treated
-                        as a library of functions rather than a fixed sequence. Performance improves over the
-                        standard forward pass when each input is dynamically routed through an adaptive sequence of
-                        skipped or repeated contiguous layer blocks.
-                    </p>
-                    <p>We reconstructed PoLar&rsquo;s diagnostic MCTS in more detail than the original paper and
-                        applied it across 5 models. We reproduced several of PoLar&rsquo;s findings: skipping
-                        outperformed the standard pass, repeating outperformed skipping, and combining both
-                        outperformed either alone. Shorter programs sufficed for easier questions, while harder
-                        questions required more layer repeats. However, we failed to replicate the main claim
-                        regarding their learned router for single-shot inference: its top-ranked prediction
-                        consistently collapsed back to the standard pass, even though its top-<em>k</em> predicted
-                        programs, taken together, did show a real accuracy gain.</p>
-                    <p>Beyond reproduction, we find that a small number of generic programs are enough to solve most
-                        of the questions. We also provide a much deeper analysis of these programs&rsquo; structure
-                        and robustness: for example, we found that programs that correct errors are highly brittle
-                        &mdash; undoing even a single edit inside a program typically breaks the correction.
-                        Connecting this to the brain&rsquo;s routing mechanisms, PoLar mirrors principles of
-                        thalamo-cortical coordination between cortical-area-like transformer layers.</p>
-                    <p class="abstract-collapse"><a href="#" class="toggle-arrow-collapse">&#9652; show less</a></p>
-                </div>
-            </details>
+            <p class="abstract-text collapsed">Inference in large language models (LLMs) is conventionally a fixed-depth, fixed-order forward pass through every layer, regardless of how difficult the input is. The human brain does not work this way. Using the thalamus as a central hub, it routes information flexibly to all regions of the cortex according to demand. <a href="https://arxiv.org/abs/2606.06574" target="_blank" rel="noopener noreferrer">Li et al. (2026)</a> recently showed, with a system they call program-of-layers (PoLar), that transformers can be given an analogous flexibility if their layers are treated as a library of functions rather than a fixed sequence. Performance improves over the standard forward pass when each input is dynamically routed through an adaptive sequence of skipped or repeated contiguous layer blocks. Reconstructing PoLar&rsquo;s diagnostic Monte Carlo Tree Search (MCTS) in more detail across 6 models, we reproduce several of its findings: skipping outperforms the standard pass, repeating outperforms skipping, and combining both outperforms either alone. Shorter programs suffice for easier questions, while harder questions require more layer repeats. For their main claim, the learned router&rsquo;s gain, we find what drives it. Under their setup, the router gains by repairing the format of the model&rsquo;s answers, which a single fixed program, selected on validation questions, does better. In our setup, with a prompt that already fixes the format, a larger data split and our search, its top prediction collapses to the standard pass on every model, although its top-5 programs together still gain. Beyond reproduction, we find in our setup, where the format no longer fails, that a small fixed menu of programs solves far more questions than the standard pass, and that programs which correct errors are brittle: undoing a single edit typically breaks the correction. Connecting this to the brain&rsquo;s routing mechanisms, PoLar mirrors principles of thalamo-cortical coordination between cortical-area-like transformer layers, although a working thalamus analogue, a router that picks a better program per input, remains to be found.</p>
+            <p class="abstract-toggle"><a href="#" id="abstract-toggle">&#9656; show more</a></p>
         </div>
     </section>
 
-    <hr class="section-divider">
-
-    <section class="tree-viz">
+    <section class="findings">
         <div class="container">
-            <h2 class="section-heading">Explore the Search</h2>
-            <p class="tree-viz-intro">Every program our diagnostic MCTS discovered for 15 example questions
-                (Qwen3-8B, difficulties 1&ndash;4): an interactive tree of <em class="kw-skip">skip</em>,
-                <em class="kw-keep">keep</em>, and <em class="kw-repeat">repeat</em> edits, colored by
-                correctness, with a full search-trajectory replay. Runs entirely in your browser
-                &mdash; nothing is sent anywhere. Best viewed on desktop.</p>
-        </div>
-        <div class="tree-viz-frame-wrap">
-            <div class="tree-viz-frame">
-                <iframe src="media/tree_viz.html" title="MCTS program-tree visualizer" loading="lazy"></iframe>
+            <h2 class="section-heading">Main Findings</h2>
+            <p class="section-intro">Three results stand out. Under Li et al.&rsquo;s setup, the router&rsquo;s gain is a format
+                repair. In our setup, the router collapses to the standard pass. And programs that solve far more
+                questions do exist, but a router that picks a better one per input remains to be found.</p>
+
+            <h3>Under Li et al.&rsquo;s setup, the router repairs a format error</h3>
+            <p class="lead">Their search, their prompt, their split with 4 models and 3 search seeds.</p>
+            <div class="tiles">
+                <div class="tile">
+                    <div class="tile-title">Format repair, not reasoning <span class="ftag">F8</span></div>
+                    <div class="tile-stat">43.8%</div>
+                    <p>of Qwen3-8B&rsquo;s answers under their prompt are the literal placeholder <code>\boxed{ANSWER}</code>; Qwen2.5-3B runs out of tokens before writing a box. All router gains come from these questions.</p>
+                </div>
+                <div class="tile">
+                    <div class="tile-title">One fixed program does better <span class="ftag">F8</span></div>
+                    <div class="tile-stat">+43 vs. +7</div>
+                    <p>points for one program on every input vs. the router (Qwen2.5-3B, DM-1). It gains more wherever the router gains.</p>
+                </div>
+                <div class="tile">
+                    <div class="tile-title">One example removes the gain</div>
+                    <div class="tile-stat">0.9% &rarr; 54.2%</div>
+                    <p>For Qwen2.5-3B on DM-1, with <button class="prompt-term" data-prompt="oneshot">oneshot</button> instead of <button class="prompt-term" data-prompt="polar_default">polar_default</button>. With the format fixed, neither router nor fixed program gains on any model.</p>
+                </div>
+                <div class="tile">
+                    <div class="tile-title">The gain depends on the seed</div>
+                    <div class="tile-stat">+0.7 to +13.5</div>
+                    <p>points on Qwen2.5-3B DM-2 across search seeds. Their code starts every question from the same seed, so a few edits dominate the training labels.</p>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table class="results-table">
+                    <caption>Change in accuracy over the standard pass (points), once per search seed. PoLar split,
+                        pooled over 4 folds.</caption>
+                    <thead>
+                        <tr><th>Model, level</th><th>Prompt</th><th>Standard pass (%)</th>
+                            <th>Router</th><th>Fixed program</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Qwen2.5-3B, DM-2</td><td><button class="prompt-term" data-prompt="polar_default">polar_default</button></td><td>0.7</td>
+                            <td>+7.2 / +13.5 / +0.7</td><td>+23.1 / +29.9 / +27.6</td></tr>
+                        <tr><td>Qwen3-8B, DM-1</td><td><button class="prompt-term" data-prompt="polar_default">polar_default</button></td><td>42.8</td>
+                            <td>+1.4 / +1.6 / &minus;6.9</td><td>+9.4 / +6.7 / +8.7</td></tr>
+                        <tr><td>Qwen2.5-3B, DM-2</td><td><button class="prompt-term" data-prompt="oneshot">oneshot</button></td><td>36.9</td>
+                            <td>&minus;3.7 / &minus;3.7 / &minus;3.2</td><td>&minus;3.2 / &minus;4.4 / &minus;3.4</td></tr>
+                        <tr><td>Qwen3-8B, DM-1</td><td><button class="prompt-term" data-prompt="oneshot">oneshot</button></td><td>65.8</td>
+                            <td>&minus;1.1 / &minus;1.9 / &minus;15.9</td><td>&minus;4.4 / &minus;4.6 / &minus;1.6</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="small-note"><strong>We cannot explain all of their reported gains:</strong> on LLaMA-3.2-3B and Qwen1.5-MoE-A2.7B,
+                neither our router nor our prompts reach their numbers, and on Qwen3-8B DM-2 to DM-5 the router stays
+                below them (DM-2: at most +1.3 against their +12.1). We would love to understand this gap, but Li et al.&rsquo;s
+                training programs and router checkpoints are still not released, so we cannot check it.</p>
+
+            <h3>In our setup, the router collapses to the standard pass</h3>
+            <p class="lead">A prompt that already fixes the format, a larger data split and our search.</p>
+            <div class="tiles tiles-3">
+                <div class="tile">
+                    <div class="tile-title">Top prediction: the standard pass <span class="ftag">F8</span></div>
+                    <div class="tile-stat">90 of 90</div>
+                    <p>model, level and seed cells, also with their released training code. We were not able to train an uncollapsed router that improves on the pretrained LLM by rerouting its layers: no anti-collapse lever, ours or in their code, breaks the collapse without a real accuracy cost.</p>
+                </div>
+                <div class="tile">
+                    <div class="tile-title">It learns no per-input choice <span class="ftag">F8</span></div>
+                    <div class="tile-stat">80&ndash;90%</div>
+                    <p>of the per-layer labels are <em>keep</em>, although identity is only 2&ndash;7% of the training programs. The decoded average of these labels is identity; with their search, one dominant edit. The search decides whether it collapses, the prompt whether it then gains.</p>
+                </div>
+                <div class="tile">
+                    <div class="tile-title">Its top-5 is a small fixed menu <span class="ftag">F9</span></div>
+                    <div class="tile-stat">6&ndash;24</div>
+                    <p>distinct programs across all its top-5 sets, out of up to 500. Together they still gain, but not by choosing per input: the gain comes from beam-search diversity, and the router never ranks a correct non-identity program first.</p>
+                </div>
+            </div>
+
+            <h3>Beyond reproduction: the programs exist, picking them is open</h3>
+            <div class="tiles">
+                <div class="tile">
+                    <div class="tile-title">A small menu solves far more <span class="ftag">F5</span></div>
+                    <div class="tile-stat">2.6&times;</div>
+                    <p>as many questions solved by the 100 most successful programs of a level as by identity alone (72% vs. 28%, mean over 6 models and 5 levels; 65&ndash;84% per model).</p>
+                </div>
+                <div class="tile">
+                    <div class="tile-title">Close answers get rescued <span class="ftag">F6</span></div>
+                    <div class="tile-stat">~1.5&times;</div>
+                    <p>more <button class="def-term" data-tip="A program is rescuing for a question if the standard pass answers it wrong but the program answers it right.">rescues</button> for a wrong answer that is numerically or structurally close to the ground truth than for an unrelated one, in every model. This suggests that programs mostly adjust an answer the model has nearly reached, rather than add new reasoning.</p>
+                </div>
+                <div class="tile">
+                    <div class="tile-title">Programs are fragile <span class="ftag">F7</span></div>
+                    <div class="tile-stat">45&ndash;67%</div>
+                    <p>of the edits in <button class="def-term" data-tip="A program is rescuing for a question if the standard pass answers it wrong but the program answers it right.">rescuing</button> programs are essential: undoing one breaks the program.</p>
+                </div>
+                <div class="tile">
+                    <div class="tile-title">Rescues by answer position <span class="ftag">F10</span></div>
+                    <div class="tile-stat">94.2% &rarr; 17.7%</div>
+                    <p>accuracy of MMLU-Pro <button class="def-term" data-tip="A program is rescuing for a question if the standard pass answers it wrong but the program answers it right.">rescuing</button> programs once the answer options are reshuffled, near random guessing: they follow the position of the correct option, not its content. A gain should pass such a robustness test before it counts as a capability gain.</p>
+                </div>
+            </div>
+            <img class="figure-media" src="media/figures/menu_coverage_by_model.png"
+                alt="Menu pass@K against menu size K, one line per model, rising well above identity.">
+            <p class="figure-caption"><span class="ftag">F5</span> Menu pass@<em>K</em> (the share of questions that at least one of the
+                <em>K</em> programs solves) against menu size <em>K</em>, pooled over difficulty.</p>
+
+            <h3>All findings (Table 1 of our paper)</h3>
+            <div class="table-wrap">
+                <table class="results-table findings-table">
+                    <caption>Every finding, checked against Li et al.&rsquo;s own study. <span class="mark-yes" title="reproduced">&#10003;</span> = reproduced,
+                        <span class="mark-no" title="not reproduced">&#9889;</span> = not reproduced (we tested it and got a contradicting result),
+                        <span class="mark-new" title="new finding">&#9733;</span> = a new finding of ours with no equivalent in the original paper to check against.
+                        <span class="ftag">F1</span>&ndash;<span class="ftag">F4</span> are Li et al.&rsquo;s own diagnostic Findings 1&ndash;4. <span class="ftag">F4</span> holds only on
+                        the PoLar split with their search, likely a bias of that search; for <span class="ftag">F8</span>, the router gains
+                        there only by repairing the output format. Click a finding for more.</caption>
+                    <thead><tr><th>Finding</th><th>Description</th><th>Status</th></tr></thead>
+                    <tbody>
+                        <tr><td><span class="ftag">F0</span></td><td><details><summary>Reproducing Li et al.&rsquo;s baseline numbers</summary><p>With their prompt and without a chat template, the standard pass on our reconstruction of their test set matches their published numbers for LLaMA-3.2-3B and, on some levels, for Qwen1.5-MoE-A2.7B and Qwen3-8B, but on no level for Qwen2.5-3B. With the chat template their evaluation code applies, all three Qwen models fall below their numbers in every cell, so we run their split without it.</p></details></td><td class="status"><span class="mark-no" title="not reproduced">&#9889;</span></td></tr>
+                        <tr><td><span class="ftag">F1</span></td><td><details><summary>Skip &amp; Repeat combined beats either alone</summary><p>On every model and DART-Math level, accuracy rises from the standard pass to skip only, repeat only, and skip and repeat combined. This is the same ordering Li et al. report, with repeat the stronger of the two mechanisms on its own.</p></details></td><td class="status"><span class="mark-yes" title="reproduced">&#10003;</span></td></tr>
+                        <tr><td><span class="ftag">F2</span></td><td><details><summary>Occam&rsquo;s razor: most samples have shorter valid programs than a standard forward pass</summary><p>On 5 of our 6 models, most solved questions have a <button class="def-term" data-tip="A program is valid for a question if it answers it correctly.">valid</button> program shorter than the standard forward pass (50.5&ndash;91% per difficulty). On Qwen1.5-MoE-A2.7B, fewer than half do (39&ndash;45%).</p></details></td><td class="status"><span class="mark-yes" title="reproduced">&#10003;</span></td></tr>
+                        <tr><td><span class="ftag">F3</span></td><td><details><summary>Harder inputs need larger programs (test-time scaling via recurrence)</summary><p>On every model, the share of questions with at least one valid program rises monotonically as more recurrence steps are allowed. The share of solvable questions that need recurrence rises from the easiest to the hardest level on 5 of 6 models, and the share that needs skipping on 4 of them. The exception on both is LLaMA-3.2-3B.</p></details></td><td class="status"><span class="mark-yes" title="reproduced">&#10003;</span></td></tr>
+                        <tr><td><span class="ftag">F4</span></td><td><details><summary>Valid programs concentrate on short, mostly single-recurrence segments (short only on the PoLar split, with their search)</summary><p>Li et al. report that 57.7% of segments in valid programs touch a single layer. With our search on our split, 5 of our 6 models have fewer (21&ndash;38%); with their search on the PoLar split, all 4 models we ran have more (70&ndash;81%), likely because their search allows multi-layer moves only at the root. That segments are repeated at most once holds on all 6 models for the shortest valid program, in 74&ndash;86% of solved questions.</p></details></td><td class="status"><span class="mark-no" title="not reproduced">&#9889;</span></td></tr>
+                        <tr><td><span class="ftag">F5</span></td><td><details><summary>A small menu of programs generalizes across many questions</summary><p>At <em>K</em>=100, the menu solves on average 72% of the questions, against 28% for identity. Apart from Qwen3-32B, whose standard pass often starts to reason and hits the 50-token limit before writing a box, no program with a single edit solves clearly more questions than identity: each fixes some questions but breaks about as many others. Since each fixes different questions, a menu of them together covers far more.</p></details></td><td class="status"><span class="mark-new" title="new finding">&#9733;</span></td></tr>
+                        <tr><td><span class="ftag">F6</span></td><td><details><summary>A wrong answer close to the ground truth is rescued ~1.5&times; more often than a distant one</summary><p>An LLM-assisted classifier rated how close each wrong answer is to the ground truth, for every DART-Math question identity answers wrong, across all 6 models and 5 levels. A wrong answer that is numerically or structurally close is rescued about 1.5&times; as often as an unrelated one, in every model.</p></details></td><td class="status"><span class="mark-new" title="new finding">&#9733;</span></td></tr>
+                        <tr><td><span class="ftag">F7</span></td><td><details><summary>Programs are fragile: most edits are essential, and fragility depends on model, not difficulty</summary><p>We revert one edited segment of a rescuing program at a time back to <em>keep</em> and check whether the reward survives. The break rate is roughly flat across levels in five of six models and ranges from 44.5% (Qwen3-32B) to 66.8% (Qwen1.5-MoE-A2.7B). On 5 of 6 models, most edits inside a working program are individually essential.</p></details></td><td class="status"><span class="mark-new" title="new finding">&#9733;</span></td></tr>
+                        <tr><td><span class="ftag">F8</span></td><td><details><summary>Router gives a pass@1 gain over Base (on the PoLar split and also <span class="def-term" tabindex="0" data-tip="Out-of-Distribution: benchmarks the router was not trained on (ASDiv, MAWPS, MMLU-Pro).">OOD</span> only as format repair, and a single fixed program does better)</summary><p>On the PoLar split, the router gains only where <button class="prompt-term" data-prompt="polar_default">polar_default</button> breaks the output format (Qwen3-8B, Qwen2.5-3B), how much depends on the search seed, and a single fixed program gains more in every case. With <button class="prompt-term" data-prompt="oneshot">oneshot</button>, neither gains on any model. In our setup, the router&rsquo;s top-1 decode is the literal identity program on every model, level and training-data treatment tested, also with Li et al.&rsquo;s released router-training code.</p></details></td><td class="status"><span class="mark-no" title="not reproduced">&#9889;</span> (<span class="mark-new" title="new finding">&#9733;</span>)</td></tr>
+                        <tr><td><span class="ftag">F9</span></td><td><details><summary>Router&rsquo;s pass@5 gain comes from a small, fixed menu, mainly input-independent</summary><p>The pass@5 gain does replicate in our setup, and there it is not a format repair: it comes from beam-search diversity. The router never places a correct non-identity program at rank 1, only somewhere in its top 5, and these top-5 predictions collapse to a fixed menu of few programs.</p></details></td><td class="status"><span class="mark-new" title="new finding">&#9733;</span></td></tr>
+                        <tr><td><span class="ftag">F10</span></td><td><details><summary>MMLU-Pro programs and router overfit to answer position, not content</summary><p>On Qwen3-8B, with answers scored by the logits of the option letters, we reshuffle which option sits behind which letter. Rescuing accuracy falls below identity&rsquo;s own, while identity itself is close to shuffle-invariant. A dedicated MMLU-Pro router collapses to identity at pass@1 too, and its pass@5 gain is position overfitting: three of its five fixed programs answer a near-constant letter. Gains like this should be checked with robustness tests, such as reshuffling the answer options, before they are read as capability gains, especially if programs are deployed.</p></details></td><td class="status"><span class="mark-new" title="new finding">&#9733;</span></td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </section>
 
-    <hr class="section-divider">
+    <section class="tree-viz">
+        <div class="container">
+            <h2 class="section-heading">Explore the Searches</h2>
+            <p class="tree-viz-intro">Every program our MCTS and Li et al.&rsquo;s MCTS evaluated on the same 15 example
+                questions. Pick a model, then switch under <em>Run</em> or <em>Seed</em>: the question stays, so you can
+                compare directly. Trees show <em class="kw-skip">skip</em>, <em class="kw-keep">keep</em>, and
+                <em class="kw-repeat">repeat</em> edits, colored by correctness, with a full search-trajectory replay.
+                Their search reaches much deeper programs (seed 42, median deepest program: 9 vs. 3 edits). To see the format
+                repair, pick Qwen3-8B, <em>Their search</em>, Question 2: the identity answer is the literal
+                placeholder <code>\boxed{ANSWER}</code>, while green nodes write a real answer. Qwen2.5-3B fails differently: under <em>Their search</em>,
+                its identity answers run out of tokens before writing a box. To see the seed dependence, stay under <em>Their search</em> and switch the seed: within a
+                seed all questions start with the same edits, and these change with the seed. Qwen2.5-7B and Qwen3-32B have only our search, as Li et al. did not study them.</p>
+        </div>
+        <div class="tree-viz-frame-wrap">
+            <div class="tree-viz-frame">
+                <iframe src="media/tree_viz.html" title="MCTS program-tree explorer" loading="lazy"></iframe>
+            </div>
+        </div>
+    </section>
+
+    <section class="data-release">
+        <div class="container">
+            <h2 class="section-heading">Data</h2>
+            <p class="tree-viz-intro">The <a href="https://huggingface.co/datasets/SWAMBIT/re-polar" target="_blank"
+                    rel="noopener noreferrer">Hugging Face dataset</a> holds every program our searches evaluated
+                (56.6M, 4.6M of them solving their question), the 53.2M generated answers
+                behind them, the trained routers and their test results, the best fixed program per level, and the
+                menu cross-execution.</p>
+            <ul class="data-list">
+                <li><strong>Main track:</strong> our DART-Math split, our search, <button class="prompt-term" data-prompt="oneshot">oneshot</button> prompt;
+                    6 models &times; 3 search seeds &times; 5 difficulty levels &times; 2,000 questions.</li>
+                <li><strong>PoLar split:</strong> Li et al.&rsquo;s released search on their own MATH question sets, with their
+                    <button class="prompt-term" data-prompt="polar_default">polar_default</button> prompt and our
+                    <button class="prompt-term" data-prompt="oneshot">oneshot</button>; 4 models &times; 2 prompts &times; 3 seeds, with 4-fold cross-validated routers and fixed
+                    programs.</li>
+                <li><strong>Cross-checks:</strong> their search on our split and our search on theirs.</li>
+            </ul>
+            <p class="tree-viz-intro">The dataset holds no question text or reference answers, only ids: the MATH
+                half of the question pool traces back to a dataset delisted from Hugging Face amid a disputed
+                ownership claim, so we do not re-host it. The
+                <a href="https://github.com/DATEXIS/RE-PoLar" target="_blank" rel="noopener noreferrer">code</a>
+                rebuilds the questions locally from the public pool.</p>
+        </div>
+    </section>
 
     <section class="citation">
         <div class="container">
             <h2 class="section-heading">Citation</h2>
             <div class="citation-box">
                 <pre id="citation-text">@article{westerhoff2026repolar,
-      title={Programs-of-Layers in LLMs through the Lens of Cortical Areas},
-      author={Westerhoff, Justus and Olbrich, Stephan and Oraby, Hatem and Senn, Walter and Larkum, Matthew Evan and Gers, Felix Alexander},
-      journal={arXiv preprint arXiv:2609.31360},
-      year={2026}
+  title   = {Programs-of-Layers in LLMs through the Lens of Cortical Areas},
+  author  = {Westerhoff, Justus and Olbrich, Stephan and Oraby, Hatem and
+             Senn, Walter and Larkum, Matthew Evan and Gers, Felix Alexander},
+  journal = {arXiv preprint arXiv:2609.31360},
+  year    = {2026}
 }</pre>
                 <button id="copy-citation" class="button">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -246,19 +388,28 @@
     <footer>
         <div class="container">
             <div class="logo-row">
-                <img class="logo-img" src="media/logos/logo_applfm.svg"
-                    alt="Initiative for Applied Foundation Model Research">
-                <img class="logo-img" src="media/logos/logo_niki.png" alt="NI:KI Initiative">
+                <a href="https://foundationmodels.bht-berlin.de/" target="_blank" rel="noopener noreferrer">
+                    <img class="logo-img" src="media/logos/logo_applfm.svg"
+                        alt="Initiative for Applied Foundation Model Research">
+                </a>
+                <a href="https://ni-ki.org/projects/swambit/" target="_blank" rel="noopener noreferrer">
+                    <img class="logo-img" src="media/logos/logo_niki.png" alt="NI:KI Initiative">
+                </a>
                 <a href="https://swambit.github.io/project/" target="_blank" rel="noopener noreferrer">
                     <img class="logo-img" src="media/logos/logo_swambit.svg" alt="SWAMBIT">
                 </a>
-                <img class="logo-img" src="media/logos/logo_bht.svg" alt="Berliner Hochschule f&uuml;r Technik">
-                <img class="logo-img" src="media/logos/logo_hu.svg" alt="Humboldt-Universit&auml;t zu Berlin">
+                <a href="https://www.bht-berlin.de/" target="_blank" rel="noopener noreferrer">
+                    <img class="logo-img" src="media/logos/logo_bht.svg" alt="Berliner Hochschule f&uuml;r Technik">
+                </a>
+                <a href="https://www.hu-berlin.de/" target="_blank" rel="noopener noreferrer">
+                    <img class="logo-img" src="media/logos/logo_hu.svg" alt="Humboldt-Universit&auml;t zu Berlin">
+                </a>
             </div>
             <p>&copy; 2026 Justus Westerhoff, Stephan Olbrich, Berliner Hochschule f&uuml;r Technik (BHT)</p>
         </div>
     </footer>
 
+    <div id="prompt-tip" role="tooltip"></div>
     <script src="script.js"></script>
 </body>
 

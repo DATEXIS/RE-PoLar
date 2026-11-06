@@ -84,19 +84,14 @@ a:hover {
 /* Header */
 .header {
     background-color: var(--background-alt);
-    padding: 50px 0;
+    padding: 0 0 50px;
     text-align: center;
 }
 
-.wip-banner {
-    display: inline-block;
-    margin: 0 auto 1.5rem;
-    padding: 8px 20px;
-    background-color: var(--warning);
-    color: #402400;
-    border-radius: 20px;
-    font-weight: 700;
-    font-size: 0.9rem;
+.status-note {
+    margin-bottom: 1rem;
+    color: var(--text-light);
+    font-size: 0.85rem;
 }
 
 .notice-banner {
@@ -133,6 +128,7 @@ a:hover {
 .header-label {
     font-size: 0.9rem;
     color: var(--text-light);
+    font-style: italic;
     margin-bottom: 0.5rem;
 }
 
@@ -170,7 +166,7 @@ a:hover {
    TL;DR (rgba(255,255,255,0.4) over its purple hero, subtle tinted border),
    just swapped to this page's red accent. */
 .tldr-box {
-    max-width: 560px;
+    max-width: 660px;
     margin: 24px auto 0;
     padding: 14px 20px;
     background: rgba(255, 255, 255, 0.6);
@@ -187,12 +183,8 @@ a:hover {
 
 /* Figure Section */
 .figure {
-    padding: 0 0 10px;
+    padding: 40px 0;
     background-color: var(--background);
-}
-
-.figure .container {
-    padding-top: 0;
 }
 
 .figure-media {
@@ -214,31 +206,23 @@ a:hover {
 
 /* Matches the legend swatches in fig1: keep = magenta bar, repeat = green bar,
    skip = dashed/hollow outline. */
-.figure-caption .kw-skip {
+.kw-skip {
     color: var(--text-dark);
     border-bottom: 1px dashed var(--text-dark);
 }
 
-.figure-caption .kw-keep {
+.kw-keep {
     color: #c026d3;
     font-weight: 600;
 }
 
-.figure-caption .kw-repeat {
+.kw-repeat {
     color: #16a34a;
     font-weight: 600;
 }
 
 /* Section titles -- adapted from hufe.info/dyslexify's h2.section-heading /
-   hr.section-divider pattern (left-aligned, underlined heading + a thin
-   divider between sections), swapped to this page's red accent. */
-hr.section-divider {
-    border: none;
-    border-top: 1px solid var(--border);
-    max-width: 800px;
-    margin: 0 auto;
-}
-
+   pattern (left-aligned, underlined heading), swapped to this page's red accent. */
 .section-heading {
     display: inline-block;
     text-align: left;
@@ -254,6 +238,9 @@ hr.section-divider {
    inside them, so the left-aligned section heading lines up with the text. */
 .abstract .container,
 .tree-viz .container,
+.findings .container,
+.figure .container,
+.data-release .container,
 .citation .container,
 .acknowledgement .container,
 footer .container {
@@ -266,78 +253,212 @@ footer .container {
     background-color: var(--background-alt);
 }
 
-.abstract-details summary {
-    cursor: pointer;
-    list-style: none;
-}
-
-.abstract-details summary::-webkit-details-marker {
-    display: none;
-}
-
-.abstract-preview {
-    display: block;
+.abstract-text {
     max-width: 800px;
     margin: 0 auto;
     text-align: justify;
 }
 
-.toggle-arrow {
-    display: inline-block;
-    margin-left: 0.3rem;
-    color: var(--primary);
-    font-size: 0.75em;
+.abstract-text.collapsed {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
 }
 
-.toggle-arrow::before {
-    content: "\25B8 show more";
-}
-
-.abstract-details[open] .toggle-arrow::before {
-    content: "\25BE show less";
-}
-
-/* When open, the "show less" control moves to the end of the abstract
-   instead of staying at the top next to the preview text. */
-.abstract-details[open] summary .toggle-arrow {
-    display: none;
-}
-
-.abstract-collapse {
-    display: none;
-    text-align: center;
-    margin-top: 1.5rem !important;
-}
-
-.abstract-details[open] .abstract-collapse {
-    display: block;
-}
-
-.toggle-arrow-collapse {
-    font-size: 0.85em;
-}
-
-.abstract-rest p {
+.abstract-toggle {
     max-width: 800px;
-    margin-left: auto;
-    margin-right: auto;
-    margin-top: 1rem;
-    text-align: justify;
-}
-
-.abstract-rest p:first-of-type {
-    margin-top: 1.5rem;
+    margin: 0.5rem auto 0;
+    font-size: 0.85em;
+    text-align: center;
 }
 
 /* Tree Visualizer Section */
 .tree-viz {
     padding: 50px 0;
-    background-color: var(--background);
+    background-color: var(--background-alt);
 }
 
 .tree-viz-intro {
     max-width: 800px;
     text-align: left;
+}
+
+.tree-viz-intro code,
+.data-list code {
+    font-size: 0.9em;
+}
+
+.data-list {
+    max-width: 800px;
+    margin: 0.75rem auto;
+    padding-left: 1.25rem;
+    text-align: left;
+}
+
+.findings,
+.data-release {
+    padding: 40px 0;
+    background-color: var(--background);
+}
+
+.section-intro {
+    margin: 0;
+    color: var(--text-dark);
+}
+
+.findings h3 {
+    margin: 2.25rem 0 0.25rem;
+    font-size: 1.1rem;
+    color: var(--text-dark);
+}
+
+.lead {
+    margin-bottom: 1rem;
+    color: var(--text-light);
+    font-size: 0.92rem;
+}
+
+.small-note {
+    color: var(--text-light);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-bottom: 1.25rem;
+}
+
+.tiles-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.tile {
+    padding: 16px 18px;
+    background-color: var(--background-alt);
+    border-radius: 8px;
+    border-top: 3px solid var(--primary);
+}
+
+.tile-title {
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.tile-stat {
+    margin: 0.2rem 0;
+    font-size: 1.7rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--primary-dark);
+}
+
+.tile p {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--text-light);
+}
+
+.tile code,
+.results-table code {
+    font-size: 0.9em;
+}
+
+/* Same chip as the paper's \ftag */
+.ftag {
+    display: inline-block;
+    padding: 0 5px;
+    background-color: #ebe2fb;
+    border: 1.25px solid #8b5cf6;
+    border-radius: 5px;
+    color: #6638d4;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.76rem;
+    font-weight: 700;
+    line-height: 1.35;
+    white-space: nowrap;
+    vertical-align: 1px;
+}
+
+.mark-yes {
+    color: #007300;
+    font-weight: 700;
+}
+
+.mark-no {
+    color: #990000;
+}
+
+.mark-new {
+    color: #b8860b;
+}
+
+.findings-table .status {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.findings-table th:last-child {
+    text-align: center;
+}
+
+.prompt-term {
+    padding: 0;
+    background: none;
+    border: 0;
+    border-bottom: 1px dotted var(--primary);
+    color: var(--primary-dark);
+    cursor: help;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.9em;
+}
+
+#prompt-tip {
+    display: none;
+    position: fixed;
+    z-index: 10;
+    max-width: min(440px, calc(100vw - 16px));
+    padding: 10px 12px;
+    background-color: #222;
+    border-radius: 6px;
+    box-shadow: var(--box-shadow);
+    color: #fff;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+.table-wrap {
+    overflow-x: auto;
+    margin: 1rem 0;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    text-align: left;
+}
+
+.results-table caption {
+    margin-bottom: 0.5rem;
+    color: var(--text-light);
+    text-align: left;
+}
+
+.results-table td:first-child {
+    white-space: nowrap;
+}
+
+.results-table th,
+.results-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
 }
 
 .tree-viz-frame-wrap {
@@ -369,7 +490,7 @@ footer .container {
 /* Citation Section */
 .citation {
     padding: 50px 0;
-    background-color: var(--background);
+    background-color: var(--background-alt);
 }
 
 .citation-box {
@@ -386,16 +507,18 @@ footer .container {
     background-color: #f0f0f0;
     padding: 20px;
     border-radius: 4px;
-    white-space: pre-wrap;
+    white-space: pre;
+    overflow-x: auto;
     margin-bottom: 0;
     font-family: monospace;
-    font-size: 0.9rem;
+    font-size: 0.82rem;
+    line-height: 1.55;
 }
 
 .citation-box button {
     position: absolute;
-    top: 25px;
-    right: 25px;
+    bottom: 32px;
+    right: 32px;
     background-color: #808080;
     color: white;
     border: none;
@@ -534,7 +657,45 @@ footer p {
         font-size: 0.9rem;
     }
 
-    .tree-viz-frame {
-        height: 70vh;
+    .tiles,
+    .tiles-3 {
+        grid-template-columns: 1fr;
     }
+
+    .tree-viz-frame-wrap {
+        width: 100%;
+        padding: 0 8px;
+    }
+
+    .tree-viz-frame {
+        height: 1500px;
+        max-height: none;
+    }
+}
+
+.findings-table details summary {
+    cursor: pointer;
+}
+
+.findings-table details p {
+    margin: 6px 0 4px;
+    font-size: 0.88rem;
+    color: var(--text-light);
+}
+
+.def-term {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: help;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+}
+
+#prompt-tip.prose {
+    max-width: min(300px, calc(100vw - 16px));
+    font-family: inherit;
+    font-size: 0.8rem;
 }
