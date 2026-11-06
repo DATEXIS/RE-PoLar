@@ -1,4 +1,4 @@
-<h1 align="center">Re-PoLar</h1>
+<h1 align="center">RE-PoLar</h1>
 
 <p align="center">Code and data for <em>"Programs-of-Layers in LLMs through the Lens of Cortical Areas"</em> — a reproduction and extension of <a href="https://arxiv.org/abs/2606.06574">PoLar</a> (Li et al., ICML 2026).</p>
 
@@ -8,7 +8,7 @@
 > Li et al. released their MCTS code on September 28, 2026
 > ([tianyi-lab/PoLar#2](https://github.com/tianyi-lab/PoLar/issues/2)), the same day as our
 > [public comment on PoLar's OpenReview page](https://openreview.net/forum?id=pl10b6EQAN);
-> their MCTS-derived training programs and router checkpoints are not released. This
+> their MCTS-derived training programs and router checkpoints are still not released. This
 > repository now also runs **their search, their prompt and their data split** (paper Appendix B):
 > `--polar-fidelity` reproduces their released search program for program, and
 > `re_polar.datasets.polar_split` rebuilds their question sets. All programs, routers and
@@ -33,7 +33,7 @@ router's gain, we find what drives it:
 - **Under their setup** (their search, prompt and split, run with `--polar-fidelity` on
   `re_polar.datasets.polar_split`), the **router gains by repairing the format of the
   model's answers**, which a single fixed program, selected on validation questions, does
-  better.
+  better, and how much it gains depends strongly on the search seed.
 - **In our setup** (a prompt that already fixes the format, a larger data split and our
   search), the **router's top prediction collapses to the standard pass** on every model and
   seed, although its top-5 programs together still gain. The router outputs the decoded

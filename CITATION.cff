@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this code or data, please cite the paper below."
-title: "Re-PoLar: code and data for \"Programs-of-Layers in LLMs through the Lens of Cortical Areas\""
+title: "RE-PoLar: code and data for \"Programs-of-Layers in LLMs through the Lens of Cortical Areas\""
 type: software
 authors:
   - family-names: Westerhoff

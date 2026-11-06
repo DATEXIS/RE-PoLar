@@ -19,8 +19,9 @@
     --critical-wash: rgba(208,59,59,0.12);
     --op-skip:   #52514e;
     --op-skip-wash: rgba(82,81,78,0.14);
-    --op-repeat: #16a34a;
-    --op-repeat-wash: rgba(22,163,74,0.16);
+    --op-repeat: #96c9a2;
+    --op-repeat-wash: rgba(150,201,162,0.16);
+    --op-keep: #ea9cf0;
     --tooltip-bg: #1a1a19;
     --tooltip-ink: #ffffff;
   }
@@ -34,7 +35,7 @@
       --good: #0ca30c; --good-wash: rgba(12,163,12,0.18);
       --critical: #e66767; --critical-wash: rgba(230,103,103,0.16);
       --op-skip: #c3c2b7; --op-skip-wash: rgba(195,194,183,0.20);
-      --op-repeat: #16a34a; --op-repeat-wash: rgba(22,163,74,0.20);
+      --op-repeat: #96c9a2; --op-repeat-wash: rgba(150,201,162,0.20);
       --tooltip-bg: #fcfcfb; --tooltip-ink: #0b0b0b;
     }
   }
@@ -47,7 +48,7 @@
     --good: #0ca30c; --good-wash: rgba(12,163,12,0.18);
     --critical: #e66767; --critical-wash: rgba(230,103,103,0.16);
     --op-skip: #c3c2b7; --op-skip-wash: rgba(195,194,183,0.20);
-    --op-repeat: #16a34a; --op-repeat-wash: rgba(22,163,74,0.20);
+    --op-repeat: #96c9a2; --op-repeat-wash: rgba(150,201,162,0.20);
     --tooltip-bg: #fcfcfb; --tooltip-ink: #0b0b0b;
   }
   :root[data-theme="light"] {
@@ -59,7 +60,7 @@
     --good: #0ca30c; --good-wash: rgba(12,163,12,0.14); --critical: #d03b3b;
     --critical-wash: rgba(208,59,59,0.12);
     --op-skip: #52514e; --op-skip-wash: rgba(82,81,78,0.14);
-    --op-repeat: #16a34a; --op-repeat-wash: rgba(22,163,74,0.16);
+    --op-repeat: #96c9a2; --op-repeat-wash: rgba(150,201,162,0.16);
     --tooltip-bg: #1a1a19; --tooltip-ink: #ffffff;
   }
 
@@ -77,16 +78,11 @@
 
   .app {
     display: grid;
-    grid-template-columns: 320px 1fr;
-    grid-template-rows: auto auto 1fr;
-    grid-template-areas: "header header" "describe describe" "sidebar canvas";
+    grid-template-columns: 320px minmax(0, 1fr);
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas: "header header" "describe describe" "questions questions" "sidebar canvas";
     height: 100vh; min-height: 700px;
   }
-  @media (max-width: 900px) {
-    .app { grid-template-columns: 1fr; grid-template-rows: auto auto auto 62vh;
-      grid-template-areas: "header" "describe" "sidebar" "canvas"; height: auto; min-height: 100vh; }
-  }
-
   header.top { grid-area: header; padding: 14px 22px 10px; border-bottom: 1px solid var(--border); }
   header.top h1 { margin: 0 0 4px; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
   header.top .sub { margin: 0; color: var(--ink-2); font-size: 12px; max-width: 108ch; }
@@ -108,6 +104,7 @@
   }
   .describe .question { font-size: 14px; line-height: 1.5; color: var(--ink); }
   .describe .gt { margin-top: 6px; font-size: 12px; color: var(--ink-2); }
+  .describe .gt .mono { font-size: 10.5px; color: var(--muted); }
   .describe .gt b { color: var(--ink); font-family: ui-monospace, monospace; font-weight: 600; }
   .gen-card {
     border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px;
@@ -139,11 +136,23 @@
   }
   .model-btn:hover { border-color: var(--border-2); }
   .model-btn.active { border-color: var(--accent); background: var(--accent-wash); color: var(--accent); }
-
-  .tree-picker {
-    display: flex; flex-direction: column; gap: 6px;
-    max-height: 230px; overflow-y: auto; padding-right: 4px;
+  /* run description, shown while a run button is hovered or focused (tap on a phone) */
+  #run-block { position: relative; }
+  .run-tip {
+    display: none; position: absolute; z-index: 20; left: 0; right: 0; top: 100%;
+    margin-top: -4px; padding: 8px 9px; border: 1px solid var(--border);
+    border-radius: 7px; background: var(--page); color: var(--ink-2);
+    font-size: 11.5px; line-height: 1.5;
   }
+  .run-tip.show { display: block; }
+
+  #sample-block {
+    grid-area: questions; display: flex; flex-direction: row; align-items: center; gap: 14px; min-width: 0;
+    padding: 8px 22px; border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  #sample-block h2 { margin: 0; flex: none; }
+  .tree-picker { display: flex; flex: 1; gap: 6px; min-width: 0; overflow-x: auto; padding-bottom: 4px; }
+  .tree-picker .tree-btn { flex: 0 0 236px; }
   .tree-btn {
     text-align: left; border: 1px solid var(--border); background: var(--page); border-radius: 8px;
     padding: 8px 10px; cursor: pointer; color: var(--ink); display: flex; flex-direction: column; gap: 3px;
@@ -203,6 +212,7 @@
   .seg { fill: none; stroke-linecap: round; stroke-width: 1.4px; }
   .seg.good { stroke: color-mix(in srgb, var(--good) 55%, transparent); }
   .seg.critical { stroke: color-mix(in srgb, var(--critical) 55%, transparent); }
+  .seg.open { stroke: var(--muted); stroke-opacity: 0.5; }
   .seg.fallback { stroke-dasharray: 1 4; stroke: var(--muted); opacity: .8; }
   .seg.samelevel { stroke-dasharray: 4 2; stroke: var(--op-repeat); opacity: .85; }
 
@@ -210,6 +220,7 @@
   circle.node-hit { fill: transparent; cursor: pointer; }
   circle.node.good { fill: var(--good-wash); stroke: var(--good); }
   circle.node.critical { fill: var(--critical-wash); stroke: var(--critical); }
+  circle.node.open { fill: none; stroke: var(--muted); }
   circle.node.selected { stroke: var(--accent) !important; stroke-width: 2.6px; }
   circle.node.root { fill: var(--ink); stroke: var(--ink); }
 
@@ -231,8 +242,9 @@
   .prog-strip { display: flex; flex-direction: column; gap: 5px; }
   .prog-strip .bar { display: flex; gap: 1px; }
   .prog-strip .lbox { flex: 1 1 0; height: 16px; border-radius: 1.5px; }
-  .prog-strip .lbox.keep { background: var(--border-2); }
-  .prog-strip .lbox.skip { background: var(--op-skip); }
+  /* same as Figure 1: keep magenta, repeat green, skip a dashed grey box */
+  .prog-strip .lbox.keep { background: var(--op-keep); }
+  .prog-strip .lbox.skip { background: var(--op-skip-wash); border: 1px dashed var(--op-skip); }
   .prog-strip .lbox.repeat { background: var(--op-repeat); }
   .prog-strip .prog-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 10.5px; color: var(--ink-2); }
   .prog-strip .prog-legend span.sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
@@ -283,6 +295,16 @@
     background: var(--page); border: 1px solid var(--border); border-radius: 7px; padding: 8px 9px;
     white-space: pre-wrap; word-break: break-word;
   }
+  /* phone/tablet: run and question pickers above the tree, the rest below it */
+  @media (max-width: 900px) {
+    .app { display: flex; flex-direction: column; height: auto; min-height: 100vh; }
+    .app > .sidebar { display: contents; }
+    .sidebar .block { order: 5; padding: 10px 14px; background: var(--surface); }
+    .describe { order: 1; }
+    #sample-block { order: 2; padding: 10px 14px; flex-direction: column; align-items: stretch; gap: 8px; }
+    #model-block, #run-block, #seed-block { order: 3; }
+    .canvas-wrap { order: 4; flex: none; height: 420px; }
+  }
 </style>
 
 <div class="app">
@@ -290,32 +312,31 @@
 
   <div class="describe" id="describe"></div>
 
+  <div class="block" id="sample-block">
+    <h2>Question</h2>
+    <div class="tree-picker" id="tree-picker"></div>
+  </div>
+
   <div class="sidebar">
     <div class="block" id="model-block" style="display:none">
       <h2>Model</h2>
       <div class="model-picker" id="model-picker"></div>
     </div>
 
-    <div class="block">
-      <h2>Sample</h2>
-      <div class="tree-picker" id="tree-picker"></div>
+    <div class="block" id="run-block" style="display:none">
+      <h2>Run</h2>
+      <div class="model-picker" id="run-picker"></div>
+      <div class="run-tip" id="run-tip"></div>
+    </div>
+
+    <div class="block" id="seed-block" style="display:none">
+      <h2>Seed</h2>
+      <div class="model-picker" id="seed-picker"></div>
     </div>
 
     <div class="block">
       <h2>Programs per level</h2>
       <div class="levels" id="levels"></div>
-    </div>
-
-    <div class="block">
-      <h2>Selected query</h2>
-      <div class="stats" id="stats"></div>
-    </div>
-
-    <div class="block">
-      <h2>View</h2>
-      <div class="controls">
-        <button class="ctrl" id="btn-fit">Fit to view</button>
-      </div>
     </div>
 
     <div class="block" id="traj-block" style="display:none">
@@ -347,7 +368,7 @@
       <button id="zoom-out" title="Zoom out">&minus;</button>
       <button id="zoom-reset" title="Reset">&#8634;</button>
     </div>
-    <div class="hint">drag to pan &middot; scroll/pinch to zoom &middot; click a node to read its edits + answer</div>
+    <div class="hint">drag to pan, scroll to zoom, click a node to read its edits and answer</div>
     <div id="inspector">
       <div class="ins-head">
         <div>
@@ -407,7 +428,15 @@
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
-  function status(node) { return node.is_valid ? 'good' : 'critical'; }
+  function status(node) { return node.is_valid == null ? 'open' : node.is_valid ? 'good' : 'critical'; }
+  function nodeTitle(n, isRoot) {
+    if (isRoot) return 'Identity (0 edits)';
+    if (n.is_valid == null) return 'Not evaluated';
+    return n.is_valid ? '✓ Correct program' : '✗ Incorrect program';
+  }
+  const NO_TEXT = (n) => n.is_valid == null
+    ? '(not evaluated: the search only passed through this program)'
+    : '(no answer text saved for this run)';
   // Mirrors re_polar/mcts/rewards.py's truncate_after_first_boxed + re_polar/vendor/
   // dart_math/eval.py's extract_boxed (brace-depth matching, same escape rule):
   // the REAL grader is fed text truncated right after the FIRST complete
@@ -495,7 +524,8 @@
     visit(tree.root_id, null);
 
     const D = DATA.base_depth;
-    const structWidth = Math.max(leafCounter * COL_W, D * LAYER_BOX_MIN);
+    // fit_leaves is the same across seeds (build.py), so a layer stays in place on a seed switch
+    const structWidth = Math.max(Math.max(leafCounter, tree.fit_leaves || 0) * COL_W, D * LAYER_BOX_MIN);
 
     // Row 1 only: re-anchor each node's x from its plain mean-of-children
     // position to where its one edit actually sits along the model's layer
@@ -582,7 +612,6 @@
       // no text label; hover/click reads the edit instead of cluttering the row.
     }
 
-    renderStats(tree);
     renderLevels(tree);
     applyTransform();
     applyAnimFrame(anim.step);
@@ -621,12 +650,12 @@
   function showTooltip(ev, rec) {
     const n = rec.n;
     const isRoot = rec.parentId === null;
-    const title = isRoot ? 'Identity (0 edits)' : (n.is_valid ? '✓ Correct program' : '✗ Incorrect program');
+    const title = nodeTitle(n, isRoot);
     const ans = shortAnswer(n.text);
     const items = [
       `<li>edits: <span class="t-prog">${escapeHtml(n.edits_label)}</span></li>`,
       `<li>reward: ${n.reward !== null && n.reward !== undefined ? n.reward : '—'}</li>`,
-      `<li>answer: <span class="t-ans">${ans ? escapeHtml(ans) : '(not recovered)'}</span></li>`,
+      `<li>answer: <span class="t-ans">${ans ? escapeHtml(ans) : NO_TEXT(n)}</span></li>`,
     ];
     if (n.parent_fallback) items.push(`<li style="opacity:.85"><b>dashed edge:</b> no ancestor of this exact program was itself saved, even checking every valid re-split (see legend)</li>`);
     else if (n.parent_same_level) items.push(`<li style="opacity:.85"><b>dash-dot edge:</b> its real MCTS parent has the SAME edit count — the search grew an existing skip/repeat run by one layer at a boundary, rather than adding a new edit (see legend)</li>`);
@@ -648,10 +677,8 @@
   function hideTooltip() { tooltip.classList.remove('show'); }
 
   // ---------- per-node program strip: one box per model layer ----------
-  // repeats get the same hue at every count, but stronger opacity the more
-  // times a layer runs (×2 lightest ... ×4 solid), so count is visible at a
-  // glance without needing a different color per value.
-  function repeatOpacity(t) { return Math.max(0.35, Math.min(1, 0.25 + 0.2 * t)); }
+  // ×2 is Figure 1's green, more repeats get a darker green, so the count is visible at a glance
+  function repeatColor(t) { return `color-mix(in srgb, var(--op-repeat), #15803d ${Math.min(75, (t - 2) * 25)}%)`; }
 
   function programStripHtml(n) {
     const D = DATA.base_depth;
@@ -661,15 +688,15 @@
     }
     const usedOps = new Set(state.map(s => s.op));
     const bar = state.map(s => {
-      const style = s.op === 'repeat' ? ` style="opacity:${repeatOpacity(s.times)}"` : '';
+      const style = s.op === 'repeat' ? ` style="background:${repeatColor(s.times)}"` : '';
       return `<div class="lbox ${s.op}" title="${s.op}${s.op === 'repeat' ? ' ×' + s.times : ''}"${style}></div>`;
     }).join('');
-    const legendParts = [`<span><span class="sw" style="background:var(--border-2)"></span>keep</span>`];
-    if (usedOps.has('skip')) legendParts.push(`<span><span class="sw" style="background:var(--op-skip)"></span>skip</span>`);
+    const legendParts = [`<span><span class="sw" style="background:var(--op-keep)"></span>keep</span>`];
+    if (usedOps.has('skip')) legendParts.push(`<span><span class="sw" style="background:var(--op-skip-wash);border:1px dashed var(--op-skip)"></span>skip</span>`);
     if (usedOps.has('repeat')) {
       const times = [...new Set(state.filter(s => s.op === 'repeat').map(s => s.times))].sort((a, b) => a - b);
       for (const t of times) {
-        legendParts.push(`<span><span class="sw" style="background:var(--op-repeat);opacity:${repeatOpacity(t)}"></span>repeat &times;${t}</span>`);
+        legendParts.push(`<span><span class="sw" style="background:${repeatColor(t)}"></span>repeat &times;${t}</span>`);
       }
     }
     return `
@@ -684,8 +711,8 @@
     render();
     const n = rec.n;
     const isRoot = rec.parentId === null;
-    document.getElementById('ins-title').textContent = isRoot ? 'Identity (0 edits)' : (n.is_valid ? '✓ Correct program' : '✗ Incorrect program');
-    document.getElementById('ins-sub').textContent = `edit count ${n.edit_count} · ${n.children.length} child program${n.children.length === 1 ? '' : 's'} extend this one`;
+    document.getElementById('ins-title').textContent = nodeTitle(n, isRoot);
+    document.getElementById('ins-sub').textContent = `edit count ${n.edit_count}, ${n.children.length} child program${n.children.length === 1 ? '' : 's'} extend this one`;
     const body = document.getElementById('ins-body');
     const rewardTxt = (n.reward !== null && n.reward !== undefined) ? n.reward : '—';
     const ans = shortAnswer(n.text);
@@ -702,7 +729,7 @@
       </div>
       <div>
         <div style="font-size:10.5px;color:var(--muted);margin-bottom:3px;">generated text (truncated)</div>
-        <div class="ins-txt">${n.text ? escapeHtml(n.text) : '(not recovered from the answer cache)'}</div>
+        <div class="ins-txt">${n.text ? escapeHtml(n.text) : NO_TEXT(n)}</div>
       </div>
       ${n.parent_fallback ? '<div style="font-size:10.5px;color:var(--muted);">dashed edge: no ancestor of this program was independently saved in this run, even after checking every valid way to re-split its edits. See the header disclosure.</div>' : ''}
       ${n.parent_same_level ? '<div style="font-size:10.5px;color:var(--muted);">dash-dot edge: its real MCTS-search parent (from search_trajectory, not a guess) has the SAME edit count as this program — the search grew an existing skip/repeat run by one layer at a boundary rather than adding a new edit, so depth here doesn\'t advance by exactly one edit. See the header disclosure.</div>' : ''}
@@ -716,18 +743,6 @@
     render();
   });
 
-  function renderStats(tree) {
-    const box = document.getElementById('stats');
-    const pct = tree.n_valid + tree.n_invalid > 0 ? Math.round(100 * tree.n_valid / (tree.n_valid + tree.n_invalid)) : 0;
-    box.innerHTML = `
-      <div class="row"><span class="k">ground truth</span><span class="v mono">${escapeHtml(String(tree.gt_ans))}</span></div>
-      <div class="row"><span class="k">domain</span><span class="v">${escapeHtml(tree.domain || '—')} · L${tree.math_level ?? '?'}</span></div>
-      <div class="row"><span class="k">valid : invalid</span><span class="v">${tree.n_valid} : ${tree.n_invalid} <span style="color:var(--muted);font-weight:500">(${pct}%)</span></span></div>
-      <div class="row"><span class="k">deepest program</span><span class="v">${tree.max_edit_count} edits</span></div>
-      <div class="row"><span class="k">distinct programs</span><span class="v">${Object.keys(tree.nodes).length}</span></div>
-    `;
-  }
-
   function renderLevels(tree) {
     const box = document.getElementById('levels');
     const entries = Object.entries(tree.counts_by_level).sort((a, b) => +a[0] - +b[0]);
@@ -740,20 +755,18 @@
     const box = document.getElementById('describe');
     const root = tree.nodes[tree.root_id] ?? tree.nodes[String(tree.root_id)];
     const idGood = root.is_valid;
-    const baseTag = root.text
-      ? `<span class="tag ${idGood ? 'good' : 'critical'}">${idGood ? '✓ correct' : '✗ incorrect'} · reward ${root.reward}</span>`
-      : '';
+    const baseTag = `<span class="tag ${idGood ? 'good' : 'critical'}">${idGood ? '✓ correct' : '✗ incorrect'}${root.reward != null ? `, reward ${root.reward}` : ''}</span>`;
     box.innerHTML = `
       <div class="col">
         <div class="eyebrow">Question</div>
-        <div class="question">${escapeHtml(tree.question)}</div>
-        <div class="gt">ground truth &rarr; <b>${escapeHtml(String(tree.gt_ans))}</b> &middot; ${escapeHtml(tree.domain || '')}, level ${tree.math_level ?? '?'} &middot; <span class="mono">${escapeHtml(tree.query_id)}</span></div>
+        ${tree.question != null ? `<div class="question">${escapeHtml(tree.question)}</div>` : ''}
+        <div class="gt">${tree.gt_ans != null ? `ground truth: <b>${escapeHtml(String(tree.gt_ans))}</b>, ` : ''}${escapeHtml(tree.domain || '')}, level ${tree.math_level ?? '?'}, <span class="mono">${escapeHtml(tree.query_id)}</span></div>
       </div>
       <div class="col">
-        <div class="eyebrow">What the unedited model generates (identity)</div>
+        <div class="eyebrow">What ${escapeHtml(DATA.model_label)} generates unedited (identity)</div>
         <div class="gen-card">
           ${baseTag}
-          <div class="txt">${root.text ? escapeHtml(root.text) : 'not recovered from the answer cache'}</div>
+          <div class="txt">${root.text ? escapeHtml(root.text) : NO_TEXT(root)}</div>
         </div>
       </div>
     `;
@@ -787,9 +800,8 @@
     if (!layoutCache) return;
     const rect = wrap.getBoundingClientRect();
     const tree = trees[current];
-    const xs = layoutCache.laidOut.map(r => r.x);
-    const maxX = Math.max(...xs, layoutCache.structWidth, 1);
-    const maxY = MARGIN_T + tree.max_edit_count * ROW_H;
+    const maxX = layoutCache.structWidth;
+    const maxY = MARGIN_T + (tree.fit_depth ?? tree.max_edit_count) * ROW_H;
     const kx = (rect.width - 70) / maxX;
     const ky = (rect.height - 60) / maxY;
     const k = Math.max(0.05, Math.min(kx, ky, 2.2));
@@ -836,7 +848,6 @@
   document.getElementById('zoom-in').addEventListener('click', () => { const r = wrap.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.3); });
   document.getElementById('zoom-out').addEventListener('click', () => { const r = wrap.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1 / 1.3); });
   document.getElementById('zoom-reset').addEventListener('click', fitToView);
-  document.getElementById('btn-fit').addEventListener('click', fitToView);
 
   window.addEventListener('resize', () => { renderAxis(); });
 
@@ -954,6 +965,7 @@
   // ---------- picker ----------
   function renderPicker() {
     const box = document.getElementById('tree-picker');
+    const scroll = box.scrollLeft;
     box.innerHTML = '';
     trees.forEach((t, i) => {
       const btn = document.createElement('button');
@@ -974,14 +986,26 @@
       });
       box.appendChild(btn);
     });
+    box.scrollLeft = scroll;
   }
 
-  // ---------- model toggle ----------
-  function switchModel(i) {
+  // ---------- model + run + seed toggle ----------
+  // A run is either embedded (m.trees) or fetched when first selected (m.src, build.py --lazy).
+  async function loadRun(m) {
+    if (m.trees) return;
+    const res = await fetch(m.src);
+    m.trees = (await res.json()).trees;
+  }
+
+  let switchToken = 0;
+  async function switchRun(i) {
+    const token = ++switchToken;
+    await loadRun(MODELS[i]);
+    if (token !== switchToken) return;  // another click came in while this one loaded
+    const sameRun = MODELS[i].model_label === DATA.model_label && MODELS[i].label === DATA.label;
     modelIdx = i;
     DATA = MODELS[modelIdx];
-    trees = DATA.trees;
-    current = 0;
+    trees = DATA.trees;  // same questions in the same order (build.py), so `current` stays
     selectedId = null;
     inspector.classList.remove('show');
     stopAnim(); anim.step = -1;
@@ -990,30 +1014,73 @@
     renderDescribe(trees[current]);
     setupTrajectoryUI();
     render();
-    fitToView();
+    if (sameRun) applyTransform();  // only the seed changed: keep zoom and position to compare
+    else fitToView();
+  }
+
+  function pickerButton(label, active, title, onClick) {
+    const btn = document.createElement('button');
+    btn.className = 'model-btn' + (active ? ' active' : '');
+    btn.textContent = label;
+    btn.title = title;
+    btn.addEventListener('click', onClick);
+    return btn;
   }
 
   function renderModelPicker() {
-    const block = document.getElementById('model-block');
-    const box = document.getElementById('model-picker');
-    if (MODELS.length <= 1) { block.style.display = 'none'; return; }
-    block.style.display = '';
-    box.innerHTML = '';
-    MODELS.forEach((m, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'model-btn' + (i === modelIdx ? ' active' : '');
-      btn.textContent = m.label || m.key;
-      btn.title = `${m.trees.length} sample${m.trees.length === 1 ? '' : 's'}, ${m.base_depth} layers`;
-      btn.addEventListener('click', () => { if (i !== modelIdx) switchModel(i); });
-      box.appendChild(btn);
+    if (MODELS.length <= 1) return;
+    document.getElementById('model-block').style.display = '';
+    document.getElementById('run-block').style.display = '';
+    const modelBox = document.getElementById('model-picker');
+    const runBox = document.getElementById('run-picker');
+    const seedBox = document.getElementById('seed-picker');
+    modelBox.innerHTML = ''; runBox.innerHTML = ''; seedBox.innerHTML = '';
+    const pick = (model, label, seed) => MODELS.findIndex((m) =>
+      m.model_label === model && m.label === label && m.seed === seed);
+    [...new Set(MODELS.map((m) => m.model_label))].forEach((name) => {
+      const first = MODELS.find((m) => m.model_label === name);
+      modelBox.appendChild(pickerButton(name, name === DATA.model_label, `${first.base_depth} layers`, () => {
+        if (name === DATA.model_label) return;
+        // keep the run if this model has it (Qwen2.5-7B and Qwen3-32B have only ours)
+        const same = pick(name, DATA.label, DATA.seed);
+        switchRun(same >= 0 ? same : pick(name, first.label, DATA.seed));
+      }));
     });
+    const here = MODELS.filter((m) => m.model_label === DATA.model_label);
+    [...new Set(here.map((m) => m.label))].forEach((label) => {
+      const sameSeed = pick(DATA.model_label, label, DATA.seed);  // not every run has all seeds
+      const i = sameSeed >= 0 ? sameSeed : MODELS.findIndex((m) => m.model_label === DATA.model_label && m.label === label);
+      const btn = pickerButton(label, label === DATA.label, '', () => {
+        if (i !== modelIdx) switchRun(i);
+      });
+      const tip = document.getElementById('run-tip');
+      const show = () => { tip.textContent = [MODELS[i].about, MODELS[i].prompt_style && `Prompt: ${MODELS[i].prompt_style}.`].filter(Boolean).join(' '); tip.classList.toggle('show', !!tip.textContent); };
+      const hide = () => tip.classList.remove('show');
+      btn.addEventListener('mouseenter', show);
+      btn.addEventListener('focus', show);
+      btn.addEventListener('mouseleave', hide);
+      btn.addEventListener('blur', hide);
+      runBox.appendChild(btn);
+    });
+    const seeds = here.filter((m) => m.label === DATA.label);
+    document.getElementById('seed-block').style.display = seeds.length > 1 ? '' : 'none';
+    seeds.forEach((m) => {
+      seedBox.appendChild(pickerButton(String(m.seed), m === DATA, 'search seed', () => {
+        if (m !== DATA) switchRun(MODELS.indexOf(m));
+      }));
+    });
+    document.getElementById('run-tip').classList.remove('show');
   }
 
-  renderModelPicker();
-  renderPicker();
-  renderDescribe(trees[current]);
-  setupTrajectoryUI();
-  render();
-  requestAnimationFrame(fitToView);
+  document.getElementById('describe').textContent = 'Loading…';
+  loadRun(DATA).then(() => {
+    trees = DATA.trees;
+    renderModelPicker();
+    renderPicker();
+    renderDescribe(trees[current]);
+    setupTrajectoryUI();
+    render();
+    requestAnimationFrame(fitToView);
+  });
 })();
 </script>

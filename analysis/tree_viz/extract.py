@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Turn this repo's own MCTS search results into the tree-data JSON that
 template.html renders (via build.py, or directly with --html). Reads
-data/mcts_results_full/ and data/generated_answers/ (see data/DATA.md).
+data/mcts_results_full/ and data/generated_answers/ (see data/DATA.md), or with
+--released the question-free data/mcts_results/ as downloaded. --questions-dir joins
+the locally rebuilt questions back in on query_id; without it such trees hold none.
 
 Which (diff, sample-index) trees to include:
     --pick DIFF:IDX[:NOTE]     repeatable, e.g. --pick 1:1183:"deep, rescued"
@@ -10,11 +12,15 @@ Which (diff, sample-index) trees to include:
                                 combine with --limit-per-diff for a quick look)
 
 Examples:
-    python analysis/tree_viz/extract.py --model-tag qwen3_8b \\
+    python -m analysis.tree_viz.extract --model-tag qwen3_8b \\
         --all-diff 3 --limit-per-diff 20 --html out.html
 
-    python analysis/tree_viz/extract.py --model-tag qwen3_8b \\
+    python -m analysis.tree_viz.extract --model-tag qwen3_8b \\
         --pick 3:0:"first sample" --output data.json
+
+    python -m analysis.tree_viz.extract --released --data-root data/polar_split \\
+        --questions-dir data/polar_split_questions/pool --model-tag qwen3_8b \\
+        --prompt polar_default --picks-file picks.csv --output data.json
 
 Requires this repo's venv active (`re_polar` importable) — see AGENTS.md.
 """
@@ -74,7 +80,20 @@ def load_picks_file(path: str) -> list[tuple[int, int, str]]:
 
 
 @functools.lru_cache(maxsize=None)
-def load_samples(data_root: str, model_tag: str, diff: int, seed: int = 42) -> tuple:
+def load_samples(
+    data_root: str, model_tag: str, diff: int, seed: int = 42, released: bool = False
+) -> tuple:
+    if released:
+        path = (
+            Path(data_root)
+            / "mcts_results"
+            / model_tag
+            / f"seed{seed}"
+            / f"dart-math-diff-{diff}"
+            / "merged_mcts_samples.json.gz"
+        )
+        with gzip.open(path, "rt") as f:
+            return tuple(json.load(f)["samples"])
     # mcts_results_full/, not mcts_results/ -- the plain data/mcts_results/ dump
     # doesn't carry question/gt_ans (see data/DATA.md); mcts_results_full/ is
     # the query_id-joined version `python -m re_polar.datasets.attach_mcts_questions`
@@ -110,10 +129,19 @@ def load_generation_index(data_root: str, model_tag: str, diff: int, seed: int =
     return index
 
 
+def load_questions(questions_dir: str) -> dict:
+    """{query_id: record} from data/dart_math or data/polar_split_questions/pool."""
+    return {
+        r["query_id"]: r
+        for p in Path(questions_dir).glob("diff*/*.json")
+        for r in json.loads(p.read_text())
+    }
+
+
 def all_picks_for_diff(
-    data_root: str, model_tag: str, diff: int, limit: int | None, seed: int = 42
+    data_root: str, model_tag: str, diff: int, limit: int | None, seed: int = 42, released=False
 ) -> list[tuple[int, int, str]]:
-    n = len(load_samples(data_root, model_tag, diff, seed))
+    n = len(load_samples(data_root, model_tag, diff, seed, released))
     if limit:
         n = min(n, limit)
     return [(diff, i, f"diff{diff} #{i}") for i in range(n)]
@@ -196,8 +224,20 @@ def candidate_parents(edits, max_segment_len):
 # ------------------------------------------------------------- per-tree ----
 
 
-def build_tree(data_root, diff, idx, note, depth, text_cap, model_tag, strict_repeat_2x, seed=42):
-    s = load_samples(data_root, model_tag, diff, seed)[idx]
+def build_tree(
+    data_root,
+    diff,
+    idx,
+    note,
+    depth,
+    text_cap,
+    model_tag,
+    strict_repeat_2x,
+    seed=42,
+    released=False,
+    questions=None,
+):
+    s = load_samples(data_root, model_tag, diff, seed, released)[idx]
     valid = s["final_valid_transitions"]
     invalid = s["final_invalid_transitions"]
     query_id = s["sample_info"]["query_id"]
@@ -219,7 +259,7 @@ def build_tree(data_root, diff, idx, note, depth, text_cap, model_tag, strict_re
                 edit_count=len(k),
                 is_valid=(kind == "valid"),
                 text=(hit["text"][:text_cap] if hit else None),
-                reward=(hit["reward"] if hit else None),
+                reward=(hit["reward"] if hit else float(kind == "valid")),  # no answer log
             )
     if () not in nodes:
         hit = gen_index.get((query_id, tuple(range(depth))))
@@ -228,7 +268,7 @@ def build_tree(data_root, diff, idx, note, depth, text_cap, model_tag, strict_re
             edit_count=0,
             is_valid=(s["initial_transition_metric"] == 1),
             text=(hit["text"][:text_cap] if hit else None),
-            reward=(hit["reward"] if hit else None),
+            reward=(hit["reward"] if hit else s["initial_transition_metric"]),
         )
 
     # Search trajectory (re_polar/mcts/search.py's ProgramMCTS.trajectory):
@@ -270,6 +310,18 @@ def build_tree(data_root, diff, idx, note, depth, text_cap, model_tag, strict_re
         traj_parsed.append((child_key, parent_key, entry.get("reward")))
         if child_key is not None and parent_key is not None and child_key not in real_parent_of:
             real_parent_of[child_key] = parent_key
+
+    # PoLar's search adds every candidate as a child, evaluates one at random and can descend
+    # through the unevaluated ones (search.py, _propose_polar), so a real parent can be
+    # missing from the saved programs. Keep it, unevaluated (is_valid=None), for a real edge.
+    for parent_key in set(real_parent_of.values()) - set(nodes):
+        nodes[parent_key] = dict(
+            edits=list(parent_key),
+            edit_count=len(parent_key),
+            is_valid=None,
+            text=None,
+            reward=None,
+        )
 
     by_count = defaultdict(list)
     for k in nodes:
@@ -369,20 +421,25 @@ def build_tree(data_root, diff, idx, note, depth, text_cap, model_tag, strict_re
             )
 
     max_edit_count = max((r["edit_count"] for r in node_records.values()), default=0)
-    counts_by_level = {lvl: len(by_count[lvl]) for lvl in sorted(by_count)}
+    evaluated = [k for k, rec in nodes.items() if rec["is_valid"] is not None]
+    counts_by_level = {
+        lvl: sum(len(k) == lvl for k in evaluated) for lvl in sorted({len(k) for k in evaluated})
+    }
     info = s["sample_info"]
+    q = questions[query_id] if questions else s
     tree = dict(
         label=f"diff{diff} #{idx}",
         note=note,
         diff=diff,
         idx=idx,
         query_id=query_id,
-        question=s.get("question"),
-        gt_ans=s.get("gt_ans"),
+        question=q.get("question"),
+        gt_ans=q.get("gt_ans"),
         math_level=info.get("math_level"),
         domain=info.get("domain"),
         n_valid=len(valid),
         n_invalid=len(invalid),
+        n_programs=len(evaluated),
         root_id=id_of[()],
         max_edit_count=max_edit_count,
         counts_by_level=counts_by_level,
@@ -416,6 +473,19 @@ def main() -> None:
     ap.add_argument(
         "--seed", type=int, default=42, help="search seed of the trees (42, 1 or 7; default 42)"
     )
+    ap.add_argument("--prompt", help="prompt subdir of a PoLar-split run, e.g. oneshot")
+    ap.add_argument(
+        "--released",
+        action="store_true",
+        help="read the question-free mcts_results/ (.json.gz) instead of mcts_results_full/",
+    )
+    ap.add_argument(
+        "--questions-dir", help="join questions from here on query_id (see load_questions)"
+    )
+    ap.add_argument("--label", help="name of these trees in the viewer's run picker (build.py)")
+    ap.add_argument("--model-label", help="model name in the viewer's model picker (build.py)")
+    ap.add_argument("--about", help="what this run is, shown under the viewer's run picker")
+    ap.add_argument("--prompt-style", help="this run's prompt name, shown in the run's description")
     ap.add_argument(
         "--depth",
         type=int,
@@ -442,13 +512,14 @@ def main() -> None:
     )
     args = ap.parse_args()
     depth = args.depth or MODEL_REGISTRY[args.model_tag]["num_layers"]
+    run = f"{args.model_tag}/{args.prompt}" if args.prompt else args.model_tag
 
     picks = list(args.pick)
     if args.picks_file:
         picks += load_picks_file(args.picks_file)
     for diff in args.all_diff:
         picks += all_picks_for_diff(
-            args.data_root, args.model_tag, diff, args.limit_per_diff, args.seed
+            args.data_root, run, diff, args.limit_per_diff, args.seed, args.released
         )
 
     if not picks:
@@ -456,6 +527,7 @@ def main() -> None:
     if not args.output and not args.html:
         ap.error("nothing to do — pass --output and/or --html")
 
+    questions = load_questions(args.questions_dir) if args.questions_dir else None
     trees = [
         build_tree(
             args.data_root,
@@ -464,13 +536,22 @@ def main() -> None:
             note,
             depth,
             args.text_cap,
-            args.model_tag,
+            run,
             args.strict_repeat_2x,
             args.seed,
+            args.released,
+            questions,
         )
         for diff, idx, note in picks
     ]
-    data_json = json.dumps(dict(base_depth=depth, trees=trees))
+    run_info = dict(
+        model_label=args.model_label or args.model_tag,
+        label=args.label,
+        seed=args.seed,
+        about=args.about,
+        prompt_style=args.prompt_style,
+    )
+    data_json = json.dumps(dict(run_info, base_depth=depth, trees=trees))
 
     if args.output:
         Path(args.output).write_text(data_json)
