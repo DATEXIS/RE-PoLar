@@ -44,8 +44,8 @@
             <p class="status-note">Paper under review</p>
             <div class="notice-banner">
                 <strong>Update (November 2026):</strong> RE-PoLar now also runs
-                <strong>their search, their prompt and their data split</strong> (Appendix B of version 2
-                of our paper, on arXiv soon).
+                <strong>their search, their prompt and their data split</strong> (Appendix B of
+                <a href="https://arxiv.org/abs/2609.31360v2">version 2 of our paper</a>).
                 Li et al. released their MCTS code on September 28, 2026
                 (<a href="https://github.com/tianyi-lab/PoLar/issues/2">tianyi-lab/PoLar#2</a>), the same day as our
                 <a href="https://openreview.net/forum?id=pl10b6EQAN">public comment on PoLar's OpenReview page</a>;
@@ -166,32 +166,32 @@
     <section class="findings">
         <div class="container">
             <h2 class="section-heading">Main Findings</h2>
-            <p class="section-intro">Three results stand out. Under Li et al.&rsquo;s setup, the router&rsquo;s gain is a format
-                repair. In our setup, the router collapses to the standard pass. And programs that solve far more
-                questions do exist, but a router that picks a better one per input remains to be found.</p>
+            <p class="section-intro">Three results stand out:</p>
+            <ol class="section-intro-list">
+                <li>Under Li et al.&rsquo;s setup, the router&rsquo;s gain is a format repair.</li>
+                <li>In our setup, the router collapses to the standard pass.</li>
+                <li>Programs that solve far more questions do exist, but a router that picks a better one per input
+                    remains to be found.</li>
+            </ol>
 
-            <h3>Under Li et al.&rsquo;s setup, the router repairs a format error</h3>
+            <h3>1. Under Li et al.&rsquo;s setup, the router repairs a format error</h3>
             <p class="lead">Their search, their prompt, their split with 4 models and 3 search seeds.</p>
             <div class="tiles">
                 <div class="tile">
                     <div class="tile-title">Format repair, not reasoning <span class="ftag">F8</span></div>
-                    <div class="tile-stat">43.8%</div>
-                    <p>of Qwen3-8B&rsquo;s answers under their prompt are the literal placeholder <code>\boxed{ANSWER}</code>; Qwen2.5-3B runs out of tokens before writing a box. All router gains come from these questions.</p>
+                    <p><span class="tile-stat">43.8%</span> of Qwen3-8B&rsquo;s answers under their prompt are the literal placeholder <code>\boxed{ANSWER}</code>; Qwen2.5-3B runs out of tokens before writing a box. All router gains come from these questions.</p>
                 </div>
                 <div class="tile">
                     <div class="tile-title">One fixed program does better <span class="ftag">F8</span></div>
-                    <div class="tile-stat">+43 vs. +7</div>
-                    <p>points for one program on every input vs. the router (Qwen2.5-3B, DM-1). It gains more wherever the router gains.</p>
+                    <p><span class="tile-stat">+43 vs. +7</span> points for one program on every input vs. the router (Qwen2.5-3B, DM-1). It gains more wherever the router gains.</p>
                 </div>
                 <div class="tile">
                     <div class="tile-title">One example removes the gain</div>
-                    <div class="tile-stat">0.9% &rarr; 54.2%</div>
-                    <p>For Qwen2.5-3B on DM-1, with <button class="prompt-term" data-prompt="oneshot">oneshot</button> instead of <button class="prompt-term" data-prompt="polar_default">polar_default</button>. With the format fixed, neither router nor fixed program gains on any model.</p>
+                    <p><span class="tile-stat">0.9% &rarr; 54.2%</span> for Qwen2.5-3B on DM-1, with <button class="prompt-term" data-prompt="oneshot">oneshot</button> instead of <button class="prompt-term" data-prompt="polar_default">polar_default</button>. With the format fixed, neither router nor fixed program gains on any model.</p>
                 </div>
                 <div class="tile">
                     <div class="tile-title">The gain depends on the seed</div>
-                    <div class="tile-stat">+0.7 to +13.5</div>
-                    <p>points on Qwen2.5-3B DM-2 across search seeds. Their code starts every question from the same seed, so a few edits dominate the training labels.</p>
+                    <p><span class="tile-stat">+0.7 to +13.5</span> points on Qwen2.5-3B DM-2 across search seeds. Their code starts every question from the same seed, so a few edits dominate the training labels.</p>
                 </div>
             </div>
             <div class="table-wrap">
@@ -204,13 +204,13 @@
                     </thead>
                     <tbody>
                         <tr><td>Qwen2.5-3B, DM-2</td><td><button class="prompt-term" data-prompt="polar_default">polar_default</button></td><td>0.7</td>
-                            <td>+7.2 / +13.5 / +0.7</td><td>+23.1 / +29.9 / +27.6</td></tr>
+                            <td><span class="delta" style="background-color:rgb(181,255,181)">+7.2</span> / <span class="delta" style="background-color:rgb(117,255,117)">+13.5</span> / <span class="delta" style="background-color:rgb(247,255,247)">+0.7</span></td><td><span class="delta" style="background-color:rgb(102,255,102)">+23.1</span> / <span class="delta" style="background-color:rgb(102,255,102)">+29.9</span> / <span class="delta" style="background-color:rgb(102,255,102)">+27.6</span></td></tr>
                         <tr><td>Qwen3-8B, DM-1</td><td><button class="prompt-term" data-prompt="polar_default">polar_default</button></td><td>42.8</td>
-                            <td>+1.4 / +1.6 / &minus;6.9</td><td>+9.4 / +6.7 / +8.7</td></tr>
+                            <td><span class="delta" style="background-color:rgb(240,255,240)">+1.4</span> / <span class="delta" style="background-color:rgb(240,255,240)">+1.6</span> / <span class="delta" style="background-color:rgb(255,184,184)">&minus;6.9</span></td><td><span class="delta" style="background-color:rgb(158,255,158)">+9.4</span> / <span class="delta" style="background-color:rgb(186,255,186)">+6.7</span> / <span class="delta" style="background-color:rgb(166,255,166)">+8.7</span></td></tr>
                         <tr><td>Qwen2.5-3B, DM-2</td><td><button class="prompt-term" data-prompt="oneshot">oneshot</button></td><td>36.9</td>
-                            <td>&minus;3.7 / &minus;3.7 / &minus;3.2</td><td>&minus;3.2 / &minus;4.4 / &minus;3.4</td></tr>
+                            <td><span class="delta" style="background-color:rgb(255,217,217)">&minus;3.7</span> / <span class="delta" style="background-color:rgb(255,217,217)">&minus;3.7</span> / <span class="delta" style="background-color:rgb(255,222,222)">&minus;3.2</span></td><td><span class="delta" style="background-color:rgb(255,222,222)">&minus;3.2</span> / <span class="delta" style="background-color:rgb(255,209,209)">&minus;4.4</span> / <span class="delta" style="background-color:rgb(255,219,219)">&minus;3.4</span></td></tr>
                         <tr><td>Qwen3-8B, DM-1</td><td><button class="prompt-term" data-prompt="oneshot">oneshot</button></td><td>65.8</td>
-                            <td>&minus;1.1 / &minus;1.9 / &minus;15.9</td><td>&minus;4.4 / &minus;4.6 / &minus;1.6</td></tr>
+                            <td><span class="delta" style="background-color:rgb(255,245,245)">&minus;1.1</span> / <span class="delta" style="background-color:rgb(255,235,235)">&minus;1.9</span> / <span class="delta" style="background-color:rgb(255,102,102)">&minus;15.9</span></td><td><span class="delta" style="background-color:rgb(255,209,209)">&minus;4.4</span> / <span class="delta" style="background-color:rgb(255,209,209)">&minus;4.6</span> / <span class="delta" style="background-color:rgb(255,240,240)">&minus;1.6</span></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -219,47 +219,40 @@
                 below them (DM-2: at most +1.3 against their +12.1). We would love to understand this gap, but Li et al.&rsquo;s
                 training programs and router checkpoints are still not released, so we cannot check it.</p>
 
-            <h3>In our setup, the router collapses to the standard pass</h3>
+            <h3>2. In our setup, the router collapses to the standard pass</h3>
             <p class="lead">A prompt that already fixes the format, a larger data split and our search.</p>
             <div class="tiles tiles-3">
                 <div class="tile">
                     <div class="tile-title">Top prediction: the standard pass <span class="ftag">F8</span></div>
-                    <div class="tile-stat">90 of 90</div>
-                    <p>model, level and seed cells, also with their released training code. We were not able to train an uncollapsed router that improves on the pretrained LLM by rerouting its layers: no anti-collapse lever, ours or in their code, breaks the collapse without a real accuracy cost.</p>
+                    <p><span class="tile-stat">90 of 90</span> model, level and seed cells, also with their released training code. We were not able to train an uncollapsed router that improves on the pretrained LLM by rerouting its layers: no anti-collapse lever, ours or in their code, breaks the collapse without a real accuracy cost.</p>
                 </div>
                 <div class="tile">
                     <div class="tile-title">It learns no per-input choice <span class="ftag">F8</span></div>
-                    <div class="tile-stat">80&ndash;90%</div>
-                    <p>of the per-layer labels are <em>keep</em>, although identity is only 2&ndash;7% of the training programs. The decoded average of these labels is identity; with their search, one dominant edit. The search decides whether it collapses, the prompt whether it then gains.</p>
+                    <p><span class="tile-stat">80&ndash;90%</span> of the per-layer labels are <em>keep</em>, although identity is only 2&ndash;7% of the training programs. The decoded average of these labels is identity; with their search, one dominant edit. The search decides whether it collapses, the prompt whether it then gains.</p>
                 </div>
                 <div class="tile">
                     <div class="tile-title">Its top-5 is a small fixed menu <span class="ftag">F9</span></div>
-                    <div class="tile-stat">6&ndash;24</div>
-                    <p>distinct programs across all its top-5 sets, out of up to 500. Together they still gain, but not by choosing per input: the gain comes from beam-search diversity, and the router never ranks a correct non-identity program first.</p>
+                    <p><span class="tile-stat">6&ndash;24</span> distinct programs across all its top-5 sets, out of up to 500. Together they still gain, but not by choosing per input: the gain comes from beam-search diversity, and the router never ranks a correct non-identity program first.</p>
                 </div>
             </div>
 
-            <h3>Beyond reproduction: the programs exist, picking them is open</h3>
+            <h3>3. Beyond reproduction: the programs exist, picking them is open</h3>
             <div class="tiles">
                 <div class="tile">
                     <div class="tile-title">A small menu solves far more <span class="ftag">F5</span></div>
-                    <div class="tile-stat">2.6&times;</div>
-                    <p>as many questions solved by the 100 most successful programs of a level as by identity alone (72% vs. 28%, mean over 6 models and 5 levels; 65&ndash;84% per model).</p>
+                    <p><span class="tile-stat">2.6&times;</span> as many questions solved by the 100 most successful programs of a level as by identity alone (72% vs. 28%, mean over 6 models and 5 levels; 65&ndash;84% per model).</p>
                 </div>
                 <div class="tile">
                     <div class="tile-title">Close answers get rescued <span class="ftag">F6</span></div>
-                    <div class="tile-stat">~1.5&times;</div>
-                    <p>more <button class="def-term" data-tip="A program is rescuing for a question if the standard pass answers it wrong but the program answers it right.">rescues</button> for a wrong answer that is numerically or structurally close to the ground truth than for an unrelated one, in every model. This suggests that programs mostly adjust an answer the model has nearly reached, rather than add new reasoning.</p>
+                    <p><span class="tile-stat">~1.5&times;</span> more <button class="def-term" data-tip="A program is rescuing for a question if the standard pass answers it wrong but the program answers it right.">rescues</button> for a wrong answer that is numerically or structurally close to the ground truth than for an unrelated one, in every model. This suggests that programs mostly adjust an answer the model has nearly reached, rather than add new reasoning.</p>
                 </div>
                 <div class="tile">
                     <div class="tile-title">Programs are fragile <span class="ftag">F7</span></div>
-                    <div class="tile-stat">45&ndash;67%</div>
-                    <p>of the edits in <button class="def-term" data-tip="A program is rescuing for a question if the standard pass answers it wrong but the program answers it right.">rescuing</button> programs are essential: undoing one breaks the program.</p>
+                    <p><span class="tile-stat">45&ndash;67%</span> of the edits in <button class="def-term" data-tip="A program is rescuing for a question if the standard pass answers it wrong but the program answers it right.">rescuing</button> programs are essential: undoing one breaks the program.</p>
                 </div>
                 <div class="tile">
                     <div class="tile-title">Rescues by answer position <span class="ftag">F10</span></div>
-                    <div class="tile-stat">94.2% &rarr; 17.7%</div>
-                    <p>accuracy of MMLU-Pro <button class="def-term" data-tip="A program is rescuing for a question if the standard pass answers it wrong but the program answers it right.">rescuing</button> programs once the answer options are reshuffled, near random guessing: they follow the position of the correct option, not its content. A gain should pass such a robustness test before it counts as a capability gain.</p>
+                    <p><span class="tile-stat">94.2% &rarr; 17.7%</span> accuracy of MMLU-Pro <button class="def-term" data-tip="A program is rescuing for a question if the standard pass answers it wrong but the program answers it right.">rescuing</button> programs once the answer options are reshuffled, near random guessing: they follow the position of the correct option, not its content. A gain should pass such a robustness test before it counts as a capability gain.</p>
                 </div>
             </div>
             <img class="figure-media" src="media/figures/menu_coverage_by_model.png"
