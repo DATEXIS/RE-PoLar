@@ -58,9 +58,10 @@ def _grade_worker_init(mem_bytes: int) -> None:
     from re_polar.vendor.dart_math.eval import EvaluatorMath
 
     # strict_extract=True as in PoLar eval.py (EvaluatorMathBatch(strict_extract=True)), but
-    # EvaluatorMath.extract_ans ignores it and still falls back to the last number when there is
-    # no \boxed{} (pinned by tests/test_grader_matches_polar.py). The RLIMIT_AS cap below, not
-    # strict_extract, is what keeps a giant expression from collapsed output from hurting the job.
+    # EvaluatorMath.extract_ans ignores it: without a \boxed{} it would fall back to the last
+    # number (pinned by tests/test_grader_matches_polar.py). That fallback is never reached here,
+    # because _safe_grade returns 0 for text without "oxed{" first (as PoLar eval.py does), and
+    # with a box present extract_ans takes the last boxed span either way.
     _WORKER_EV = EvaluatorMath(strict_extract=True)
     # KNOWN GRADER BUG, kept on purpose: identical grading to PoLar's own copy of the vendored
     # grader (which we want to stay byte-identical). EvaluatorMath.eq step 3.1
