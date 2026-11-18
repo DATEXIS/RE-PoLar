@@ -38,3 +38,15 @@ def test_strict_extract_true_and_false_give_identical_extraction():
         "needs to change to match re_polar/core/grader.py's strict_extract=True path, "
         "now that the two could behave differently"
     )
+
+
+def test_caret_is_xor_known_bug():
+    """Documented grader bug kept for fidelity with PoLar's identical grader: `^` between integers
+    is Python XOR in EvaluatorMath.eq step 3.1 (see re_polar/core/grader.py). If this fails, the
+    vendored grader no longer grades like PoLar's, and grades from before and after the change are
+    not comparable."""
+    from re_polar.vendor.dart_math.eval import EvaluatorMath
+
+    ev = EvaluatorMath(strict_extract=True)
+    assert ev.eq("21", "16^5")
+    assert ev.eq("1048576", "16^5")

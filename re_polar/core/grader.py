@@ -57,10 +57,19 @@ def _grade_worker_init(mem_bytes: int) -> None:
     global _WORKER_EV
     from re_polar.vendor.dart_math.eval import EvaluatorMath
 
-    # strict_extract=True: only the \boxed{} span is parsed (PoLar eval.py uses
-    # EvaluatorMathBatch(strict_extract=True)). No last-number fallback over the
-    # whole generation -> collapsed babble can't feed a giant expression to sympy.
+    # strict_extract=True as in PoLar eval.py (EvaluatorMathBatch(strict_extract=True)), but
+    # EvaluatorMath.extract_ans ignores it and still falls back to the last number when there is
+    # no \boxed{} (pinned by tests/test_grader_matches_polar.py). The RLIMIT_AS cap below, not
+    # strict_extract, is what keeps a giant expression from collapsed output from hurting the job.
     _WORKER_EV = EvaluatorMath(strict_extract=True)
+    # KNOWN GRADER BUG, kept on purpose: identical grading to PoLar's own copy of the vendored
+    # grader (which we want to stay byte-identical). EvaluatorMath.eq step 3.1
+    # (re_polar/vendor/dart_math/eval.py:909-910) calls sympy parse_expr without `convert_xor`, so
+    # `^` between integers is Python XOR: eq("21", "16^5") is True (16 XOR 5 = 21).
+    # False positives only (that step can only return "equal"). Measured on Qwen3-8B, PoLar split
+    # DM-1 train (565 questions), `oneshot` prompt, 156 fixed programs: 1 of 88,140 graded
+    # generations was wrongly graded correct (an integer `a^b` answer whose a**b is not the gt).
+    # Pinned by tests/test_grader_matches_polar.py::test_caret_is_xor_known_bug.
     try:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
         resource.setrlimit(resource.RLIMIT_AS, (mem_bytes, hard))
