@@ -29,12 +29,11 @@ def _safe_grade(evaluator, ref: str, resp_text: str) -> bool:
     unboxed babble; the gate turns every one of them into an instant 0 with
     no symbolic work).
 
-    A boxed-but-still-pathological answer (giant expression *inside* the box)
-    can still reach sympy; that residual case is contained by the surrounding
-    process pool's memory + time caps, not here.
-
-    ``evaluator`` must be strict-extract (see _grade_worker_init) so only the
-    boxed span is parsed, never a last-number fallback over the whole text."""
+    A boxed generation can still hand a pathological string to sympy (a giant
+    expression inside the box, or the free text after a box that
+    extract_explicit_ans keeps instead of it, see _grade_worker_init); that
+    residual case is contained by the surrounding process pool's memory + time
+    caps, not here."""
     if "oxed{" not in resp_text:  # matches PoLar eval.py: `if "oxed{" not in answer_part`
         return False
     try:
@@ -60,8 +59,10 @@ def _grade_worker_init(mem_bytes: int) -> None:
     # strict_extract=True as in PoLar eval.py (EvaluatorMathBatch(strict_extract=True)), but
     # EvaluatorMath.extract_ans ignores it: without a \boxed{} it would fall back to the last
     # number (pinned by tests/test_grader_matches_polar.py). That fallback is never reached here,
-    # because _safe_grade returns 0 for text without "oxed{" first (as PoLar eval.py does), and
-    # with a box present extract_ans takes the last boxed span either way.
+    # because _safe_grade returns 0 for text without "oxed{" first (as PoLar eval.py does).
+    # KNOWN GRADER QUIRK, also kept for fidelity: a "Therefore", "####" or "# Answer" after a
+    # single box makes the grader skip the box, see re_polar/mcts/rewards.py::
+    # truncate_after_first_boxed.
     _WORKER_EV = EvaluatorMath(strict_extract=True)
     # KNOWN GRADER BUG, kept on purpose: identical grading to PoLar's own copy of the vendored
     # grader (which we want to stay byte-identical). EvaluatorMath.eq step 3.1

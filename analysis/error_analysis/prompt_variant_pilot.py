@@ -284,13 +284,12 @@ def grade_all_pooled(refs: List[str], texts: List[str], workers: int = 4) -> Lis
     (re_polar/mcts/rewards.py) already uses for MCTS reward grading -- instead of calling
     the grader directly in this process.
 
-    Why this matters at full-corpus scale: EvaluatorMath.extract_ans's
-    strict_extract behavior (deliberately NOT patched, to preserve
-    reproduction fidelity with PoLar's own identically-behaved grader) means
-    even a boxed generation can fall through to a "last number in the whole
-    response" speculative extraction; occasionally that speculated "number"
-    is a giant expression whose sympy comparison tries to allocate tens of
-    GB (see re_polar/core/grader.py's own docstring). Calling the grader in-process
+    Why this matters at full-corpus scale: even a boxed generation can hand
+    sympy a giant expression, either inside the box or as the free text after
+    a "Therefore"/"####"/"# Answer" marker that the vendored grader grades
+    instead of the box (deliberately NOT patched, to preserve reproduction
+    fidelity with PoLar's identical grader; see re_polar/core/grader.py), and
+    its sympy comparison can try to allocate tens of GB. Calling the grader in-process
     has no guard against that. Every grade here instead runs in its own
     worker with an 8GB RLIMIT_AS cap and a 5s timeout (GRADE_MEM_BYTES/
     GRADE_TIMEOUT_S, re_polar/mcts/rewards.py) -- a pathological answer is

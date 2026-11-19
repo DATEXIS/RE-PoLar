@@ -438,7 +438,19 @@ def truncate_after_first_boxed(text: str) -> str:
     MCTS run using `--prompt-style paper_minimal_fewshot` hit the identical
     failure at scale: diff1's round-1 (identity-only) solved count was
     7/1500 instead of the ~30%+ the earlier investigation's own 36.5%
-    accuracy number implied."""
+    accuracy number implied.
+
+    KNOWN GRADER QUIRK, kept for fidelity with PoLar (whose eval.py grades the whole
+    answer with the same vendored grader and cuts nothing): because a single span is
+    not cut, any text after it reaches the grader, and EvaluatorBase.extract_explicit_ans
+    (re_polar/vendor/dart_math/eval.py:149-154) first keeps only the text after the last
+    "herefore", "####" or "# Answer". If such a marker follows the box, the box is
+    dropped and the text after the marker is graded instead: "\\boxed{17}. Therefore the
+    answer is 99" is graded as 99. Measured on 3.97M boxed generations of our runs: 0.9%
+    have such a marker after their only box, and about 0.1% get a different reward than
+    grading the box alone would give (mostly correct answers graded wrong). Pinned by
+    tests/test_grader_matches_polar.py::test_marker_after_box_overrides_box_known_quirk.
+    """
     if text.count("oxed{") < 2:
         return text
     prefix, rest = text.split("oxed{", 1)
